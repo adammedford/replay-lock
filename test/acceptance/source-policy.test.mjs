@@ -157,6 +157,8 @@ function makeFunction(): (value: number) => number {
   return (value) => value + 9;
 }
 
+type NumberFunction = (value: number) => number;
+
 const selectLocal = true;
 
 /** @replaylock capture */
@@ -172,6 +174,9 @@ export const factoryResult = makeFunction();
 
 /** @replaylock capture */
 export const conditional = selectLocal ? local : makeFunction();
+
+/** @replaylock capture */
+export const asserted = <NumberFunction>local;
 
 /** @replaylock capture */
 export default function defaulted(value: number): number {
@@ -233,6 +238,7 @@ if (false) {
 export const unannotatedIndirect = local;
 `,
     test: `import defaulted, {
+  asserted,
   asynchronous,
   conditional,
   Container,
@@ -249,6 +255,7 @@ export const unannotatedIndirect = local;
 
 test("unsupported shapes retain their ordinary behavior", () => {
   expect(eligible(1)).toBe(2);
+  expect(asserted(1)).toBe(11);
   expect(indirect(1)).toBe(11);
   expect(factoryResult(1)).toBe(10);
   expect(conditional(1)).toBe(11);
@@ -269,7 +276,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   try {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
-    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 13, output(result));
+    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 14, output(result));
     assert.doesNotMatch(output(result), /INVALID_POLICY/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 

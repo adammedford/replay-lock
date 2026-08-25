@@ -305,6 +305,7 @@ function isIndirectOrFunctionInitializer(expression: ts.Expression): boolean {
   if (
     ts.isParenthesizedExpression(expression) ||
     ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
     ts.isSatisfiesExpression(expression) ||
     ts.isNonNullExpression(expression)
   ) {
