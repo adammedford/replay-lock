@@ -15,7 +15,7 @@ test("source policy captures supported direct exports and excludes all other cal
   const project = await makeProject({
     source: `/**
  * @replaylock capture
- * @replaylock assume-pure reviewed numeric dependency
+ * @replaylock assume-pure reviewed numeric {@link dependency}
  */
 export function declared(value: number): number {
   return value + 1;
@@ -29,7 +29,7 @@ export const expressed = function (value: number): number {
 /** @replaylock capture */
 export const arrowed = (value: number): number => value - 3;
 
-/** @replaylock exclude intentionally outside characterization scope */
+/** @replaylock exclude intentionally outside {@link characterizationScope} */
 export function excluded(value: number): number {
   return value / 2;
 }

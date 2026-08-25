@@ -221,7 +221,7 @@ function parseSourcePolicy(tags: readonly ts.JSDocTag[]): {
   const errors: string[] = [];
 
   for (const tag of tags) {
-    const comment = typeof tag.comment === "string" ? tag.comment.trim() : "";
+    const comment = jsDocCommentText(tag.comment).trim();
     const separator = comment.search(/\s/);
     const directive = separator < 0 ? comment : comment.slice(0, separator);
     const reason = separator < 0 ? "" : comment.slice(separator).trim();
@@ -255,6 +255,12 @@ function parseSourcePolicy(tags: readonly ts.JSDocTag[]): {
   }
 
   return { policy, errors };
+}
+
+function jsDocCommentText(comment: ts.JSDocTag["comment"]): string {
+  if (typeof comment === "string") return comment;
+  if (!comment) return "";
+  return comment.map((part) => part.getText()).join("");
 }
 
 function isUnsupportedCallableShape(node: ts.Node): boolean {
