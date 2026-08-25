@@ -14,6 +14,7 @@ import {
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { resolveCallableModuleLocator } from "./callable-locator.js";
 import {
   artifactJson,
   atomicWrite,
@@ -151,7 +152,20 @@ async function verify(): Promise<number> {
 
   const cases: CaseArtifact[] = [];
   for (const filename of caseFiles) {
-    cases.push(parseCase(await readFile(path.join(caseDirectory, filename), "utf8")));
+    const artifact = parseCase(await readFile(path.join(caseDirectory, filename), "utf8"));
+    const locatorResolution = resolveCallableModuleLocator(
+      root,
+      path.join(root, artifact.locator.module),
+    );
+    if (!locatorResolution.ok || locatorResolution.locator !== artifact.locator.module) {
+      const message = locatorResolution.ok
+        ? "callable module locator is not canonical"
+        : locatorResolution.message;
+      throw new Error(
+        `ORPHANED_CALLABLE ${artifact.locator.module}#${artifact.locator.exportName}: ${message}`,
+      );
+    }
+    cases.push(artifact);
   }
 
   const verificationDirectory = path.join(root, ".replaylock", "verify", randomUUID());
@@ -196,42 +210,58 @@ async function verify(): Promise<number> {
 }
 
 async function readObservations(sessionDirectory: string, token: string) {
-  const filenames = (await readdir(sessionDirectory))
-    .filter((name) => name.startsWith("worker-") && name.endsWith(".jsonl"))
-    .sort();
-  const observations = [];
-  for (const filename of filenames) {
-    const contents = await readFile(path.join(sessionDirectory, filename), "utf8");
-    for (const line of contents.split("\n")) {
-      if (line.length === 0) continue;
-      const observation = validateObservation(JSON.parse(line) as unknown);
-      if (observation.token === token) observations.push(observation);
-    }
-  }
-  return observations;
+  const observations = await readSessionJsonLines(
+    sessionDirectory,
+    "worker-",
+    validateObservation,
+  );
+  return observations.filter((observation) => observation.token === token);
 }
 
 async function readSourceDiagnostics(sessionDirectory: string): Promise<SourceDiagnostic[]> {
-  const filenames = (await readdir(sessionDirectory))
-    .filter((name) => name.startsWith("diagnostics-") && name.endsWith(".jsonl"))
-    .sort();
+  const sourceDiagnostics = await readSessionJsonLines(
+    sessionDirectory,
+    "diagnostics-",
+    validateSourceDiagnostic,
+  );
   const diagnostics = new Map<string, SourceDiagnostic>();
+  for (const diagnostic of sourceDiagnostics) {
+    diagnostics.set(JSON.stringify(diagnostic), diagnostic);
+  }
+  return [...diagnostics.values()].sort(compareSourceDiagnostics);
+}
+
+async function readSessionJsonLines<T>(
+  sessionDirectory: string,
+  filenamePrefix: string,
+  validate: (value: unknown) => T,
+): Promise<T[]> {
+  const filenames = (await readdir(sessionDirectory))
+    .filter((name) => name.startsWith(filenamePrefix) && name.endsWith(".jsonl"))
+    .sort();
+  const values: T[] = [];
   for (const filename of filenames) {
     const contents = await readFile(path.join(sessionDirectory, filename), "utf8");
     for (const line of contents.split("\n")) {
       if (line.length === 0) continue;
-      const diagnostic = validateSourceDiagnostic(JSON.parse(line) as unknown);
-      diagnostics.set(JSON.stringify(diagnostic), diagnostic);
+      values.push(validate(JSON.parse(line) as unknown));
     }
   }
-  return [...diagnostics.values()].sort(
-    (left, right) =>
-      left.source.localeCompare(right.source) ||
-      left.line - right.line ||
-      left.column - right.column ||
-      left.code.localeCompare(right.code) ||
-      left.message.localeCompare(right.message),
+  return values;
+}
+
+function compareSourceDiagnostics(left: SourceDiagnostic, right: SourceDiagnostic): number {
+  return (
+    compareText(left.source, right.source) ||
+    left.line - right.line ||
+    left.column - right.column ||
+    compareText(left.code, right.code) ||
+    compareText(left.message, right.message)
   );
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 async function jsonFiles(directory: string): Promise<string[]> {

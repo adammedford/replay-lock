@@ -146,6 +146,10 @@ test("annotated unsupported callable shapes are reported while unannotated shape
   return value + 10;
 }
 
+function makeFunction(): (value: number) => number {
+  return (value) => value + 9;
+}
+
 /** @replaylock capture */
 export function eligible(value: number): number {
   return value + 1;
@@ -153,6 +157,9 @@ export function eligible(value: number): number {
 
 /** @replaylock capture */
 export const indirect = local;
+
+/** @replaylock capture */
+export const factoryResult = makeFunction();
 
 /** @replaylock capture */
 export default function defaulted(value: number): number {
@@ -194,12 +201,20 @@ function reexported(value: number): number {
 /** @replaylock capture */
 export { reexported };
 
+if (false) {
+  /** @replaylock capture */
+  module.exports.common = function (value: number): number {
+    return value + 9;
+  };
+}
+
 export const unannotatedIndirect = local;
 `,
     test: `import defaulted, {
   asynchronous,
   Container,
   eligible,
+  factoryResult,
   generated,
   indirect,
   mutable,
@@ -211,6 +226,7 @@ export const unannotatedIndirect = local;
 test("unsupported shapes retain their ordinary behavior", () => {
   expect(eligible(1)).toBe(2);
   expect(indirect(1)).toBe(11);
+  expect(factoryResult(1)).toBe(10);
   expect(defaulted(1)).toBe(3);
   expect(asynchronous(1)).toBeInstanceOf(Promise);
   expect(generated(1).next().value).toBe(5);
@@ -226,7 +242,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   try {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
-    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 8, output(result));
+    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 10, output(result));
     assert.doesNotMatch(output(result), /INVALID_POLICY/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 
@@ -326,6 +342,54 @@ test("the calculation is exercised naturally", () => {
   }
 });
 
+test("verification rejects a persisted locator that physically escapes through a symlink", async () => {
+  const externalDirectory = await mkdtemp(path.join(os.tmpdir(), "replaylock-case-external-"));
+  const externalPath = path.join(externalDirectory, "calculation.ts");
+  await writeFile(
+    externalPath,
+    `export function calculate(value: number): number {
+  return value + 1;
+}
+`,
+  );
+  const project = await makeProject({
+    source: `/** @replaylock capture */
+export function calculate(value: number): number {
+  return value + 1;
+}
+`,
+    test: `import { calculate } from "../src/calculation.js";
+
+test("the calculation is exercised naturally", () => {
+  expect(calculate(1)).toBe(2);
+});
+`,
+  });
+
+  try {
+    const recorded = runRecord(project);
+    assert.equal(recorded.status, 0, output(recorded));
+    const [candidate] = await pendingCandidates(project);
+    assert.ok(candidate);
+    const caseDirectory = path.join(project, ".replaylock", "cases");
+    await mkdir(caseDirectory, { recursive: true });
+    await writeFile(path.join(caseDirectory, "escaped.json"), `${JSON.stringify(candidate)}\n`);
+
+    const sourcePath = path.join(project, "src", "calculation.ts");
+    await rm(sourcePath);
+    await symlink(externalPath, sourcePath, "file");
+
+    const verified = runCli(project, ["verify"]);
+    assert.equal(verified.status, 2, output(verified));
+    assert.match(output(verified), /ORPHANED_CALLABLE.*outside the project root/);
+  } finally {
+    await Promise.all([
+      rm(project, { recursive: true, force: true }),
+      rm(externalDirectory, { recursive: true, force: true }),
+    ]);
+  }
+});
+
 test("callable locators reject case-fold collisions", async (context) => {
   const project = await makeProject({ source: "", test: "" });
   const upperPath = path.join(project, "src", "CaseTarget.ts");
@@ -388,6 +452,61 @@ test("case-distinct modules execute naturally", () => {
     assert.equal(result.status, 2, output(result));
     assert.equal((output(result).match(/UNSUPPORTED_CALLABLE.*ambiguous casing/g) ?? []).length, 2);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects a persisted locator after a case-fold collision appears", async (context) => {
+  const project = await makeProject({
+    source: "",
+    test: `import { upper } from "../src/CaseTarget.js";
+
+test("the upper-case module is exercised naturally", () => {
+  expect(upper(1)).toBe(3);
+});
+`,
+  });
+  const upperPath = path.join(project, "src", "CaseTarget.ts");
+  const lowerPath = path.join(project, "src", "casetarget.ts");
+  await writeFile(
+    upperPath,
+    `/** @replaylock capture */
+export function upper(value: number): number {
+  return value + 2;
+}
+`,
+  );
+
+  try {
+    const recorded = runRecord(project);
+    assert.equal(recorded.status, 0, output(recorded));
+    const [candidate] = await pendingCandidates(project);
+    assert.ok(candidate);
+    const caseDirectory = path.join(project, ".replaylock", "cases");
+    await mkdir(caseDirectory, { recursive: true });
+    await writeFile(path.join(caseDirectory, "case-fold.json"), `${JSON.stringify(candidate)}\n`);
+
+    try {
+      await writeFile(
+        lowerPath,
+        `export function lower(value: number): number {
+  return value + 3;
+}
+`,
+        { flag: "wx" },
+      );
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        context.skip("the filesystem cannot represent distinct paths that differ only by case");
+        return;
+      }
+      throw error;
+    }
+
+    const verified = runCli(project, ["verify"]);
+    assert.equal(verified.status, 2, output(verified));
+    assert.match(output(verified), /ORPHANED_CALLABLE.*ambiguous casing/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }

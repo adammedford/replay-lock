@@ -1,14 +1,11 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import MagicString from "magic-string";
 import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
-import {
-  normalizeModuleLocator,
-  type SourceDiagnostic,
-  type SourceDiagnosticCode,
-} from "./model.js";
+import { resolveCallableModuleLocator } from "./callable-locator.js";
+import type { SourceDiagnostic, SourceDiagnosticCode } from "./model.js";
 
 const OBSERVER_IMPORT =
   'import { observeCall as __replaylockObserve } from "replaylock/vite/runtime";\n';
@@ -274,14 +271,65 @@ function isUnsupportedCallableShape(node: ts.Node): boolean {
   ) {
     return true;
   }
-  if (!ts.isVariableStatement(node)) return false;
-  return node.declarationList.declarations.some(
-    (declaration) =>
-      declaration.initializer !== undefined &&
-      (ts.isFunctionExpression(declaration.initializer) ||
-        ts.isArrowFunction(declaration.initializer) ||
-        ts.isIdentifier(declaration.initializer)),
+  if (ts.isVariableStatement(node)) {
+    return node.declarationList.declarations.some(
+      (declaration) =>
+        declaration.initializer !== undefined &&
+        isIndirectOrFunctionInitializer(declaration.initializer),
+    );
+  }
+  return (
+    ts.isExpressionStatement(node) &&
+    ts.isBinaryExpression(node.expression) &&
+    node.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    isCommonJsExportReference(node.expression.left)
   );
+}
+
+function isIndirectOrFunctionInitializer(expression: ts.Expression): boolean {
+  if (
+    ts.isFunctionExpression(expression) ||
+    ts.isArrowFunction(expression) ||
+    ts.isIdentifier(expression) ||
+    ts.isCallExpression(expression) ||
+    ts.isPropertyAccessExpression(expression) ||
+    ts.isElementAccessExpression(expression)
+  ) {
+    return true;
+  }
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isNonNullExpression(expression)
+  ) {
+    return isIndirectOrFunctionInitializer(expression.expression);
+  }
+  return false;
+}
+
+function isCommonJsExportReference(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) return expression.text === "exports";
+  if (ts.isPropertyAccessExpression(expression)) {
+    return (
+      (ts.isIdentifier(expression.expression) &&
+        expression.expression.text === "module" &&
+        expression.name.text === "exports") ||
+      isCommonJsExportReference(expression.expression)
+    );
+  }
+  if (ts.isElementAccessExpression(expression)) {
+    const argument = expression.argumentExpression;
+    return (
+      (ts.isIdentifier(expression.expression) &&
+        expression.expression.text === "module" &&
+        argument !== undefined &&
+        ts.isStringLiteral(argument) &&
+        argument.text === "exports") ||
+      isCommonJsExportReference(expression.expression)
+    );
+  }
+  return false;
 }
 
 function sourceDiagnostic(
@@ -307,48 +355,6 @@ function writeSourceDiagnostic(directory: string, diagnostic: SourceDiagnostic):
     `${JSON.stringify(diagnostic)}\n`,
     { encoding: "utf8", mode: 0o600 },
   );
-}
-
-type ModuleLocatorResolution =
-  | { ok: true; locator: string; source: string }
-  | { ok: false; source: string; message: string };
-
-function resolveCallableModuleLocator(root: string, id: string): ModuleLocatorResolution {
-  const absoluteRoot = path.resolve(root);
-  const absoluteId = path.resolve(id);
-  const relative = path.relative(absoluteRoot, absoluteId);
-  const source = relative.replaceAll(path.sep, "/") || path.basename(absoluteId);
-  let locator: string;
-  try {
-    locator = normalizeModuleLocator(relative);
-  } catch {
-    return { ok: false, source, message: "callable module is outside the project root" };
-  }
-
-  let current = absoluteRoot;
-  for (const segment of relative.split(path.sep)) {
-    let matches: string[];
-    try {
-      matches = readdirSync(current).filter(
-        (entry) => entry.toLocaleLowerCase("en-US") === segment.toLocaleLowerCase("en-US"),
-      );
-    } catch {
-      return { ok: false, source, message: "callable module path cannot be resolved" };
-    }
-    if (matches.length !== 1 || matches[0] !== segment) {
-      return { ok: false, source, message: "callable module path has ambiguous casing" };
-    }
-    current = path.join(current, segment);
-  }
-
-  try {
-    const physicalRelative = path.relative(realpathSync(absoluteRoot), realpathSync(absoluteId));
-    normalizeModuleLocator(physicalRelative);
-  } catch {
-    return { ok: false, source, message: "callable module is outside the project root" };
-  }
-
-  return { ok: true, locator, source: locator };
 }
 
 function isSynchronousFunctionInitializer(
