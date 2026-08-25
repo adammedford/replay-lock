@@ -282,7 +282,8 @@ function isUnsupportedCallableShape(node: ts.Node): boolean {
     ts.isExpressionStatement(node) &&
     ts.isBinaryExpression(node.expression) &&
     node.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-    isCommonJsExportReference(node.expression.left)
+    isCommonJsExportReference(node.expression.left) &&
+    isIndirectOrFunctionInitializer(node.expression.right)
   );
 }
 
@@ -304,6 +305,24 @@ function isIndirectOrFunctionInitializer(expression: ts.Expression): boolean {
     ts.isNonNullExpression(expression)
   ) {
     return isIndirectOrFunctionInitializer(expression.expression);
+  }
+  if (ts.isConditionalExpression(expression)) {
+    return (
+      isIndirectOrFunctionInitializer(expression.whenTrue) ||
+      isIndirectOrFunctionInitializer(expression.whenFalse)
+    );
+  }
+  if (
+    ts.isBinaryExpression(expression) &&
+    (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.CommaToken)
+  ) {
+    return (
+      isIndirectOrFunctionInitializer(expression.left) ||
+      isIndirectOrFunctionInitializer(expression.right)
+    );
   }
   return false;
 }

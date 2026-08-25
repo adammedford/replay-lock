@@ -102,6 +102,11 @@ export function contradictory(value: number): number {
 
 /** @replaylock capture */
 export const misplaced = 6;
+
+if (false) {
+  /** @replaylock capture */
+  module.exports.answer = 42;
+}
 `,
     test: `import {
   contradictory,
@@ -131,6 +136,8 @@ test("the module remains ordinarily executable", () => {
     assert.match(output(result), /INVALID_POLICY.*unknown directive "surprise"/);
     assert.match(output(result), /INVALID_POLICY.*exclude cannot be combined with capture or assume-pure/);
     assert.match(output(result), /INVALID_POLICY.*directive is not attached to a callable/);
+    assert.equal((output(result).match(/INVALID_POLICY/g) ?? []).length, 6, output(result));
+    assert.doesNotMatch(output(result), /UNSUPPORTED_CALLABLE/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 
     const candidates = await pendingCandidates(project);
@@ -150,6 +157,8 @@ function makeFunction(): (value: number) => number {
   return (value) => value + 9;
 }
 
+const selectLocal = true;
+
 /** @replaylock capture */
 export function eligible(value: number): number {
   return value + 1;
@@ -160,6 +169,9 @@ export const indirect = local;
 
 /** @replaylock capture */
 export const factoryResult = makeFunction();
+
+/** @replaylock capture */
+export const conditional = selectLocal ? local : makeFunction();
 
 /** @replaylock capture */
 export default function defaulted(value: number): number {
@@ -212,6 +224,7 @@ export const unannotatedIndirect = local;
 `,
     test: `import defaulted, {
   asynchronous,
+  conditional,
   Container,
   eligible,
   factoryResult,
@@ -227,6 +240,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   expect(eligible(1)).toBe(2);
   expect(indirect(1)).toBe(11);
   expect(factoryResult(1)).toBe(10);
+  expect(conditional(1)).toBe(11);
   expect(defaulted(1)).toBe(3);
   expect(asynchronous(1)).toBeInstanceOf(Promise);
   expect(generated(1).next().value).toBe(5);
@@ -242,7 +256,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   try {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
-    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 10, output(result));
+    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 11, output(result));
     assert.doesNotMatch(output(result), /INVALID_POLICY/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 
