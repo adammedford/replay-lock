@@ -196,7 +196,17 @@ export class Container {
   method(value: number): number {
     return value + 6;
   }
+
+  /** @replaylock capture */
+  field = (value: number): number => value + 7;
 }
+
+export const holder = {
+  /** @replaylock capture */
+  property: function (value: number): number {
+    return value + 8;
+  },
+};
 
 export function outer(value: number): number {
   /** @replaylock capture */
@@ -229,6 +239,7 @@ export const unannotatedIndirect = local;
   eligible,
   factoryResult,
   generated,
+  holder,
   indirect,
   mutable,
   outer,
@@ -246,6 +257,8 @@ test("unsupported shapes retain their ordinary behavior", () => {
   expect(generated(1).next().value).toBe(5);
   expect(mutable(1)).toBe(6);
   expect(new Container().method(1)).toBe(7);
+  expect(new Container().field(1)).toBe(8);
+  expect(holder.property(1)).toBe(9);
   expect(outer(1)).toBe(8);
   expect(reexported(1)).toBe(9);
   expect(unannotatedIndirect(1)).toBe(11);
@@ -256,7 +269,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   try {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
-    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 11, output(result));
+    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 13, output(result));
     assert.doesNotMatch(output(result), /INVALID_POLICY/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 

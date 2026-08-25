@@ -278,6 +278,10 @@ function isUnsupportedCallableShape(node: ts.Node): boolean {
         isIndirectOrFunctionInitializer(declaration.initializer),
     );
   }
+  if (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) {
+    return node.initializer !== undefined && isIndirectOrFunctionInitializer(node.initializer);
+  }
+  if (ts.isShorthandPropertyAssignment(node)) return true;
   return (
     ts.isExpressionStatement(node) &&
     ts.isBinaryExpression(node.expression) &&
