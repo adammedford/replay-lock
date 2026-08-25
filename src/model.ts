@@ -15,6 +15,16 @@ export interface CaptureMetadata {
   sourceGraphDigest: string;
 }
 
+export type SourceDiagnosticCode = "INVALID_POLICY" | "UNSUPPORTED_CALLABLE";
+
+export interface SourceDiagnostic {
+  code: SourceDiagnosticCode;
+  source: string;
+  line: number;
+  column: number;
+  message: string;
+}
+
 export interface RuntimeProfile {
   node: string;
   vite: string;
@@ -118,6 +128,33 @@ export function validateObservation(value: unknown): Observation {
     completion: { kind: "return", value: completion.value },
     sourceGraphDigest: value.sourceGraphDigest,
     runtimeProfile: { ...value.runtimeProfile },
+  };
+}
+
+export function validateSourceDiagnostic(value: unknown): SourceDiagnostic {
+  if (
+    !isObject(value) ||
+    (value.code !== "INVALID_POLICY" && value.code !== "UNSUPPORTED_CALLABLE") ||
+    typeof value.source !== "string" ||
+    value.source.length === 0 ||
+    typeof value.line !== "number" ||
+    !Number.isInteger(value.line) ||
+    value.line < 1 ||
+    typeof value.column !== "number" ||
+    !Number.isInteger(value.column) ||
+    value.column < 1 ||
+    typeof value.message !== "string" ||
+    value.message.length === 0
+  ) {
+    throw new Error("Malformed ReplayLock source diagnostic");
+  }
+
+  return {
+    code: value.code,
+    source: value.source,
+    line: value.line,
+    column: value.column,
+    message: value.message,
   };
 }
 

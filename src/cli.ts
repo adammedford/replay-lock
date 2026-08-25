@@ -24,8 +24,10 @@ import {
   parseCase,
   toCaseArtifact,
   validateObservation,
+  validateSourceDiagnostic,
   type CandidateArtifact,
   type CaseArtifact,
+  type SourceDiagnostic,
 } from "./model.js";
 
 const require = createRequire(import.meta.url);
@@ -80,6 +82,7 @@ async function record(arguments_: string[]): Promise<number> {
   }
 
   const observations = await readObservations(sessionDirectory, sessionToken);
+  const sourceDiagnostics = await readSourceDiagnostics(sessionDirectory);
   const pendingDirectory = path.join(root, ".replaylock", "observations", "pending");
   await mkdir(pendingDirectory, { recursive: true, mode: 0o700 });
   for (const observation of observations) {
@@ -88,7 +91,16 @@ async function record(arguments_: string[]): Promise<number> {
     await atomicWrite(candidatePath, artifactJson(candidate));
   }
 
+  for (const diagnostic of sourceDiagnostics) {
+    console.error(
+      `${diagnostic.code} ${diagnostic.source}:${diagnostic.line}:${diagnostic.column}: ${diagnostic.message}`,
+    );
+  }
   console.log(`Recorded ${observations.length} candidate(s)`);
+  if (sourceDiagnostics.length > 0) {
+    console.error("SESSION_PARTIAL: one or more annotated callables were blocked");
+    return 2;
+  }
   return 0;
 }
 
@@ -184,7 +196,9 @@ async function verify(): Promise<number> {
 }
 
 async function readObservations(sessionDirectory: string, token: string) {
-  const filenames = (await readdir(sessionDirectory)).filter((name) => name.endsWith(".jsonl")).sort();
+  const filenames = (await readdir(sessionDirectory))
+    .filter((name) => name.startsWith("worker-") && name.endsWith(".jsonl"))
+    .sort();
   const observations = [];
   for (const filename of filenames) {
     const contents = await readFile(path.join(sessionDirectory, filename), "utf8");
@@ -195,6 +209,29 @@ async function readObservations(sessionDirectory: string, token: string) {
     }
   }
   return observations;
+}
+
+async function readSourceDiagnostics(sessionDirectory: string): Promise<SourceDiagnostic[]> {
+  const filenames = (await readdir(sessionDirectory))
+    .filter((name) => name.startsWith("diagnostics-") && name.endsWith(".jsonl"))
+    .sort();
+  const diagnostics = new Map<string, SourceDiagnostic>();
+  for (const filename of filenames) {
+    const contents = await readFile(path.join(sessionDirectory, filename), "utf8");
+    for (const line of contents.split("\n")) {
+      if (line.length === 0) continue;
+      const diagnostic = validateSourceDiagnostic(JSON.parse(line) as unknown);
+      diagnostics.set(JSON.stringify(diagnostic), diagnostic);
+    }
+  }
+  return [...diagnostics.values()].sort(
+    (left, right) =>
+      left.source.localeCompare(right.source) ||
+      left.line - right.line ||
+      left.column - right.column ||
+      left.code.localeCompare(right.code) ||
+      left.message.localeCompare(right.message),
+  );
 }
 
 async function jsonFiles(directory: string): Promise<string[]> {

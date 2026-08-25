@@ -31,7 +31,7 @@
   "packageManager": "npm@11.5.2",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node scripts/verify-issue-2.mjs all",
+    "test": "node scripts/run-verification.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "node scripts/run-verification.mjs"
   },

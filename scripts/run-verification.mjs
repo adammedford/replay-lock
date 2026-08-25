@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 run("verify-package-contract.mjs");
 run("verify-issue-2.mjs", "all");
+run("verify-issue-3.mjs", "all");
 console.log("verification suite passed");
 
 function run(script, ...arguments_) {

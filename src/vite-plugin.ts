@@ -1,9 +1,14 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import MagicString from "magic-string";
 import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
+import {
+  normalizeModuleLocator,
+  type SourceDiagnostic,
+  type SourceDiagnosticCode,
+} from "./model.js";
 
 const OBSERVER_IMPORT =
   'import { observeCall as __replaylockObserve } from "replaylock/vite/runtime";\n';
@@ -40,27 +45,41 @@ export function replaylock(): Plugin {
         true,
         scriptKind(id),
       );
-      const targets = sourceFile.statements
-        .filter(isCapturedFunction)
+      const locatorResolution = resolveCallableModuleLocator(resolvedConfig.root, id);
+      const analysis = analyzeSourcePolicies(sourceFile, locatorResolution.source);
+      const locatorDiagnostics = locatorResolution.ok
+        ? []
+        : analysis.callables
+            .filter(({ policy }) => policy.capture && policy.exclusionReasons.length === 0)
+            .map(({ target }) =>
+              sourceDiagnostic(
+                "UNSUPPORTED_CALLABLE",
+                sourceFile,
+                locatorResolution.source,
+                target.callable,
+                locatorResolution.message,
+              ),
+            );
+      for (const diagnostic of [...analysis.diagnostics, ...locatorDiagnostics]) {
+        writeSourceDiagnostic(activation.directory, diagnostic);
+      }
+      if (!locatorResolution.ok) return null;
+      const moduleLocator = locatorResolution.locator;
+      const targets = analysis.callables
+        .filter(({ policy }) => policy.capture && policy.exclusionReasons.length === 0)
+        .map(({ target }) => target)
         .filter(isIssue2LikelySafeNumericLeaf);
       if (targets.length === 0) return null;
 
       const transformed = new MagicString(code);
-      const moduleLocator = path.relative(resolvedConfig.root, id).replaceAll(path.sep, "/");
       const sourceGraphDigest = `sha256:${createHash("sha256").update(code).digest("hex")}`;
 
       for (const target of [...targets].reverse()) {
         const metadata = JSON.stringify({
-          locator: { module: moduleLocator, exportName: target.name.text },
+          locator: { module: moduleLocator, exportName: target.exportName },
           sourceGraphDigest,
         });
-        const bodyStart = target.body.getStart(sourceFile) + 1;
-        const bodyEnd = target.body.end - 1;
-        transformed.appendLeft(
-          bodyStart,
-          `\nreturn __replaylockObserve(${metadata}, Array.from(arguments), () => {`,
-        );
-        transformed.appendLeft(bodyEnd, "\n});\n");
+        instrumentTarget(transformed, sourceFile, target, metadata);
       }
 
       transformed.prepend(OBSERVER_IMPORT);
@@ -77,27 +96,333 @@ export function replaylock(): Plugin {
   };
 }
 
-function isIssue2LikelySafeNumericLeaf(
-  target: ts.FunctionDeclaration & { name: ts.Identifier; body: ts.Block },
-): boolean {
+interface CaptureTarget {
+  exportName: string;
+  callable:
+    | (ts.FunctionDeclaration & { name: ts.Identifier; body: ts.Block })
+    | (ts.FunctionExpression & { body: ts.Block })
+    | ts.ArrowFunction;
+}
+
+interface SourcePolicy {
+  capture: boolean;
+  assumptionReasons: string[];
+  exclusionReasons: string[];
+}
+
+interface AnalyzedCallable {
+  target: CaptureTarget;
+  policy: SourcePolicy;
+}
+
+interface SourcePolicyAnalysis {
+  callables: AnalyzedCallable[];
+  diagnostics: SourceDiagnostic[];
+}
+
+function analyzeSourcePolicies(
+  sourceFile: ts.SourceFile,
+  moduleLocator: string,
+): SourcePolicyAnalysis {
+  const callables: AnalyzedCallable[] = [];
+  const diagnostics: SourceDiagnostic[] = [];
+
+  const visit = (node: ts.Node): void => {
+    const tags = ownReplaylockTags(node);
+    if (tags.length > 0) {
+      const parsed = parseSourcePolicy(tags);
+      if (parsed.errors.length > 0) {
+        diagnostics.push(
+          ...parsed.errors.map((message) =>
+            sourceDiagnostic("INVALID_POLICY", sourceFile, moduleLocator, node, message),
+          ),
+        );
+      } else {
+        const target = supportedCaptureTarget(node, sourceFile);
+        if (target) {
+          callables.push({ target, policy: parsed.policy });
+        } else if (isUnsupportedCallableShape(node)) {
+          diagnostics.push(
+            sourceDiagnostic(
+              "UNSUPPORTED_CALLABLE",
+              sourceFile,
+              moduleLocator,
+              node,
+              "annotated callable is not a directly exported named synchronous function",
+            ),
+          );
+        } else {
+          diagnostics.push(
+            sourceDiagnostic(
+              "INVALID_POLICY",
+              sourceFile,
+              moduleLocator,
+              node,
+              "directive is not attached to a callable",
+            ),
+          );
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return { callables, diagnostics };
+}
+
+function supportedCaptureTarget(node: ts.Node, sourceFile: ts.SourceFile): CaptureTarget | undefined {
+  if (node.parent !== sourceFile) return undefined;
+
   if (
-    target.parameters.some(
+    ts.isFunctionDeclaration(node) &&
+    node.name &&
+    node.body &&
+    !node.asteriskToken &&
+    !hasModifier(node, ts.SyntaxKind.AsyncKeyword) &&
+    hasModifier(node, ts.SyntaxKind.ExportKeyword) &&
+    !hasModifier(node, ts.SyntaxKind.DefaultKeyword)
+  ) {
+    return { exportName: node.name.text, callable: node as CaptureTarget["callable"] };
+  }
+
+  if (
+    ts.isVariableStatement(node) &&
+    hasModifier(node, ts.SyntaxKind.ExportKeyword) &&
+    (node.declarationList.flags & ts.NodeFlags.Const) !== 0 &&
+    node.declarationList.declarations.length === 1
+  ) {
+    const declaration = node.declarationList.declarations[0];
+    if (
+      declaration &&
+      ts.isIdentifier(declaration.name) &&
+      declaration.initializer &&
+      isSynchronousFunctionInitializer(declaration.initializer)
+    ) {
+      return { exportName: declaration.name.text, callable: declaration.initializer };
+    }
+  }
+
+  return undefined;
+}
+
+function ownReplaylockTags(node: ts.Node): ts.JSDocTag[] {
+  return ts
+    .getJSDocTags(node)
+    .filter((tag) => tag.tagName.text === "replaylock" && tag.parent.parent === node);
+}
+
+function parseSourcePolicy(tags: readonly ts.JSDocTag[]): {
+  policy: SourcePolicy;
+  errors: string[];
+} {
+  const policy: SourcePolicy = {
+    capture: false,
+    assumptionReasons: [],
+    exclusionReasons: [],
+  };
+  const errors: string[] = [];
+
+  for (const tag of tags) {
+    const comment = typeof tag.comment === "string" ? tag.comment.trim() : "";
+    const separator = comment.search(/\s/);
+    const directive = separator < 0 ? comment : comment.slice(0, separator);
+    const reason = separator < 0 ? "" : comment.slice(separator).trim();
+    switch (directive) {
+      case "capture":
+        if (reason.length > 0) errors.push("capture does not accept a reason");
+        policy.capture = true;
+        break;
+      case "assume-pure":
+        if (reason.length === 0) errors.push("assume-pure requires a nonempty reason");
+        else policy.assumptionReasons.push(reason);
+        break;
+      case "exclude":
+        if (reason.length === 0) errors.push("exclude requires a nonempty reason");
+        else policy.exclusionReasons.push(reason);
+        break;
+      default:
+        errors.push(`unknown directive ${JSON.stringify(directive)}`);
+        break;
+    }
+  }
+
+  if (policy.assumptionReasons.length > 0 && !policy.capture) {
+    errors.push("assume-pure requires capture");
+  }
+  if (
+    policy.exclusionReasons.length > 0 &&
+    (policy.capture || policy.assumptionReasons.length > 0)
+  ) {
+    errors.push("exclude cannot be combined with capture or assume-pure");
+  }
+
+  return { policy, errors };
+}
+
+function isUnsupportedCallableShape(node: ts.Node): boolean {
+  if (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isExportDeclaration(node) ||
+    ts.isExportAssignment(node)
+  ) {
+    return true;
+  }
+  if (!ts.isVariableStatement(node)) return false;
+  return node.declarationList.declarations.some(
+    (declaration) =>
+      declaration.initializer !== undefined &&
+      (ts.isFunctionExpression(declaration.initializer) ||
+        ts.isArrowFunction(declaration.initializer) ||
+        ts.isIdentifier(declaration.initializer)),
+  );
+}
+
+function sourceDiagnostic(
+  code: SourceDiagnosticCode,
+  sourceFile: ts.SourceFile,
+  source: string,
+  node: ts.Node,
+  message: string,
+): SourceDiagnostic {
+  const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  return {
+    code,
+    source,
+    line: position.line + 1,
+    column: position.character + 1,
+    message,
+  };
+}
+
+function writeSourceDiagnostic(directory: string, diagnostic: SourceDiagnostic): void {
+  appendFileSync(
+    path.join(directory, `diagnostics-${process.pid}.jsonl`),
+    `${JSON.stringify(diagnostic)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
+type ModuleLocatorResolution =
+  | { ok: true; locator: string; source: string }
+  | { ok: false; source: string; message: string };
+
+function resolveCallableModuleLocator(root: string, id: string): ModuleLocatorResolution {
+  const absoluteRoot = path.resolve(root);
+  const absoluteId = path.resolve(id);
+  const relative = path.relative(absoluteRoot, absoluteId);
+  const source = relative.replaceAll(path.sep, "/") || path.basename(absoluteId);
+  let locator: string;
+  try {
+    locator = normalizeModuleLocator(relative);
+  } catch {
+    return { ok: false, source, message: "callable module is outside the project root" };
+  }
+
+  let current = absoluteRoot;
+  for (const segment of relative.split(path.sep)) {
+    let matches: string[];
+    try {
+      matches = readdirSync(current).filter(
+        (entry) => entry.toLocaleLowerCase("en-US") === segment.toLocaleLowerCase("en-US"),
+      );
+    } catch {
+      return { ok: false, source, message: "callable module path cannot be resolved" };
+    }
+    if (matches.length !== 1 || matches[0] !== segment) {
+      return { ok: false, source, message: "callable module path has ambiguous casing" };
+    }
+    current = path.join(current, segment);
+  }
+
+  try {
+    const physicalRelative = path.relative(realpathSync(absoluteRoot), realpathSync(absoluteId));
+    normalizeModuleLocator(physicalRelative);
+  } catch {
+    return { ok: false, source, message: "callable module is outside the project root" };
+  }
+
+  return { ok: true, locator, source: locator };
+}
+
+function isSynchronousFunctionInitializer(
+  expression: ts.Expression,
+): expression is (ts.FunctionExpression & { body: ts.Block }) | ts.ArrowFunction {
+  return (
+    (ts.isFunctionExpression(expression) || ts.isArrowFunction(expression)) &&
+    !expression.asteriskToken &&
+    !hasModifier(expression, ts.SyntaxKind.AsyncKeyword)
+  );
+}
+
+function isIssue2LikelySafeNumericLeaf(
+  target: CaptureTarget,
+): boolean {
+  const callable = target.callable;
+  if (
+    callable.parameters.some(
       (parameter) =>
         !ts.isIdentifier(parameter.name) ||
         parameter.initializer !== undefined ||
         parameter.dotDotDotToken !== undefined,
-    ) ||
-    target.body.statements.length !== 1
+    )
   ) {
     return false;
   }
 
-  const [statement] = target.body.statements;
-  if (!statement || !ts.isReturnStatement(statement) || !statement.expression) return false;
+  const expression = callableBodyExpression(callable);
+  if (!expression) return false;
   const parameterNames = new Set(
-    target.parameters.map((parameter) => (parameter.name as ts.Identifier).text),
+    callable.parameters.map((parameter) => (parameter.name as ts.Identifier).text),
   );
-  return isNumericLeafExpression(statement.expression, parameterNames);
+  return isNumericLeafExpression(expression, parameterNames);
+}
+
+function callableBodyExpression(callable: CaptureTarget["callable"]): ts.Expression | undefined {
+  if (!ts.isBlock(callable.body)) return callable.body;
+  if (callable.body.statements.length !== 1) return undefined;
+  const [statement] = callable.body.statements;
+  return statement && ts.isReturnStatement(statement) ? statement.expression : undefined;
+}
+
+function instrumentTarget(
+  transformed: MagicString,
+  sourceFile: ts.SourceFile,
+  target: CaptureTarget,
+  metadata: string,
+): void {
+  const { callable } = target;
+  const observedArguments = ts.isArrowFunction(callable)
+    ? `[${callable.parameters.map((parameter) => parameter.name.getText(sourceFile)).join(", ")}]`
+    : "Array.from(arguments)";
+
+  if (ts.isBlock(callable.body)) {
+    const bodyStart = callable.body.getStart(sourceFile) + 1;
+    const bodyEnd = callable.body.end - 1;
+    transformed.appendLeft(
+      bodyStart,
+      `\nreturn __replaylockObserve(${metadata}, ${observedArguments}, () => {`,
+    );
+    transformed.appendLeft(bodyEnd, "\n});\n");
+    return;
+  }
+
+  const expression = callable.body;
+  transformed.overwrite(
+    expression.getStart(sourceFile),
+    expression.end,
+    `__replaylockObserve(${metadata}, ${observedArguments}, () => (${expression.getText(sourceFile)}))`,
+  );
+}
+
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) === true;
 }
 
 function isNumericLeafExpression(expression: ts.Expression, parameters: ReadonlySet<string>): boolean {
@@ -138,31 +463,6 @@ function activeSession(): { directory: string; token: string } | undefined {
   const token = process.env.REPLAYLOCK_SESSION_TOKEN;
   if (!directory || !token) return undefined;
   return { directory, token };
-}
-
-function isCapturedFunction(statement: ts.Statement): statement is ts.FunctionDeclaration & {
-  name: ts.Identifier;
-  body: ts.Block;
-} {
-  if (
-    !ts.isFunctionDeclaration(statement) ||
-    !statement.name ||
-    !statement.body ||
-    statement.asteriskToken ||
-    hasModifier(statement, ts.SyntaxKind.AsyncKeyword) ||
-    !hasModifier(statement, ts.SyntaxKind.ExportKeyword)
-  ) {
-    return false;
-  }
-
-  return ts.getJSDocTags(statement).some((tag) => {
-    const comment = typeof tag.comment === "string" ? tag.comment.trim() : "";
-    return tag.tagName.text === "replaylock" && comment === "capture";
-  });
-}
-
-function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-  return ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) === true;
 }
 
 function scriptKind(id: string): ts.ScriptKind {
