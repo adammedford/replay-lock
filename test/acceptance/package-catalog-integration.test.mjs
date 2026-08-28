@@ -74,6 +74,40 @@ test("trusted package catalog version drift and withdrawal revert verify closed"
   }
 });
 
+test("trusted package catalog unpinned entry survives version changes", async () => {
+  const project = await baseProject();
+  try {
+    await installLeftPadFixture(project, "1.2.3");
+    await writeLockfile(project, "1.2.3");
+    await writeConfig(project, { export: "pad", unpinned: true });
+    await writeFile(path.join(project, "src", "calculation.ts"), `
+import { pad } from "left-pad-fixture";
+/** @replaylock capture */
+export function unpinnedTrust(value: number): string {
+  return pad(value, 4);
+}
+`);
+    await writeFile(path.join(project, "test", "calculation.test.ts"), `
+import { unpinnedTrust } from "../src/calculation.js";
+test("unpinned trust", () => {
+  expect(unpinnedTrust(7)).toBe("0007");
+});
+`);
+    const recorded = record(project);
+    assert.equal(recorded.status, 0, out(recorded));
+    assert.match(out(recorded), /Recorded 1 candidate\(s\)/);
+    assert.equal(run(project, ["review"], "a\n").status, 0);
+    assert.equal(run(project, ["verify"]).status, 0);
+
+    await writeLockfile(project, "9.9.9");
+    const bumped = run(project, ["verify"]);
+    assert.equal(bumped.status, 0, out(bumped));
+    assert.match(out(bumped), /Verified 1 case\(s\)/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("trusted package catalog never trusts a locally shadowed binding", async () => {
   const project = await shadowProject();
   try {

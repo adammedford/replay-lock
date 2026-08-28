@@ -17,12 +17,12 @@ Scope: implement the project-declared, package+export+version-scoped trusted-pac
 - [x] G2: trusted-package catalog validation (structural, duplicate, semver-range syntax, npm lockfile version resolution, CLI fail-closed on malformed config) is verified
   CHECK: node scripts/verify-issue-21.mjs validation
   EXPECT: trusted package catalog validation verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=88044077064f83a0910c911d0264cdbab0ebd9874b3903b0e6d36c0ec53bf9e2; output-bytes=1337
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=52da9d880b8c73ed9aa10fa7090a156381ffd06431967c2cd6f126b01bc836df; output-bytes=1334
 
 - [x] G3: the trusted-package catalog record-review-verify journey is verified, including TRUSTED_PACKAGE_CALL evidence, namespace/default-import member access, shadowed-binding non-trust, and version-drift/removal reverting to fail-closed on verify
   CHECK: node scripts/verify-issue-21.mjs integration
   EXPECT: trusted package catalog integration verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=cfbfcfd59659f683210a660d1d12d353cb6aff167c255f776118f7365b62e99c; output-bytes=782
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=1341e6827dfb0923ed9aefd1a25dbd94dbe72467eb1ddae55c7d3fbc96e22d2c; output-bytes=982
 
 - [x] G4: README and docs/trusted-packages.md document the trust model, config shape, diagnostic codes, and the npm-only version-resolution limitation
   CHECK: node scripts/verify-issue-21.mjs docs
@@ -32,7 +32,7 @@ Scope: implement the project-declared, package+export+version-scoped trusted-pac
 - [x] G5: the complete locked verification suite passes with both new acceptance files registered in the manifest
   CHECK: node scripts/verify-issue-21.mjs all
   EXPECT: issue 21 acceptance suite verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=c7dc36d249a90c9dc65dbf60fb528ec72730ff5fcbad53b15bb53e8e7437e8e2; output-bytes=249
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=d1a1d6b7d90077b4f5b7a74c19632cdbfa542d6b6e4b505deef6653d32937c4c; output-bytes=250
 
 <!--
 Replace every placeholder before running the checker.
