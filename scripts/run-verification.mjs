@@ -32,6 +32,8 @@ const acceptanceFiles = [
   "test/acceptance/package-catalog-validation.test.mjs",
   "test/acceptance/package-catalog-integration.test.mjs",
   "test/acceptance/async-journey.test.mjs",
+  "test/acceptance/async-effects.test.mjs",
+  "test/acceptance/async-effects-integration.test.mjs",
 ];
 run("verify-package-contract.mjs");
 runAcceptanceSuite();
