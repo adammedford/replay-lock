@@ -6,7 +6,7 @@ This pilot evaluates whether reviewed observation-based characterization cases s
 
 - [ ] Use only development or test workloads with synthetic or non-sensitive data.
 - [ ] Record the locked environment: Node 22, Vite/Vitest versions, ReplayLock version, platform, timezone, and locale.
-- [ ] Choose stable exported synchronous boundaries with intentional unit/integration coverage.
+- [ ] Choose stable exported boundaries (synchronous or `async`) with intentional unit/integration coverage.
 - [ ] Seed representative fake credentials and a deliberate output regression in controlled fixtures, never real secrets.
 - [ ] Assign a human to inspect every candidate and accepted artifact before commit.
 

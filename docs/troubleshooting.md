@@ -8,7 +8,9 @@ Start with the first stable uppercase diagnostic code. Captured values are absen
 
 `KNOWN_EFFECT` during record preflight, or `EFFECT_REFUTED` while verifying an accepted case, means reachable code has known I/O, time, randomness, ambient-state, mutation, or initialization evidence. Do not add an assumption to override it. Isolate the effect behind an explicit input, keep the target out of capture, or use `@replaylock exclude <reason>` and retain intentional tests.
 
-`UNKNOWN_EFFECT` means analysis cannot justify likely safety. After reviewing the complete evidence, a human may add `@replaylock assume-pure <nonempty reason>` and re-record. `ASSERTION_CONFLICT` means known evidence refutes that assumption. `INVALID_POLICY` or `UNSUPPORTED_CALLABLE` requires correcting the directive or using a directly exported named synchronous function.
+`UNKNOWN_EFFECT` means analysis cannot justify likely safety. After reviewing the complete evidence, a human may add `@replaylock assume-pure <nonempty reason>` and re-record. `ASSERTION_CONFLICT` means known evidence refutes that assumption. `INVALID_POLICY` or `UNSUPPORTED_CALLABLE` requires correcting the directive or using a directly exported named function declaration or const function/arrow, synchronous or `async` (never a generator or async generator).
+
+An `async` callable is analyzed exactly like a synchronous one: `await` is transparent to the analyzer, so an awaited effect is attributed to its real source position the same way a synchronous call is. Common async patterns that construct or resolve through the built-in `Promise` — `new Promise((resolve, reject) => { ... })`, `Promise.all(...)`, `Promise.resolve(...)` — are not in the analyzer's deterministic-intrinsic catalog, so they contribute `UNKNOWN_CALL` evidence like any other unrecognized global rather than a special "async" diagnostic. Treat them the same as `UNKNOWN_EFFECT`: review the complete evidence and add an explicit `@replaylock assume-pure <nonempty reason>` if still justified, or restructure the callable to avoid them.
 
 ## Partial sessions
 
