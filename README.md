@@ -84,6 +84,8 @@ Record **only development or test workloads** with synthetic or otherwise non-se
 
 For `record`, a nonzero wrapped-command status remains the process status; ReplayLock diagnostics are still reported. ReplayLock uses `2` only when the wrapped command itself succeeded.
 
+See [Gating CI on replaylock verify](docs/ci.md) for a copy-pasteable GitHub Actions example that routes on this contract.
+
 ## Stable diagnostics
 
 Stable uppercase diagnostic codes are the machine-routable part of terminal reporting; explanatory wording may evolve. When ReplayLock has a more specific implementation reason, it reports the public code first and retains the granular reason after it (for example, `REPLAY_SAFETY_REGRESSION EFFECT_REFUTED`). CI should route on the first code and may display the reason for diagnosis.

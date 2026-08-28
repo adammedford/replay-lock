@@ -27,7 +27,9 @@
     "docs/value-adapters.md",
     "docs/trusted-packages.md",
     "docs/troubleshooting.md",
-    "docs/pilot-checklist.md"
+    "docs/pilot-checklist.md",
+    "docs/ci.md",
+    "examples/github-actions"
   ],
   "engines": {
     "node": ">=22.12.0 <23"

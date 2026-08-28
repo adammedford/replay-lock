@@ -1,0 +1,42 @@
+# Example GitHub Actions workflow for gating a merge on `replaylock verify`.
+#
+# Copy both this file and report-verify-exit.sh into your own project's
+# `.github/workflows/`. It assumes `replaylock` is a dependency and accepted
+# cases live under `.replaylock/cases/` in your repository, matching the
+# "Artifacts and privacy" section of ReplayLock's README.
+#
+# Exit-code contract (see docs/ci.md for the full explanation):
+#   0 - every accepted case verified; nothing to do.
+#   1 - a real behavioral regression: an accepted case's completion changed.
+#       Block the merge and review the OUTPUT_MISMATCH / COMPLETION_KIND_MISMATCH
+#       diff in the step log above the summary.
+#   2 - infrastructure, configuration, or policy failure (a stale assumption,
+#       an orphaned callable, an invalid adapter or trusted-package catalog,
+#       a storage failure). Block the merge, but investigate ReplayLock's own
+#       setup rather than assuming application behavior actually changed.
+name: ReplayLock verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  replaylock-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: replaylock verify
+        run: |
+          set +e
+          npx replaylock verify
+          code=$?
+          set -e
+          bash "$GITHUB_WORKSPACE/.github/workflows/report-verify-exit.sh" "$code"
