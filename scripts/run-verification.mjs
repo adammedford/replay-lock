@@ -40,6 +40,7 @@ const acceptanceFiles = [
   "test/acceptance/package-catalog-yarn-lockfile.test.mjs",
   "test/acceptance/review-batch.test.mjs",
   "test/acceptance/ci-verify-example.test.mjs",
+  "test/acceptance/tolerance-comparison.test.mjs",
 ];
 run("verify-package-contract.mjs");
 runAcceptanceSuite();

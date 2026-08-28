@@ -420,6 +420,7 @@ function verificationHarness(
     const expected = JSON.stringify(artifact.completion);
     const canonicalArguments = JSON.stringify(artifact.arguments);
     const exportName = JSON.stringify(artifact.locator.exportName);
+    const comparisonMode = JSON.stringify(artifact.comparison);
     const locator = `${artifact.locator.module}#${artifact.locator.exportName}`;
     return `test(${JSON.stringify(`ReplayLock ${artifact.caseId}`)}, async () => {
   const decodedArguments = decodeCanonicalValue(${canonicalArguments}, valueAdapterRegistry);
@@ -458,7 +459,7 @@ function verificationHarness(
       "expected " + displayCompletion(expected) + "; received [REDACTED]");
   }
   const actual = classified.observation.completion;
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  if (!completionsMatch(expected, actual, ${comparisonMode})) {
     failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, firstDifference(expected, actual));
   }
 });`;
@@ -481,6 +482,36 @@ function verificationHarness(
     `function failBehavior(code, locator, detail) {`,
     `  appendFileSync(behavioralFailurePath, code + "\\n", { encoding: "utf8", mode: 0o600 });`,
     `  throw new Error(code + " " + locator + ": " + detail);`,
+    `}`,
+    // An opt-in, review-time-only decision (see acceptReviewedCandidate in
+    // review.ts): number leaves compare within epsilon, every other kind
+    // (string/boolean/null/array length/record keys/adapted identity) still
+    // requires exact equality. For "exact" comparison this is behaviorally
+    // identical to a raw JSON.stringify comparison, since canonical record
+    // entries are always persisted in sorted key order.
+    `function completionsMatch(expected, actual, comparisonMode) {`,
+    `  if (expected.kind !== actual.kind) return false;`,
+    `  if (expected.error || actual.error) {`,
+    `    return !!expected.error && !!actual.error && expected.error.name === actual.error.name && expected.error.message === actual.error.message;`,
+    `  }`,
+    `  return valuesMatch(expected.value, actual.value, comparisonMode);`,
+    `}`,
+    `function valuesMatch(expected, actual, comparisonMode) {`,
+    `  const epsilon = comparisonMode && comparisonMode.kind === "tolerance" ? comparisonMode.epsilon : undefined;`,
+    `  if (!expected || !actual || expected.kind !== actual.kind) return JSON.stringify(expected) === JSON.stringify(actual);`,
+    `  if (expected.kind === "number" && epsilon !== undefined) return Math.abs(expected.value - actual.value) <= epsilon;`,
+    `  if (expected.kind === "array") {`,
+    `    return expected.items.length === actual.items.length && expected.items.every((item, index) => valuesMatch(item, actual.items[index], comparisonMode));`,
+    `  }`,
+    `  if (expected.kind === "record") {`,
+    `    if (expected.entries.length !== actual.entries.length) return false;`,
+    `    const actualByKey = new Map(actual.entries.map((entry) => [entry.key, entry.value]));`,
+    `    return expected.entries.every((entry) => actualByKey.has(entry.key) && valuesMatch(entry.value, actualByKey.get(entry.key), comparisonMode));`,
+    `  }`,
+    `  if (expected.kind === "adapted") {`,
+    `    return expected.adapterId === actual.adapterId && expected.version === actual.version && valuesMatch(expected.payload, actual.payload, comparisonMode);`,
+    `  }`,
+    `  return JSON.stringify(expected) === JSON.stringify(actual);`,
     `}`,
     `function displayCompletion(completion) {`,
     `  if (completion.kind === "throw" && completion.error) {`,

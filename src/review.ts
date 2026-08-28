@@ -4,9 +4,10 @@ import {
   toCaseArtifact,
   type CandidateArtifact,
   type CaseArtifact,
+  type ToleranceComparison,
 } from "./model.js";
 
-export type ReviewDecision = "accept" | "reject" | "skip" | "accept-remaining-in-file";
+export type ReviewDecision = "accept" | "reject" | "skip" | "accept-remaining-in-file" | "accept-tolerance";
 
 export interface CandidateReplacement {
   existing: CaseArtifact;
@@ -117,14 +118,21 @@ export function describeReplacement(
   };
 }
 
-/** The only operation allowed to promote a candidate into source-controlled cases. */
+/**
+ * The only operation allowed to promote a candidate into source-controlled
+ * cases. `comparison`, when given, overrides the candidate's recorded
+ * `"exact"` comparison — an explicit reviewer decision, never something
+ * `record` itself ever produces.
+ */
 export async function acceptReviewedCandidate(
   casePath: string,
   candidate: CandidateArtifact,
+  comparison?: ToleranceComparison,
 ): Promise<CaseArtifact> {
   const artifact = toCaseArtifact(candidate);
-  await atomicWrite(casePath, artifactJson(artifact));
-  return artifact;
+  const withComparison = comparison ? { ...artifact, comparison } : artifact;
+  await atomicWrite(casePath, artifactJson(withComparison));
+  return withComparison;
 }
 
 export function parseReviewDecision(answer: string): ReviewDecision | undefined {
@@ -142,9 +150,21 @@ export function parseReviewDecision(answer: string): ReviewDecision | undefined 
     case "accept-file":
     case "accept-remaining-in-file":
       return "accept-remaining-in-file";
+    case "t":
+    case "tolerance":
+    case "accept-tolerance":
+      return "accept-tolerance";
     default:
       return undefined;
   }
+}
+
+/** A tolerance epsilon must be a finite positive number; never guessed or defaulted. */
+export function parseToleranceEpsilon(answer: string): number | undefined {
+  const trimmed = answer.trim();
+  if (trimmed.length === 0) return undefined;
+  const epsilon = Number(trimmed);
+  return Number.isFinite(epsilon) && epsilon > 0 ? epsilon : undefined;
 }
 
 function reviewIdentity(candidate: CandidateArtifact): string {

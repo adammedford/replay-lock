@@ -106,13 +106,28 @@ export interface CaseProvenance {
   captureStatus: "complete" | "partial";
 }
 
+/**
+ * An opt-in review-time decision, never a recording-time one: `createCandidate`
+ * always produces `"exact"`. A reviewer may explicitly accept a candidate with
+ * a numeric tolerance instead (see `acceptReviewedCandidate` in review.ts).
+ * Additive to the existing literal `"exact"` shape (a string vs. an object is
+ * structurally distinguishable), so this does not require a CASE_SCHEMA_VERSION
+ * bump: every existing accepted case remains a valid `"exact"`-comparison case.
+ */
+export interface ToleranceComparison {
+  kind: "tolerance";
+  epsilon: number;
+}
+
+export type CaseComparison = "exact" | ToleranceComparison;
+
 export interface CaseArtifact {
   schemaVersion: typeof CASE_SCHEMA_VERSION;
   caseId: string;
   locator: CallableLocator;
   arguments: CanonicalArrayNode;
   completion: CanonicalCompletion;
-  comparison: "exact";
+  comparison: CaseComparison;
   eligibility: EligibilityEvidence;
   provenance: CaseProvenance;
 }
@@ -330,11 +345,12 @@ function parseCaseShape(value: unknown): CaseArtifact {
   const completion = value.completion;
   const eligibility = value.eligibility;
   const provenance = value.provenance;
+  const comparison = parseCaseComparison(value.comparison);
   if (
     typeof value.caseId !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.caseId) ||
     !isObject(completion) ||
-    value.comparison !== "exact" ||
+    comparison === undefined ||
     !isEligibilityEvidence(eligibility) ||
     !isCaseProvenance(provenance)
   ) {
@@ -353,7 +369,7 @@ function parseCaseShape(value: unknown): CaseArtifact {
     locator,
     arguments: canonicalArguments,
     completion: canonicalCompletion,
-    comparison: "exact",
+    comparison,
     eligibility: {
       basis: eligibility.basis,
       verdict: eligibility.verdict,
@@ -477,6 +493,21 @@ function normalizeReplayNode(value: unknown): CanonicalReplayValueNode {
     return { kind: "record", entries };
   }
   return encodeCanonicalValue(decodeCanonicalValue(value)) as CanonicalReplayValueNode;
+}
+
+function parseCaseComparison(value: unknown): CaseComparison | undefined {
+  if (value === "exact") return "exact";
+  if (
+    isObject(value) &&
+    value.kind === "tolerance" &&
+    typeof value.epsilon === "number" &&
+    Number.isFinite(value.epsilon) &&
+    value.epsilon > 0 &&
+    Object.keys(value).sort().join(",") === "epsilon,kind"
+  ) {
+    return { kind: "tolerance", epsilon: value.epsilon };
+  }
+  return undefined;
 }
 
 function isEligibilityEvidence(value: unknown): value is EligibilityEvidence {

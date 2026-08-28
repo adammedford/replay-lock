@@ -62,6 +62,10 @@ replaylock verify
 
 `verify` parses and preflights the complete accepted set before any target runs, then invokes each target in a disposable fresh Vitest process and compares the exact canonical completion. A return/throw change, error change, or structural value change is a regression. Verification does not generate one source test per case.
 
+### Comparison modes
+
+Every case compares with exact equality by default. During `review`, a fifth answer, `t` (accept with numeric tolerance), prompts for a finite positive epsilon and persists `comparison: { kind: "tolerance", epsilon }` on that case instead of the default `comparison: "exact"` — an explicit, per-case, review-time decision; `record` never produces a tolerant case on its own. Within a tolerant case's completion, only number leaves compare within epsilon; every string, boolean, null, array length, record key, error name/message, and adapted-value identity still requires exact equality. This is additive to the existing schema (a string vs. an object is structurally distinguishable), so every previously accepted `"exact"` case remains valid and needs no migration.
+
 ## Scan
 
 ```text

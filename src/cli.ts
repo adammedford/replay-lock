@@ -30,6 +30,7 @@ import {
   type CaseArtifact,
   type Observation,
   type SourceDiagnostic,
+  type ToleranceComparison,
 } from "./model.js";
 import {
   acceptReviewedCandidate,
@@ -37,6 +38,7 @@ import {
   describeReplacement,
   formatCandidateReview,
   parseReviewDecision,
+  parseToleranceEpsilon,
   retainAssumptionRefreshCandidates,
 } from "./review.js";
 import {
@@ -407,7 +409,7 @@ async function review(): Promise<number> {
     while (index < candidates.length) {
       const current = candidates[index]!;
       await printCandidateForReview(root, current);
-      stdout.write("[a]ccept, [r]eject, [s]kip, or [af] accept remaining in this file? ");
+      stdout.write("[a]ccept, [r]eject, [s]kip, [af] accept remaining in this file, or [t] accept with numeric tolerance? ");
       const decision = await decisions.next();
       const answer = parseReviewDecision(decision.done ? "" : decision.value);
       if (answer === undefined) {
@@ -422,6 +424,18 @@ async function review(): Promise<number> {
       }
       if (answer === "skip") {
         console.log(`Skipped ${current.candidate.caseId}`);
+        index += 1;
+        continue;
+      }
+      if (answer === "accept-tolerance") {
+        stdout.write("Epsilon (finite positive number, e.g. 1e-9): ");
+        const epsilonDecision = await decisions.next();
+        const epsilon = parseToleranceEpsilon(epsilonDecision.done ? "" : epsilonDecision.value);
+        if (epsilon === undefined) {
+          console.error(`Invalid or missing epsilon; retained ${current.candidate.caseId}`);
+          return 2;
+        }
+        await acceptPendingCandidate(root, pendingDirectory, current, { kind: "tolerance", epsilon });
         index += 1;
         continue;
       }
@@ -463,16 +477,17 @@ async function acceptPendingCandidate(
   root: string,
   pendingDirectory: string,
   entry: PendingReviewEntry,
+  comparison?: ToleranceComparison,
 ): Promise<void> {
   const casePath = path.join(root, ".replaylock", "cases", `${entry.candidate.caseId}.json`);
   let artifact: CaseArtifact;
   try {
-    artifact = await acceptReviewedCandidate(casePath, entry.candidate);
+    artifact = await acceptReviewedCandidate(casePath, entry.candidate, comparison);
   } catch (error) {
     throw new Error(`STORE_WRITE_FAILED CASE_WRITE_FAILED: ${errorMessage(error)}`);
   }
   await unlink(path.join(pendingDirectory, entry.filename));
-  console.log(`Accepted ${artifact.caseId}`);
+  console.log(`Accepted ${artifact.caseId}${comparison ? ` (tolerance epsilon ${comparison.epsilon})` : ""}`);
 }
 
 /**
