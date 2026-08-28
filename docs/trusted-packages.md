@@ -33,14 +33,15 @@ Both a named-import call (`import { get } from "lodash"; get(...)`) and a namesp
 
 `record`'s preflight, the Vite plugin's instrumentation-time analysis, and `verify`'s preflight all consult the same resolved catalog, so eligibility stays consistent across the whole record/review/verify journey. `review` displays which trusted package and matched version (or `unpinned`) a `likely-safe` verdict rests on, and an accepted case's provenance records that same evidence for later audit.
 
-## Version resolution: npm and Bun's text lockfile
+## Version resolution: npm, Bun's text lockfile, and pnpm
 
-Installed-version lookup is implemented for two lockfiles:
+Installed-version lookup is implemented for three lockfiles:
 
 - `package-lock.json` (npm): reads `packages["node_modules/<name>"].version`, falling back to the legacy `dependencies[name].version` shape for older lockfile schema versions.
 - `bun.lock` (Bun's text lockfile, JSONC): reads `packages[<name>][0]`, a `"<name>@<resolution>"` string, and splits on the *last* `@` to extract the resolution — correctly handling a scoped name's own leading `@`. A non-semver resolution (a git ref, a workspace link) is returned as-is; the semver-range check below rejects it rather than matching it.
+- `pnpm-lock.yaml`: reads `importers.'.'.<dependencies|devDependencies|optionalDependencies>.<name>.version` — the version pnpm actually resolved for *this project's own* declared dependency — rather than the flat `packages` map, which keys every transitively resolved version of every package with no notion of "the one this project uses." A peer-dependency-qualified version (`1.6.4(@types/node@22.0.0)`) is truncated to its base semver before the range check runs. Parsing is a small hand-rolled indentation-based block scanner tailored to the narrow, highly regular YAML subset pnpm itself emits, not a general YAML library — matching this project's dependency-minimal posture. A pnpm workspace whose root importer key isn't `.` (a monorepo) is outside this scope and falls back to "cannot confirm."
 
-`pnpm-lock.yaml`, `yarn.lock`, and `bun.lockb` (Bun's older binary format) are recognized as supported project lockfiles elsewhere, but none of them are parsed for package versions yet. A project on one of those lockfiles must use `unpinned: true` for a catalog entry until a follow-up adds real version extraction — this is a named limitation, not a silent gap. Without a version-bound match, the call reverts to ordinary unknown `PACKAGE_CALL` evidence.
+`yarn.lock` and `bun.lockb` (Bun's older binary format) are recognized as supported project lockfiles elsewhere, but neither is parsed for package versions yet. A project on one of those lockfiles must use `unpinned: true` for a catalog entry until a follow-up adds real version extraction — this is a named limitation, not a silent gap. Without a version-bound match, the call reverts to ordinary unknown `PACKAGE_CALL` evidence.
 
 ## Verification stays honest
 

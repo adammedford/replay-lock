@@ -56,9 +56,9 @@ export function validateTrustedPackages(
 }
 
 /**
- * Version lookup is implemented for `package-lock.json` (npm) and `bun.lock`
- * (Bun's text lockfile). `pnpm-lock.yaml`, `yarn.lock`, and `bun.lockb` remain
- * unparsed; a catalog entry for a project on one of those must use
+ * Version lookup is implemented for `package-lock.json` (npm), `bun.lock`
+ * (Bun's text lockfile), and `pnpm-lock.yaml`. `yarn.lock` and `bun.lockb`
+ * remain unparsed; a catalog entry for a project on one of those must use
  * `unpinned: true` until a follow-up adds real version extraction.
  */
 export function resolveTrustedPackageVersion(
@@ -67,6 +67,7 @@ export function resolveTrustedPackageVersion(
 ): string | undefined {
   if (lockfile.name === "package-lock.json") return resolveNpmVersion(lockfile, packageName);
   if (lockfile.name === "bun.lock") return resolveBunTextVersion(lockfile, packageName);
+  if (lockfile.name === "pnpm-lock.yaml") return resolvePnpmVersion(lockfile, packageName);
   return undefined;
 }
 
@@ -114,6 +115,121 @@ function resolveBunTextVersion(lockfile: ProjectLockfile, packageName: string): 
   if (separator <= 0) return undefined;
   const version = resolved.slice(separator + 1);
   return version.length > 0 ? version : undefined;
+}
+
+/**
+ * pnpm-lock.yaml is genuine YAML, and this project takes on no YAML-parsing
+ * dependency; a hand-rolled indentation-based block scanner is used instead,
+ * tailored to the narrow, highly regular subset pnpm itself emits (block
+ * mappings, 2-space indentation, no anchors/aliases/flow collections in the
+ * `importers` section). The version actually resolved for a project's own
+ * declared dependency lives under `importers.'.'.<dependency-kind>.<name>`,
+ * not the flat `packages` map — that map keys every transitively resolved
+ * version of every package, with no notion of "the one this project uses."
+ * A peer-dependency-qualified version (`1.6.4(@types/node@22.0.0)`) is
+ * truncated to its base semver before the caller's range check runs.
+ */
+function resolvePnpmVersion(lockfile: ProjectLockfile, packageName: string): string | undefined {
+  const lines = Buffer.from(lockfile.bytes).toString("utf8").split("\n");
+  const importers = findYamlBlock(lines, 0, lines.length, 0, "importers");
+  if (!importers) return undefined;
+  const root = findYamlBlock(lines, importers.start, importers.end, importers.childIndent, ".");
+  if (!root) return undefined;
+  for (const dependencyKind of ["dependencies", "devDependencies", "optionalDependencies"]) {
+    const block = findYamlBlock(lines, root.start, root.end, root.childIndent, dependencyKind);
+    if (!block) continue;
+    const entry = findYamlBlock(lines, block.start, block.end, block.childIndent, packageName);
+    if (!entry) continue;
+    const version = findYamlScalar(lines, entry.start, entry.end, entry.childIndent, "version");
+    if (version !== undefined) return normalizePnpmVersion(version);
+  }
+  return undefined;
+}
+
+interface YamlLine {
+  indent: number;
+  key: string;
+  value: string;
+}
+
+/** Parses one `<indent><key>:` or `<indent><key>: <value>` line. A quoted key may itself contain `:` or `@`. Returns undefined for a blank line or a line without a recognizable `key:` shape (a plain scalar or sequence item). */
+function parseYamlLine(line: string): YamlLine | undefined {
+  const indentMatch = /^( *)(.*)$/.exec(line);
+  if (!indentMatch) return undefined;
+  const indent = indentMatch[1]!.length;
+  const rest = indentMatch[2]!;
+  if (rest.length === 0 || rest.startsWith("#")) return undefined;
+
+  let key: string;
+  let remainder: string;
+  if (rest.startsWith("'") || rest.startsWith("\"")) {
+    const quote = rest[0]!;
+    const endQuote = rest.indexOf(quote, 1);
+    if (endQuote === -1) return undefined;
+    key = rest.slice(1, endQuote);
+    remainder = rest.slice(endQuote + 1);
+  } else {
+    const colonIndex = rest.indexOf(":");
+    if (colonIndex === -1) return undefined;
+    key = rest.slice(0, colonIndex);
+    remainder = rest.slice(colonIndex);
+  }
+  remainder = remainder.trimStart();
+  if (!remainder.startsWith(":")) return undefined;
+  return { indent, key, value: remainder.slice(1).trim() };
+}
+
+/** Finds a direct child `key:` line at exactly `parentIndent` within [start, end) and returns the line range of its nested block (every following line indented deeper, until indentation returns to parentIndent or shallower). Returns undefined if the key is absent or has no nested block (an inline scalar, not a mapping). */
+function findYamlBlock(
+  lines: readonly string[],
+  start: number,
+  end: number,
+  parentIndent: number,
+  key: string,
+): { childIndent: number; start: number; end: number } | undefined {
+  for (let index = start; index < end; index += 1) {
+    const parsed = parseYamlLine(lines[index]!);
+    if (!parsed || parsed.indent !== parentIndent || parsed.key !== key) continue;
+    let blockEnd = index + 1;
+    let childIndent: number | undefined;
+    while (blockEnd < end) {
+      const next = parseYamlLine(lines[blockEnd]!);
+      if (next) {
+        if (next.indent <= parentIndent) break;
+        childIndent ??= next.indent;
+      }
+      blockEnd += 1;
+    }
+    if (childIndent === undefined) return undefined;
+    return { childIndent, start: index + 1, end: blockEnd };
+  }
+  return undefined;
+}
+
+/** Finds a direct child `key: value` scalar line at exactly `indent` within [start, end). */
+function findYamlScalar(
+  lines: readonly string[],
+  start: number,
+  end: number,
+  indent: number,
+  key: string,
+): string | undefined {
+  for (let index = start; index < end; index += 1) {
+    const parsed = parseYamlLine(lines[index]!);
+    if (parsed && parsed.indent === indent && parsed.key === key) return parsed.value;
+  }
+  return undefined;
+}
+
+function normalizePnpmVersion(value: string): string {
+  const base = (value.split("(")[0] ?? "").trim();
+  if (
+    (base.startsWith("'") && base.endsWith("'") && base.length >= 2) ||
+    (base.startsWith("\"") && base.endsWith("\"") && base.length >= 2)
+  ) {
+    return base.slice(1, -1);
+  }
+  return base;
 }
 
 /** A minimal, dependency-free JSONC reader: strips line and block comments and trailing commas outside string literals, then parses as strict JSON. Bun's bun.lock is JSONC, matching this project's zero-added-runtime-dependency posture. */
