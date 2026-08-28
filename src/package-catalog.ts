@@ -68,6 +68,7 @@ export function resolveTrustedPackageVersion(
   if (lockfile.name === "package-lock.json") return resolveNpmVersion(lockfile, packageName);
   if (lockfile.name === "bun.lock") return resolveBunTextVersion(lockfile, packageName);
   if (lockfile.name === "pnpm-lock.yaml") return resolvePnpmVersion(lockfile, packageName);
+  if (lockfile.name === "yarn.lock") return resolveYarnClassicVersion(lockfile, packageName);
   return undefined;
 }
 
@@ -230,6 +231,73 @@ function normalizePnpmVersion(value: string): string {
     return base.slice(1, -1);
   }
   return base;
+}
+
+/**
+ * Classic Yarn v1's `yarn.lock` is its own bespoke format, not YAML: a
+ * flat list of blocks, each headed by one or more comma-separated
+ * `"<name>@<range>"` specifiers (quoted only when necessary) ending in a
+ * bare `:`, followed by space-indented `key value` lines with no colon
+ * after the key. Yarn Berry (v2+) reuses the `.lock` extension for a
+ * materially different, real-YAML format keyed by `resolution:`/`version:`
+ * pairs and identified by a top-level `__metadata:` block; that format is
+ * out of scope here and must fall closed to "cannot confirm" rather than
+ * be misparsed as classic.
+ */
+function resolveYarnClassicVersion(lockfile: ProjectLockfile, packageName: string): string | undefined {
+  const text = Buffer.from(lockfile.bytes).toString("utf8");
+  if (/^__metadata:/m.test(text)) return undefined;
+
+  // Unlike npm's node_modules/<name>, pnpm's importers, or Bun's packages
+  // map, classic yarn.lock has no single "the top-level resolution" marker:
+  // every distinct range that resolved to a distinct version gets its own
+  // top-level block, hoisted or not. Collecting every matching block's
+  // version and requiring them to agree — rather than trusting whichever
+  // block appears first — avoids silently picking the wrong one of two
+  // coexisting versions.
+  const lines = text.split("\n");
+  const versions = new Set<string>();
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index]!;
+    if (line.length === 0 || line.startsWith("#") || line.startsWith(" ") || line.startsWith("\t") || !line.endsWith(":")) {
+      index += 1;
+      continue;
+    }
+    const header = line.slice(0, -1);
+    const blockStart = index + 1;
+    let blockEnd = blockStart;
+    while (blockEnd < lines.length && lines[blockEnd]!.startsWith(" ")) blockEnd += 1;
+
+    if (yarnClassicSpecifiers(header).some((specifier) => yarnClassicSpecifierName(specifier) === packageName)) {
+      for (let cursor = blockStart; cursor < blockEnd; cursor += 1) {
+        const match = /^\s+version\s+"([^"]+)"\s*$/.exec(lines[cursor]!);
+        if (match?.[1] !== undefined) {
+          versions.add(match[1]);
+          break;
+        }
+      }
+    }
+    index = blockEnd > blockStart ? blockEnd : index + 1;
+  }
+  return versions.size === 1 ? [...versions][0] : undefined;
+}
+
+function yarnClassicSpecifiers(header: string): string[] {
+  const specifiers: string[] = [];
+  const pattern = /"([^"]+)"|([^,\s]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(header))) {
+    const specifier = match[1] ?? match[2] ?? "";
+    if (specifier.length > 0) specifiers.push(specifier);
+  }
+  return specifiers;
+}
+
+function yarnClassicSpecifierName(specifier: string): string | undefined {
+  const separator = specifier.lastIndexOf("@");
+  if (separator <= 0) return undefined;
+  return specifier.slice(0, separator);
 }
 
 /** A minimal, dependency-free JSONC reader: strips line and block comments and trailing commas outside string literals, then parses as strict JSON. Bun's bun.lock is JSONC, matching this project's zero-added-runtime-dependency posture. */
