@@ -23,7 +23,11 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "docs/value-adapters.md",
+    "docs/trusted-packages.md",
+    "docs/troubleshooting.md",
+    "docs/pilot-checklist.md"
   ],
   "engines": {
     "node": ">=22.12.0 <23"

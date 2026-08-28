@@ -17,8 +17,15 @@ assert.equal(packageJson.packageManager, "npm@11.5.2");
 assert.equal(packageJson.bin.replaylock, "./dist/cli.js");
 assert.equal(packageJson.exports["./vite"].default, "./dist/vite-plugin.js");
 assert.equal(packageJson.exports["./vite/runtime"].default, "./dist/runtime.js");
+for (const documentation of [
+  "README.md",
+  "docs/value-adapters.md",
+  "docs/troubleshooting.md",
+  "docs/pilot-checklist.md",
+]) assert.ok(packageJson.files.includes(documentation), `${documentation} must ship with the package`);
 assert.ok(gitignore.includes(".replaylock/observations/"));
 assert.ok(gitignore.includes(".replaylock/verify/"));
+assert.ok(gitignore.includes(".replaylock/validate/"));
 assert.equal(gitignore.includes(".replaylock/"), false, "accepted cases must remain committable");
 
 const expected = {
@@ -47,5 +54,7 @@ assert.equal(typeof plugin.replaylock, "function");
 assert.equal(plugin.replaylock().name, "replaylock");
 const publicApi = await import(pathToFileURL(path.join(root, "dist", "index.js")).href);
 assert.equal(publicApi.REPLAYLOCK_VERSION, packageJson.version);
+assert.equal(typeof publicApi.defineReplayLock, "function");
+assert.equal(typeof publicApi.defineValueAdapter, "function");
 
 console.log("package contract verified");

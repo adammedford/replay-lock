@@ -1,24 +1,56 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import MagicString from "magic-string";
 import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
+import { analyzeProjectCallGraph } from "./call-graph.js";
+import { createAssumptionFingerprint, unknownEvidence } from "./assumptions.js";
+import { INTRINSIC_CATALOG_VERSION } from "./effect-analyzer.js";
+import type { AssumptionCaptureEvidence, TrustedPackageCaptureEvidence } from "./model.js";
 import type { SourceDiagnostic, SourceDiagnosticCode } from "./model.js";
+import { emptyPackageCatalog, type PackageCatalog } from "./package-catalog.js";
+import { findProjectConfigurationSync } from "./project-configuration.js";
+import { resolveProjectPackageCatalog } from "./project-execution.js";
+import { selectProjectLockfile, type ProjectLockfile } from "./project-lockfile.js";
+import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 
-const OBSERVER_IMPORT =
-  'import { observeCall as __replaylockObserve } from "replaylock/vite/runtime";\n';
+interface PackageResolution {
+  packageCatalog?: PackageCatalog;
+  lockfile?: ProjectLockfile;
+}
 
 export function replaylock(): Plugin {
+  // Activation is a capability, not a mode that can be toggled while Vite is
+  // processing a module graph. Snapshot it when the plugin is constructed so
+  // an ordinary Vite process cannot become instrumented through a later env
+  // mutation.
+  const activation = activeSession();
   let resolvedConfig: ResolvedConfig | undefined;
+  let projectConfiguration: string | undefined;
+  let packageCatalog: PackageCatalog = emptyPackageCatalog;
+  let lockfile: ProjectLockfile | undefined;
+
+  const publicRegistryId = "virtual:replaylock/value-adapters";
+  const internalRegistryId = `\0${publicRegistryId}`;
 
   return {
     name: "replaylock",
     enforce: "pre",
-    configResolved(config) {
+    async configResolved(config) {
       resolvedConfig = config;
-      const activation = activeSession();
+      projectConfiguration = findProjectConfigurationSync(config.root);
+      try {
+        packageCatalog = (await resolveProjectPackageCatalog(config.root, "recording")).catalog ?? emptyPackageCatalog;
+      } catch {
+        packageCatalog = emptyPackageCatalog;
+      }
+      try {
+        lockfile = selectProjectLockfile({ projectRoot: config.root });
+      } catch {
+        lockfile = undefined;
+      }
       if (!activation) return;
 
       mkdirSync(activation.directory, { recursive: true, mode: 0o700 });
@@ -28,58 +60,64 @@ export function replaylock(): Plugin {
         { encoding: "utf8", mode: 0o600 },
       );
     },
+    resolveId(id) {
+      return id === publicRegistryId ? internalRegistryId : null;
+    },
+    load(id) {
+      if (id !== internalRegistryId) return null;
+      const adaptersModule = new URL("./adapters.js", import.meta.url).href;
+      if (!projectConfiguration) {
+        return `import { emptyValueAdapterRegistry } from ${JSON.stringify(adaptersModule)};\nexport const valueAdapterRegistry = emptyValueAdapterRegistry;\n`;
+      }
+      return `import { appendFileSync } from "node:fs";\nimport path from "node:path";\nimport configuration from ${JSON.stringify(projectConfiguration)};\nimport { createValueAdapterRegistry, ValueAdapterConfigurationError } from ${JSON.stringify(adaptersModule)};\nlet valueAdapterRegistry;\ntry {\n  valueAdapterRegistry = createValueAdapterRegistry(configuration);\n} catch (error) {\n  if (error instanceof ValueAdapterConfigurationError) {\n    const directory = process.env.REPLAYLOCK_SESSION_DIR;\n    const token = process.env.REPLAYLOCK_SESSION_TOKEN;\n    if (directory && token) appendFileSync(path.join(directory, "adapter-diagnostics.jsonl"), JSON.stringify({ token, code: error.code, message: error.message }) + "\\n", { encoding: "utf8", mode: 0o600 });\n  }\n  throw error;\n}\nexport { valueAdapterRegistry };\n`;
+    },
     transform(code, rawId) {
-      const activation = activeSession();
       if (!activation || !resolvedConfig) return null;
 
       const id = rawId.split("?", 1)[0] ?? rawId;
-      if (id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
+      if (id.includes("/node_modules/") || !isTypeScriptSourceFilename(id)) return null;
 
       const sourceFile = ts.createSourceFile(
         id,
         code,
         ts.ScriptTarget.Latest,
         true,
-        scriptKind(id),
+        typescriptScriptKind(id),
       );
-      const locatorResolution = resolveCallableModuleLocator(resolvedConfig.root, id);
-      const analysis = analyzeSourcePolicies(sourceFile, locatorResolution.source);
-      const locatorDiagnostics = locatorResolution.ok
-        ? []
-        : analysis.callables
-            .filter(({ policy }) => policy.capture && policy.exclusionReasons.length === 0)
-            .map(({ target }) =>
-              sourceDiagnostic(
-                "UNSUPPORTED_CALLABLE",
-                sourceFile,
-                locatorResolution.source,
-                target.callable,
-                locatorResolution.message,
-              ),
-            );
-      for (const diagnostic of [...analysis.diagnostics, ...locatorDiagnostics]) {
+      const evaluated = evaluateCaptureSource(resolvedConfig.root, id, code, sourceFile, {
+        packageCatalog,
+        ...(lockfile ? { lockfile } : {}),
+      });
+      for (const diagnostic of evaluated.diagnostics) {
         writeSourceDiagnostic(activation.directory, diagnostic);
       }
-      if (!locatorResolution.ok) return null;
-      const moduleLocator = locatorResolution.locator;
-      const targets = analysis.callables
-        .filter(({ policy }) => policy.capture && policy.exclusionReasons.length === 0)
-        .map(({ target }) => target)
-        .filter(isIssue2LikelySafeNumericLeaf);
+      if (!evaluated.moduleLocator) return null;
+      const moduleLocator = evaluated.moduleLocator;
+      const targets = evaluated.targets;
+      const projectModules = evaluated.projectModules;
       if (targets.length === 0) return null;
 
       const transformed = new MagicString(code);
-      const sourceGraphDigest = `sha256:${createHash("sha256").update(code).digest("hex")}`;
+      const sourceGraphDigest = digestProjectModules(projectModules);
+      const observerBinding = freshObserverBinding(sourceFile);
+      const adapterBinding = freshBinding(sourceFile, "__replaylockValueAdapters");
 
-      for (const target of [...targets].reverse()) {
+      for (const capture of [...targets].reverse()) {
+        const target = capture.target;
         const metadata = JSON.stringify({
           locator: { module: moduleLocator, exportName: target.exportName },
           sourceGraphDigest,
+          ...(capture.assumption ? { assumption: capture.assumption } : {}),
+          ...(capture.packageTrust && capture.packageTrust.length > 0 ? { packageTrust: capture.packageTrust } : {}),
         });
-        instrumentTarget(transformed, sourceFile, target, metadata);
+        instrumentTarget(transformed, sourceFile, target, metadata, observerBinding, adapterBinding);
       }
 
-      transformed.prepend(OBSERVER_IMPORT);
+      const observerImport = `import { observeCall as ${observerBinding} } from "replaylock/vite/runtime";\n`;
+      const adapterImport = `import { valueAdapterRegistry as ${adapterBinding} } from ${JSON.stringify(publicRegistryId)};\n`;
+      const hashbangEnd = code.startsWith("#!") ? (code.indexOf("\n") + 1 || code.length) : 0;
+      if (hashbangEnd === 0) transformed.prepend(observerImport + adapterImport);
+      else transformed.appendLeft(hashbangEnd, observerImport + adapterImport);
       return {
         code: transformed.toString(),
         map: transformed.generateMap({
@@ -90,6 +128,150 @@ export function replaylock(): Plugin {
         }),
       };
     },
+  };
+}
+
+export interface RecordingPreflight {
+  captureTargets: number;
+  eligibleTargets: number;
+  diagnostics: SourceDiagnostic[];
+}
+
+/**
+ * Analyze all authored project modules before a record command starts. This is
+ * deliberately backed by the same evaluator used by the Vite transform: the
+ * preflight is an execution gate, never a second interpretation of policy.
+ */
+export function preflightRecordingProject(
+  projectRoot: string,
+  resolution: PackageResolution = {},
+): RecordingPreflight {
+  let captureTargets = 0;
+  let eligibleTargets = 0;
+  const diagnostics: SourceDiagnostic[] = [];
+  for (const sourcePath of projectSourceFiles(projectRoot)) {
+    const code = readFileSync(sourcePath, "utf8");
+    const evaluated = evaluateCaptureSource(projectRoot, sourcePath, code, undefined, resolution);
+    captureTargets += evaluated.captureTargets;
+    eligibleTargets += evaluated.targets.length;
+    diagnostics.push(...evaluated.diagnostics);
+  }
+  diagnostics.sort(compareSourceDiagnostics);
+  return { captureTargets, eligibleTargets, diagnostics };
+}
+
+interface EvaluatedCaptureSource {
+  captureTargets: number;
+  diagnostics: SourceDiagnostic[];
+  moduleLocator?: string;
+  projectModules: Record<string, string>;
+  targets: Array<{
+    target: CaptureTarget;
+    assumption?: AssumptionCaptureEvidence;
+    packageTrust?: TrustedPackageCaptureEvidence[];
+  }>;
+}
+
+function evaluateCaptureSource(
+  projectRoot: string,
+  sourcePath: string,
+  code: string,
+  parsedSource?: ts.SourceFile,
+  resolution: PackageResolution = {},
+): EvaluatedCaptureSource {
+  const sourceFile = parsedSource ?? ts.createSourceFile(
+    sourcePath,
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    typescriptScriptKind(sourcePath),
+  );
+  const locatorResolution = resolveCallableModuleLocator(projectRoot, sourcePath);
+  const analysis = analyzeSourcePolicies(sourceFile, locatorResolution.source);
+  const requested = analysis.callables.filter(
+    ({ policy }) => policy.capture && policy.exclusionReasons.length === 0,
+  );
+  const diagnostics = [...analysis.diagnostics];
+  if (!locatorResolution.ok) {
+    diagnostics.push(...requested.map(({ target }) => sourceDiagnostic(
+      "UNSUPPORTED_CALLABLE",
+      sourceFile,
+      locatorResolution.source,
+      target.callable,
+      locatorResolution.message,
+    )));
+    return { captureTargets: requested.length, diagnostics, projectModules: {}, targets: [] };
+  }
+
+  const projectModules = collectProjectModules(projectRoot, sourcePath, code);
+  const targets: EvaluatedCaptureSource["targets"] = [];
+  for (const callable of requested) {
+    const eligibility = analyzeProjectCallGraph({
+      modules: projectModules,
+      entryModule: locatorResolution.source,
+      exportName: callable.target.exportName,
+      ...(resolution.packageCatalog ? { packageCatalog: resolution.packageCatalog } : {}),
+      ...(resolution.lockfile ? { lockfile: resolution.lockfile } : {}),
+    });
+    if (eligibility.verdict === "likely-safe") {
+      const packageTrust = eligibility.trustedPackageCalls.map((call) => ({
+        package: call.package,
+        export: call.export,
+        unpinned: call.unpinned,
+        ...(call.matchedVersion ? { matchedVersion: call.matchedVersion } : {}),
+      }));
+      targets.push({
+        target: callable.target,
+        ...(packageTrust.length > 0 ? { packageTrust } : {}),
+      });
+      continue;
+    }
+    const hasAssumption = callable.policy.assumptionReasons.length > 0;
+    if (eligibility.verdict === "unknown" && hasAssumption) {
+      try {
+        const reason = callable.policy.assumptionReasons.join("; ");
+        const evidence = unknownEvidence(eligibility.findings);
+        targets.push({
+          target: callable.target,
+          assumption: {
+            reason,
+            fingerprint: createAssumptionFingerprint({
+              modules: projectModules,
+              analysis: eligibility,
+              projectRoot,
+            }),
+            originalEvidence: evidence.map((finding) => ({ ...finding })),
+            analyzerVersion: eligibility.analyzerVersion,
+            intrinsicCatalogVersion: INTRINSIC_CATALOG_VERSION,
+          },
+        });
+        continue;
+      } catch {
+        // Missing or ambiguous fingerprint inputs remain unknown.
+      }
+    }
+    diagnostics.push(sourceDiagnostic(
+      eligibility.verdict === "refuted"
+        ? hasAssumption ? "ASSERTION_CONFLICT" : "KNOWN_EFFECT"
+        : "UNKNOWN_EFFECT",
+      sourceFile,
+      locatorResolution.source,
+      callable.target.callable,
+      eligibility.verdict === "refuted"
+        ? hasAssumption
+          ? "known effects conflict with the assume-pure assertion"
+          : "known effects make this callable ineligible for recording"
+        : hasAssumption
+          ? "assume-pure fingerprint inputs are unavailable for explicit review"
+          : "unknown effects require an explicit reviewed assumption before recording",
+    ));
+  }
+  return {
+    captureTargets: requested.length,
+    diagnostics,
+    moduleLocator: locatorResolution.locator,
+    projectModules,
+    targets,
   };
 }
 
@@ -194,7 +376,8 @@ function supportedCaptureTarget(node: ts.Node, sourceFile: ts.SourceFile): Captu
       declaration &&
       ts.isIdentifier(declaration.name) &&
       declaration.initializer &&
-      isSynchronousFunctionInitializer(declaration.initializer)
+      isSynchronousFunctionInitializer(declaration.initializer) &&
+      isCaptureArgumentListSupported(declaration.initializer)
     ) {
       return { exportName: declaration.name.text, callable: declaration.initializer };
     }
@@ -397,34 +580,18 @@ function isSynchronousFunctionInitializer(
   );
 }
 
-function isIssue2LikelySafeNumericLeaf(
-  target: CaptureTarget,
-): boolean {
-  const callable = target.callable;
-  if (
-    callable.parameters.some(
-      (parameter) =>
-        !ts.isIdentifier(parameter.name) ||
-        parameter.initializer !== undefined ||
-        parameter.dotDotDotToken !== undefined,
-    )
-  ) {
-    return false;
-  }
-
-  const expression = callableBodyExpression(callable);
-  if (!expression) return false;
-  const parameterNames = new Set(
-    callable.parameters.map((parameter) => (parameter.name as ts.Identifier).text),
+// Ordinary functions expose their exact caller argument list through the
+// standard `arguments` object. Arrows do not, so only simple identifier
+// parameters can be captured without changing the callable's contract or
+// inventing an argument list for defaults, rest, or destructuring.
+function isCaptureArgumentListSupported(callable: ts.ArrowFunction | ts.FunctionExpression): boolean {
+  if (ts.isFunctionExpression(callable)) return true;
+  return callable.parameters.every(
+    (parameter) =>
+      ts.isIdentifier(parameter.name) &&
+      parameter.initializer === undefined &&
+      parameter.dotDotDotToken === undefined,
   );
-  return isNumericLeafExpression(expression, parameterNames);
-}
-
-function callableBodyExpression(callable: CaptureTarget["callable"]): ts.Expression | undefined {
-  if (!ts.isBlock(callable.body)) return callable.body;
-  if (callable.body.statements.length !== 1) return undefined;
-  const [statement] = callable.body.statements;
-  return statement && ts.isReturnStatement(statement) ? statement.expression : undefined;
 }
 
 function instrumentTarget(
@@ -432,6 +599,8 @@ function instrumentTarget(
   sourceFile: ts.SourceFile,
   target: CaptureTarget,
   metadata: string,
+  observerBinding: string,
+  adapterBinding: string,
 ): void {
   const { callable } = target;
   const observedArguments = ts.isArrowFunction(callable)
@@ -443,9 +612,9 @@ function instrumentTarget(
     const bodyEnd = callable.body.end - 1;
     transformed.appendLeft(
       bodyStart,
-      `\nreturn __replaylockObserve(${metadata}, ${observedArguments}, () => {`,
+      `\nreturn ${observerBinding}(${metadata}, ${observedArguments}, () => {`,
     );
-    transformed.appendLeft(bodyEnd, "\n});\n");
+    transformed.appendLeft(bodyEnd, `\n}, ${adapterBinding});\n`);
     return;
   }
 
@@ -453,57 +622,158 @@ function instrumentTarget(
   transformed.overwrite(
     expression.getStart(sourceFile),
     expression.end,
-    `__replaylockObserve(${metadata}, ${observedArguments}, () => (${expression.getText(sourceFile)}))`,
+    `${observerBinding}(${metadata}, ${observedArguments}, () => (${expression.getText(sourceFile)}), ${adapterBinding})`,
   );
+}
+
+function freshObserverBinding(sourceFile: ts.SourceFile): string {
+  return freshBinding(sourceFile, "__replaylockObserve");
+}
+
+function freshBinding(sourceFile: ts.SourceFile, base: string): string {
+  const identifiers = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)) identifiers.add(node.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  let suffix = 0;
+  let candidate = base;
+  while (identifiers.has(candidate)) {
+    suffix += 1;
+    candidate = `${base}${suffix}`;
+  }
+  return candidate;
+}
+
+function collectProjectModules(
+  projectRoot: string,
+  entryPath: string,
+  entryCode: string,
+): Record<string, string> {
+  const entry = resolveCallableModuleLocator(projectRoot, entryPath);
+  if (!entry.ok) return {};
+  const modules: Record<string, string> = { [entry.locator]: entryCode };
+  const queue: Array<{ absolutePath: string; locator: string; code: string }> = [
+    { absolutePath: entryPath, locator: entry.locator, code: entryCode },
+  ];
+  const visited = new Set([entry.locator]);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    const sourceFile = ts.createSourceFile(
+      current.absolutePath,
+      current.code,
+      ts.ScriptTarget.Latest,
+      true,
+      typescriptScriptKind(current.absolutePath),
+    );
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        statement.importClause?.isTypeOnly ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        !statement.moduleSpecifier.text.startsWith(".")
+      ) continue;
+      const resolved = resolveStaticProjectImport(
+        projectRoot,
+        current.absolutePath,
+        current.locator,
+        statement.moduleSpecifier.text,
+      );
+      if (!resolved || visited.has(resolved.locator)) continue;
+      const importedCode = readFileSync(resolved.absolutePath, "utf8");
+      visited.add(resolved.locator);
+      modules[resolved.locator] = importedCode;
+      queue.push({ ...resolved, code: importedCode });
+    }
+  }
+  return modules;
+}
+
+function digestProjectModules(modules: Readonly<Record<string, string>>): string {
+  const hash = createHash("sha256");
+  for (const [name, source] of Object.entries(modules).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
+    hash.update(`${Buffer.byteLength(name, "utf8")}:`, "utf8");
+    hash.update(name, "utf8");
+    hash.update(`${Buffer.byteLength(source, "utf8")}:`, "utf8");
+    hash.update(source, "utf8");
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function resolveStaticProjectImport(
+  projectRoot: string,
+  importerPath: string,
+  importerLocator: string,
+  specifier: string,
+): { absolutePath: string; locator: string } | undefined {
+  const absoluteBase = path.resolve(path.dirname(importerPath), specifier);
+  const locatorBase = path.posix.normalize(path.posix.join(path.posix.dirname(importerLocator), specifier));
+  const extension = path.extname(absoluteBase);
+  const candidates = extension
+    ? [absoluteBase, ...([".js", ".mjs", ".cjs"].includes(extension)
+        ? [absoluteBase.slice(0, -extension.length) + ".ts", absoluteBase.slice(0, -extension.length) + ".tsx"]
+        : [])]
+    : [
+        absoluteBase,
+        ...[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"].map((suffix) => absoluteBase + suffix),
+        ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((name) => path.join(absoluteBase, name)),
+      ];
+  const existing = candidates.filter(isFile);
+  if (existing.length !== 1) return undefined;
+  const actual = existing[0];
+  if (!actual) return undefined;
+  const actualResolution = resolveCallableModuleLocator(projectRoot, actual);
+  if (!actualResolution.ok) return undefined;
+  const requestedLocator = extension ? locatorBase : actualResolution.locator;
+  return { absolutePath: actual, locator: requestedLocator };
+}
+
+function isFile(filePath: string): boolean {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+const ignoredProjectDirectories = new Set([".git", ".replaylock", "dist", "node_modules"]);
+
+function projectSourceFiles(projectRoot: string): string[] {
+  const files: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (!ignoredProjectDirectories.has(entry.name)) visit(path.join(directory, entry.name));
+        continue;
+      }
+      if (entry.isFile() && isTypeScriptSourceFilename(entry.name)) {
+        files.push(path.join(directory, entry.name));
+      }
+    }
+  };
+  visit(projectRoot);
+  return files.sort();
+}
+
+function compareSourceDiagnostics(left: SourceDiagnostic, right: SourceDiagnostic): number {
+  return left.source < right.source ? -1 : left.source > right.source ? 1
+    : left.line - right.line || left.column - right.column
+      || (left.code < right.code ? -1 : left.code > right.code ? 1 : 0)
+      || (left.message < right.message ? -1 : left.message > right.message ? 1 : 0);
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) === true;
 }
 
-function isNumericLeafExpression(expression: ts.Expression, parameters: ReadonlySet<string>): boolean {
-  if (ts.isNumericLiteral(expression)) return true;
-  if (ts.isIdentifier(expression)) return parameters.has(expression.text);
-  if (ts.isParenthesizedExpression(expression)) {
-    return isNumericLeafExpression(expression.expression, parameters);
-  }
-  if (ts.isPrefixUnaryExpression(expression)) {
-    return (
-      (expression.operator === ts.SyntaxKind.PlusToken ||
-        expression.operator === ts.SyntaxKind.MinusToken) &&
-      isNumericLeafExpression(expression.operand, parameters)
-    );
-  }
-  if (!ts.isBinaryExpression(expression) || !isNumericOperator(expression.operatorToken.kind)) {
-    return false;
-  }
-  return (
-    isNumericLeafExpression(expression.left, parameters) &&
-    isNumericLeafExpression(expression.right, parameters)
-  );
-}
-
-function isNumericOperator(kind: ts.SyntaxKind): boolean {
-  return (
-    kind === ts.SyntaxKind.PlusToken ||
-    kind === ts.SyntaxKind.MinusToken ||
-    kind === ts.SyntaxKind.AsteriskToken ||
-    kind === ts.SyntaxKind.SlashToken ||
-    kind === ts.SyntaxKind.PercentToken ||
-    kind === ts.SyntaxKind.AsteriskAsteriskToken
-  );
-}
-
 function activeSession(): { directory: string; token: string } | undefined {
   const directory = process.env.REPLAYLOCK_SESSION_DIR;
   const token = process.env.REPLAYLOCK_SESSION_TOKEN;
-  if (!directory || !token) return undefined;
+  if (!directory || !path.isAbsolute(directory) || !token || !/^[a-f0-9]{64}$/.test(token)) {
+    return undefined;
+  }
   return { directory, token };
-}
-
-function scriptKind(id: string): ts.ScriptKind {
-  if (id.endsWith(".tsx")) return ts.ScriptKind.TSX;
-  if (id.endsWith(".jsx")) return ts.ScriptKind.JSX;
-  if (id.endsWith(".js") || id.endsWith(".mjs") || id.endsWith(".cjs")) return ts.ScriptKind.JS;
-  return ts.ScriptKind.TS;
 }

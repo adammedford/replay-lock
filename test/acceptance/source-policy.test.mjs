@@ -105,7 +105,7 @@ export const misplaced = 6;
 
 if (false) {
   /** @replaylock capture */
-  module.exports.answer = 42;
+  const nestedMisplaced = 42;
 }
 `,
     test: `import {
@@ -169,11 +169,14 @@ export function eligible(value: number): number {
 /** @replaylock capture */
 export const indirect = local;
 
-/** @replaylock capture */
-export const factoryResult = makeFunction();
+function containsUnsupportedFactory(): number {
+  /** @replaylock capture */
+  const factoryResult = makeFunction();
+  return factoryResult(1);
+}
 
 /** @replaylock capture */
-export const conditional = selectLocal ? local : makeFunction();
+export const conditional = selectLocal ? local : local;
 
 /** @replaylock capture */
 export const asserted = <NumberFunction>local;
@@ -228,7 +231,7 @@ function reexported(value: number): number {
 /** @replaylock capture */
 export { reexported };
 
-if (false) {
+function containsUnsupportedCommonJs(): void {
   /** @replaylock capture */
   module.exports.common = function (value: number): number {
     return value + 9;
@@ -243,7 +246,6 @@ export const unannotatedIndirect = local;
   conditional,
   Container,
   eligible,
-  factoryResult,
   generated,
   holder,
   indirect,
@@ -257,7 +259,6 @@ test("unsupported shapes retain their ordinary behavior", () => {
   expect(eligible(1)).toBe(2);
   expect(asserted(1)).toBe(11);
   expect(indirect(1)).toBe(11);
-  expect(factoryResult(1)).toBe(10);
   expect(conditional(1)).toBe(11);
   expect(defaulted(1)).toBe(3);
   expect(asynchronous(1)).toBeInstanceOf(Promise);
@@ -307,7 +308,7 @@ export function outside(value: number): number {
     `import { outside } from ${JSON.stringify(externalSpecifier)};
 
 /** @replaylock capture */
-export function eligible(value: number): number {
+export function blockedByUnknownImport(value: number): number {
   return value + 1;
 }
 
@@ -317,11 +318,19 @@ export function exerciseOutside(value: number): number {
 `,
   );
   await writeFile(
+    path.join(project, "src", "eligible.ts"),
+    `/** @replaylock capture */
+export function eligible(value: number): number { return value + 1; }
+`,
+  );
+  await writeFile(
     path.join(project, "test", "calculation.test.ts"),
-    `import { eligible, exerciseOutside } from "../src/calculation.js";
+    `import { blockedByUnknownImport, exerciseOutside } from "../src/calculation.js";
+import { eligible } from "../src/eligible.js";
 
 test("local and outside callables both execute naturally", () => {
   expect(eligible(1)).toBe(2);
+  expect(blockedByUnknownImport(1)).toBe(2);
   expect(exerciseOutside(1)).toBe(21);
 });
 `,
@@ -331,10 +340,11 @@ test("local and outside callables both execute naturally", () => {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
     assert.match(output(result), /UNSUPPORTED_CALLABLE.*outside the project root/);
+    assert.match(output(result), /UNKNOWN_EFFECT src\/calculation\.ts/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 
     const candidates = await pendingCandidates(project);
-    assert.deepEqual(candidates.map((candidate) => candidate.locator.exportName), ["eligible"]);
+    assert.deepEqual(candidates.map((candidate) => candidate.locator), [{ module: "src/eligible.ts", exportName: "eligible" }]);
   } finally {
     await Promise.all([
       rm(project, { recursive: true, force: true }),

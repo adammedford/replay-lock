@@ -1,6 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  decodeCanonicalCompletion,
+  decodeCanonicalValue,
+  encodeCanonicalCompletion,
+  encodeCanonicalValue,
+  type BuiltInValue,
+  type CanonicalArrayNode as CanonicalArrayValueNode,
+  type CanonicalAdaptedNode,
+  type CanonicalBuiltInValueNode,
+  type CanonicalReplayValueNode,
+  type CanonicalCompletion as CanonicalCompletionValue,
+} from "./canonical.js";
 
 export const CASE_SCHEMA_VERSION = 1 as const;
 export const REPLAYLOCK_VERSION = "0.1.0" as const;
@@ -10,12 +22,44 @@ export interface CallableLocator {
   exportName: string;
 }
 
+export interface TrustedPackageCaptureEvidence {
+  package: string;
+  export: string;
+  matchedVersion?: string;
+  unpinned: boolean;
+}
+
 export interface CaptureMetadata {
   locator: CallableLocator;
   sourceGraphDigest: string;
+  assumption?: AssumptionCaptureEvidence;
+  packageTrust?: TrustedPackageCaptureEvidence[];
 }
 
-export type SourceDiagnosticCode = "INVALID_POLICY" | "UNSUPPORTED_CALLABLE";
+export interface AssumptionEvidenceFinding {
+  code: string;
+  source: string;
+  line: number;
+  column: number;
+  message: string;
+}
+
+export interface AssumptionCaptureEvidence {
+  reason: string;
+  fingerprint: string;
+  originalEvidence: AssumptionEvidenceFinding[];
+  analyzerVersion: string;
+  intrinsicCatalogVersion: string;
+}
+
+export type SourceDiagnosticCode =
+  | "INVALID_POLICY"
+  | "UNSUPPORTED_CALLABLE"
+  | "KNOWN_EFFECT"
+  | "ASSERTION_CONFLICT"
+  | "EFFECT_REFUTED"
+  | "UNKNOWN_EFFECT"
+  | "STALE_ASSERTION";
 
 export interface SourceDiagnostic {
   code: SourceDiagnosticCode;
@@ -36,43 +80,30 @@ export interface RuntimeProfile {
   locale: string;
 }
 
-export interface ObservedReturnCompletion {
-  kind: "return";
-  value: number;
-}
-
 export interface Observation extends CaptureMetadata {
   token: string;
-  arguments: number[];
-  completion: ObservedReturnCompletion;
+  arguments: CanonicalArrayValueNode<CanonicalAdaptedNode>;
+  completion: CanonicalCompletionValue<CanonicalAdaptedNode>;
   runtimeProfile: RuntimeProfile;
 }
 
-export interface CanonicalNumberNode {
-  kind: "number";
-  value: number;
-}
-
-export interface CanonicalArrayNode {
-  kind: "array";
-  items: CanonicalNumberNode[];
-}
-
-export interface CanonicalReturnCompletion {
-  kind: "return";
-  value: CanonicalNumberNode;
-}
+export type CanonicalArrayNode = CanonicalArrayValueNode<CanonicalAdaptedNode>;
+export type CanonicalCompletion = CanonicalCompletionValue<CanonicalAdaptedNode>;
 
 export interface EligibilityEvidence {
-  basis: "automatic";
+  basis: "automatic" | "assumption" | "catalog";
   verdict: "likely-safe";
   reasonCodes: string[];
+  assumption?: AssumptionCaptureEvidence;
+  packageTrust?: TrustedPackageCaptureEvidence[];
 }
 
 export interface CaseProvenance {
   sourceGraphDigest: string;
   lockfileDigest: string;
   runtimeProfile: RuntimeProfile;
+  /** Whether the candidate came from a clean or partially recovered recording session. */
+  captureStatus: "complete" | "partial";
 }
 
 export interface CaseArtifact {
@@ -80,7 +111,7 @@ export interface CaseArtifact {
   caseId: string;
   locator: CallableLocator;
   arguments: CanonicalArrayNode;
-  completion: CanonicalReturnCompletion;
+  completion: CanonicalCompletion;
   comparison: "exact";
   eligibility: EligibilityEvidence;
   provenance: CaseProvenance;
@@ -88,6 +119,8 @@ export interface CaseArtifact {
 
 export interface CandidateArtifact extends CaseArtifact {
   occurrences: number;
+  /** Present when this session observed behavior different from a reviewed case. */
+  replacesCaseId?: string;
 }
 
 export function isReplayNumber(value: unknown): value is number {
@@ -107,16 +140,22 @@ export function validateObservation(value: unknown): Observation {
     typeof locator.module !== "string" ||
     typeof locator.exportName !== "string" ||
     locator.exportName.length === 0 ||
-    !Array.isArray(value.arguments) ||
-    !value.arguments.every(isReplayNumber) ||
     !isObject(completion) ||
-    completion.kind !== "return" ||
-    !isReplayNumber(completion.value) ||
     !isSha256Digest(value.sourceGraphDigest) ||
     !isRuntimeProfile(value.runtimeProfile)
   ) {
-    throw new Error("Observation is outside the issue 2 finite-number contract");
+    throw new Error("Malformed ReplayLock observation");
   }
+
+  const representation = Array.isArray(value.arguments) ? "raw" : "canonical";
+  const canonicalArguments = normalizeObservedArguments(value.arguments);
+  const canonicalCompletion = normalizeObservedCompletion(completion, representation);
+  const assumption = value.assumption === undefined
+    ? undefined
+    : parseAssumptionCaptureEvidence(value.assumption);
+  const packageTrust = value.packageTrust === undefined
+    ? undefined
+    : parseTrustedPackageCaptureEvidenceList(value.packageTrust);
 
   return {
     token: value.token,
@@ -124,17 +163,27 @@ export function validateObservation(value: unknown): Observation {
       module: normalizeModuleLocator(locator.module),
       exportName: locator.exportName,
     },
-    arguments: [...value.arguments],
-    completion: { kind: "return", value: completion.value },
+    arguments: canonicalArguments,
+    completion: canonicalCompletion,
     sourceGraphDigest: value.sourceGraphDigest,
     runtimeProfile: { ...value.runtimeProfile },
+    ...(assumption ? { assumption } : {}),
+    ...(packageTrust ? { packageTrust } : {}),
   };
 }
 
 export function validateSourceDiagnostic(value: unknown): SourceDiagnostic {
   if (
     !isObject(value) ||
-    (value.code !== "INVALID_POLICY" && value.code !== "UNSUPPORTED_CALLABLE") ||
+    ![
+      "INVALID_POLICY",
+      "UNSUPPORTED_CALLABLE",
+      "KNOWN_EFFECT",
+      "ASSERTION_CONFLICT",
+      "EFFECT_REFUTED",
+      "UNKNOWN_EFFECT",
+      "STALE_ASSERTION",
+    ].includes(value.code as string) ||
     typeof value.source !== "string" ||
     value.source.length === 0 ||
     typeof value.line !== "number" ||
@@ -150,7 +199,7 @@ export function validateSourceDiagnostic(value: unknown): SourceDiagnostic {
   }
 
   return {
-    code: value.code,
+    code: value.code as SourceDiagnosticCode,
     source: value.source,
     line: value.line,
     column: value.column,
@@ -161,38 +210,54 @@ export function validateSourceDiagnostic(value: unknown): SourceDiagnostic {
 export function createCandidate(
   observation: Observation,
   lockfileDigest: string,
+  captureStatus: CaseProvenance["captureStatus"] = "complete",
 ): CandidateArtifact {
   if (!isSha256Digest(lockfileDigest)) {
     throw new Error("Lockfile digest must be a SHA-256 digest");
   }
 
-  const canonicalArguments = encodeArguments(observation.arguments);
+  const representation = Array.isArray(observation.arguments) ? "raw" : "canonical";
+  const canonicalArguments = normalizeObservedArguments(observation.arguments);
+  const canonicalCompletion = normalizeObservedCompletion(observation.completion, representation);
+  const legacyNumericLeaf =
+    canonicalArguments.items.every((item) => item.kind === "number") &&
+    canonicalCompletion.kind === "return" &&
+    "value" in canonicalCompletion &&
+    canonicalCompletion.value.kind === "number";
   return {
     schemaVersion: CASE_SCHEMA_VERSION,
     caseId: createCaseId(observation.locator, canonicalArguments),
     locator: { ...observation.locator },
     arguments: canonicalArguments,
-    completion: {
-      kind: "return",
-      value: encodeNumber(observation.completion.value),
-    },
+    completion: canonicalCompletion,
     comparison: "exact",
     eligibility: {
-      basis: "automatic",
+      basis: observation.assumption ? "assumption" : (observation.packageTrust?.length ?? 0) > 0 ? "catalog" : "automatic",
       verdict: "likely-safe",
-      reasonCodes: ["ISSUE_2_DIRECT_EXPORTED_SYNC_NUMERIC_LEAF"],
+      reasonCodes: [observation.assumption
+        ? "ASSUMED_UNKNOWN_EFFECT"
+        : (observation.packageTrust?.length ?? 0) > 0
+          ? "TRUSTED_PACKAGE_CALL"
+          : legacyNumericLeaf
+            ? "ISSUE_2_DIRECT_EXPORTED_SYNC_NUMERIC_LEAF"
+            : "STATIC_ANALYSIS_LIKELY_SAFE"],
+      ...(observation.assumption ? { assumption: cloneAssumptionCaptureEvidence(observation.assumption) } : {}),
+      ...(observation.packageTrust && observation.packageTrust.length > 0
+        ? { packageTrust: observation.packageTrust.map(cloneTrustedPackageCaptureEvidence) }
+        : {}),
     },
     provenance: {
       sourceGraphDigest: observation.sourceGraphDigest,
       lockfileDigest,
       runtimeProfile: { ...observation.runtimeProfile },
+      captureStatus,
     },
     occurrences: 1,
   };
 }
 
 export function toCaseArtifact(candidate: CandidateArtifact): CaseArtifact {
-  const { occurrences: _occurrences, ...artifact } = candidate;
+  const { occurrences: _occurrences, replacesCaseId: _replacesCaseId, ...artifact } = candidate;
   return artifact;
 }
 
@@ -202,15 +267,28 @@ export function parseCandidate(text: string): CandidateArtifact {
   if (!isObject(value) || !Number.isInteger(value.occurrences) || Number(value.occurrences) < 1) {
     throw new Error("Candidate occurrences must be a positive integer");
   }
-  return { ...artifact, occurrences: Number(value.occurrences) };
+  const replacesCaseId = value.replacesCaseId;
+  if (
+    replacesCaseId !== undefined &&
+    (typeof replacesCaseId !== "string" || !/^[a-f0-9]{64}$/.test(replacesCaseId))
+  ) {
+    throw new Error("Replacement case ID must be a SHA-256 digest");
+  }
+  return {
+    ...artifact,
+    occurrences: Number(value.occurrences),
+    ...(typeof replacesCaseId === "string" ? { replacesCaseId } : {}),
+  };
 }
 
 export function parseCase(text: string): CaseArtifact {
   return parseCaseShape(JSON.parse(text) as unknown);
 }
 
-export function decodeArguments(value: CanonicalArrayNode): number[] {
-  return value.items.map((item) => item.value);
+export function decodeArguments(value: CanonicalArrayNode): BuiltInValue[] {
+  const decoded = decodeCanonicalValue(value);
+  if (!Array.isArray(decoded)) throw new Error("Malformed canonical argument list");
+  return decoded;
 }
 
 export function artifactJson(value: CandidateArtifact | CaseArtifact): string {
@@ -256,14 +334,13 @@ function parseCaseShape(value: unknown): CaseArtifact {
     typeof value.caseId !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.caseId) ||
     !isObject(completion) ||
-    completion.kind !== "return" ||
-    !isCanonicalNumberNode(completion.value) ||
     value.comparison !== "exact" ||
     !isEligibilityEvidence(eligibility) ||
     !isCaseProvenance(provenance)
   ) {
-    throw new Error("Malformed finite-number case artifact");
+    throw new Error("Malformed case artifact");
   }
+  const canonicalCompletion = normalizeCanonicalCompletion(completion);
 
   const expectedCaseId = createCaseId(locator, canonicalArguments);
   if (value.caseId !== expectedCaseId) {
@@ -275,20 +352,24 @@ function parseCaseShape(value: unknown): CaseArtifact {
     caseId: value.caseId,
     locator,
     arguments: canonicalArguments,
-    completion: {
-      kind: "return",
-      value: { kind: "number", value: completion.value.value },
-    },
+    completion: canonicalCompletion,
     comparison: "exact",
     eligibility: {
       basis: eligibility.basis,
       verdict: eligibility.verdict,
       reasonCodes: [...eligibility.reasonCodes],
+      ...(eligibility.assumption
+        ? { assumption: cloneAssumptionCaptureEvidence(eligibility.assumption) }
+        : {}),
+      ...(eligibility.packageTrust && eligibility.packageTrust.length > 0
+        ? { packageTrust: eligibility.packageTrust.map(cloneTrustedPackageCaptureEvidence) }
+        : {}),
     },
     provenance: {
       sourceGraphDigest: provenance.sourceGraphDigest,
       lockfileDigest: provenance.lockfileDigest,
       runtimeProfile: { ...provenance.runtimeProfile },
+      captureStatus: provenance.captureStatus ?? "complete",
     },
   };
 }
@@ -309,26 +390,10 @@ function parseLocator(value: unknown): CallableLocator {
   return { module: normalized, exportName: value.exportName };
 }
 
-function encodeArguments(values: number[]): CanonicalArrayNode {
-  return { kind: "array", items: values.map(encodeNumber) };
-}
-
-function encodeNumber(value: number): CanonicalNumberNode {
-  if (!isReplayNumber(value)) throw new Error("Unsupported numeric value");
-  return { kind: "number", value };
-}
-
 function parseCanonicalArguments(value: unknown): CanonicalArrayNode {
-  if (!isObject(value) || value.kind !== "array" || !Array.isArray(value.items)) {
-    throw new Error("Malformed canonical argument list");
-  }
-  if (!value.items.every(isCanonicalNumberNode)) {
-    throw new Error("Malformed canonical numeric argument");
-  }
-  return {
-    kind: "array",
-    items: value.items.map((item) => ({ kind: "number", value: item.value })),
-  };
+  const normalized = normalizeCanonicalValue(value);
+  if (normalized.kind !== "array") throw new Error("Malformed canonical argument list");
+  return normalized;
 }
 
 function createCaseId(locator: CallableLocator, arguments_: CanonicalArrayNode): string {
@@ -344,19 +409,187 @@ function createCaseId(locator: CallableLocator, arguments_: CanonicalArrayNode):
   return createHash("sha256").update(identityBytes, "utf8").digest("hex");
 }
 
-function isCanonicalNumberNode(value: unknown): value is CanonicalNumberNode {
-  return isObject(value) && value.kind === "number" && isReplayNumber(value.value);
+function normalizeObservedArguments(value: unknown): CanonicalArrayNode {
+  if (Array.isArray(value)) {
+    const encoded = encodeCanonicalValue(value);
+    if (encoded.kind !== "array") throw new Error("Malformed observation arguments");
+    return encoded;
+  }
+  return parseCanonicalArguments(value);
+}
+
+function normalizeObservedCompletion(
+  value: unknown,
+  representation: "raw" | "canonical",
+): CanonicalCompletion {
+  if (!isObject(value)) throw new Error("Malformed observation completion");
+  if (representation === "raw") {
+    if ((value.kind !== "return" && value.kind !== "throw") || !Object.hasOwn(value, "value")) {
+      throw new Error("Malformed raw observation completion");
+    }
+    return encodeCanonicalCompletion({ kind: value.kind, value: value.value });
+  }
+  return normalizeCanonicalCompletion(value);
+}
+
+function normalizeCanonicalValue(value: unknown): CanonicalReplayValueNode {
+  return normalizeReplayNode(value);
+}
+
+function normalizeCanonicalCompletion(value: unknown): CanonicalCompletion {
+  if (!isObject(value) || (value.kind !== "return" && value.kind !== "throw")) {
+    throw new Error("Malformed canonical completion");
+  }
+  if (value.kind === "throw" && Object.hasOwn(value, "error")) {
+    return encodeCanonicalCompletion(decodeCanonicalCompletion(value)) as CanonicalCompletion;
+  }
+  if (!Object.hasOwn(value, "value")) throw new Error("Malformed canonical completion");
+  const normalized = normalizeReplayNode(value.value);
+  return value.kind === "return"
+    ? { kind: "return", value: normalized }
+    : { kind: "throw", value: normalized };
+}
+
+function normalizeReplayNode(value: unknown): CanonicalReplayValueNode {
+  if (isObject(value) && value.kind === "adapted") {
+    if (
+      Object.keys(value).sort().join(",") !== "adapterId,kind,payload,version" ||
+      typeof value.adapterId !== "string" || value.adapterId.length === 0 ||
+      !Number.isSafeInteger(value.version) || Number(value.version) < 1
+    ) throw new Error("Malformed adapted canonical node");
+    return {
+      kind: "adapted",
+      adapterId: value.adapterId,
+      version: Number(value.version),
+      payload: encodeCanonicalValue(decodeCanonicalValue(value.payload)) as CanonicalBuiltInValueNode,
+    };
+  }
+  if (isObject(value) && value.kind === "array" && Array.isArray(value.items)) {
+    return { kind: "array", items: value.items.map(normalizeReplayNode) };
+  }
+  if (isObject(value) && value.kind === "record" && Array.isArray(value.entries)) {
+    const entries = value.entries.map((entry) => {
+      if (!isObject(entry) || typeof entry.key !== "string") throw new Error("Malformed canonical record entry");
+      return { key: entry.key, value: normalizeReplayNode(entry.value) };
+    });
+    const keys = entries.map(({ key }) => key);
+    if (keys.some((key, index) => index > 0 && key <= (keys[index - 1] ?? ""))) throw new Error("Malformed canonical record order");
+    return { kind: "record", entries };
+  }
+  return encodeCanonicalValue(decodeCanonicalValue(value)) as CanonicalReplayValueNode;
 }
 
 function isEligibilityEvidence(value: unknown): value is EligibilityEvidence {
-  return (
+  if (
+    !(
     isObject(value) &&
-    value.basis === "automatic" &&
+    (value.basis === "automatic" || value.basis === "assumption" || value.basis === "catalog") &&
     value.verdict === "likely-safe" &&
     Array.isArray(value.reasonCodes) &&
     value.reasonCodes.length > 0 &&
     value.reasonCodes.every((code) => typeof code === "string" && code.length > 0)
-  );
+    )
+  ) return false;
+  if (!isValidPackageTrustField(value.packageTrust)) return false;
+  const hasPackageTrust = Array.isArray(value.packageTrust) && value.packageTrust.length > 0;
+  if (value.basis === "automatic") return value.assumption === undefined && !hasPackageTrust;
+  if (value.basis === "catalog") return value.assumption === undefined && hasPackageTrust;
+  try {
+    parseAssumptionCaptureEvidence(value.assumption);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isValidPackageTrustField(value: unknown): boolean {
+  if (value === undefined) return true;
+  try {
+    parseTrustedPackageCaptureEvidenceList(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseAssumptionCaptureEvidence(value: unknown): AssumptionCaptureEvidence {
+  if (
+    !isObject(value) ||
+    typeof value.reason !== "string" ||
+    value.reason.trim().length === 0 ||
+    !isSha256Digest(value.fingerprint) ||
+    typeof value.analyzerVersion !== "string" ||
+    value.analyzerVersion.length === 0 ||
+    typeof value.intrinsicCatalogVersion !== "string" ||
+    value.intrinsicCatalogVersion.length === 0 ||
+    !Array.isArray(value.originalEvidence)
+  ) throw new Error("Malformed assumption capture evidence");
+  const originalEvidence = value.originalEvidence.map((finding) => {
+    if (
+      !isObject(finding) ||
+      typeof finding.code !== "string" ||
+      typeof finding.source !== "string" ||
+      !Number.isSafeInteger(finding.line) ||
+      Number(finding.line) < 1 ||
+      !Number.isSafeInteger(finding.column) ||
+      Number(finding.column) < 1 ||
+      typeof finding.message !== "string"
+    ) throw new Error("Malformed assumption unknown evidence");
+    return {
+      code: finding.code,
+      source: finding.source,
+      line: Number(finding.line),
+      column: Number(finding.column),
+      message: finding.message,
+    };
+  });
+  if (originalEvidence.length === 0) throw new Error("Assumption evidence cannot be empty");
+  return {
+    reason: value.reason.trim(),
+    fingerprint: value.fingerprint,
+    originalEvidence,
+    analyzerVersion: value.analyzerVersion,
+    intrinsicCatalogVersion: value.intrinsicCatalogVersion,
+  };
+}
+
+function cloneAssumptionCaptureEvidence(value: AssumptionCaptureEvidence): AssumptionCaptureEvidence {
+  return {
+    ...value,
+    originalEvidence: value.originalEvidence.map((finding) => ({ ...finding })),
+  };
+}
+
+function parseTrustedPackageCaptureEvidenceList(value: unknown): TrustedPackageCaptureEvidence[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("Malformed trusted package capture evidence");
+  }
+  return value.map(parseTrustedPackageCaptureEvidence);
+}
+
+function parseTrustedPackageCaptureEvidence(value: unknown): TrustedPackageCaptureEvidence {
+  if (
+    !isObject(value) ||
+    typeof value.package !== "string" ||
+    value.package.length === 0 ||
+    typeof value.export !== "string" ||
+    value.export.length === 0 ||
+    typeof value.unpinned !== "boolean" ||
+    (value.matchedVersion !== undefined &&
+      (typeof value.matchedVersion !== "string" || value.matchedVersion.length === 0))
+  ) {
+    throw new Error("Malformed trusted package capture evidence");
+  }
+  return {
+    package: value.package,
+    export: value.export,
+    unpinned: value.unpinned,
+    ...(typeof value.matchedVersion === "string" ? { matchedVersion: value.matchedVersion } : {}),
+  };
+}
+
+function cloneTrustedPackageCaptureEvidence(value: TrustedPackageCaptureEvidence): TrustedPackageCaptureEvidence {
+  return { ...value };
 }
 
 function isCaseProvenance(value: unknown): value is CaseProvenance {
@@ -364,7 +597,10 @@ function isCaseProvenance(value: unknown): value is CaseProvenance {
     isObject(value) &&
     isSha256Digest(value.sourceGraphDigest) &&
     isSha256Digest(value.lockfileDigest) &&
-    isRuntimeProfile(value.runtimeProfile)
+    isRuntimeProfile(value.runtimeProfile) &&
+    (value.captureStatus === undefined ||
+      value.captureStatus === "complete" ||
+      value.captureStatus === "partial")
   );
 }
 

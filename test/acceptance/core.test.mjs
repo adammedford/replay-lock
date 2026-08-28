@@ -19,12 +19,14 @@ test("record observes one natural call without synthetic invocation", async () =
     assert.equal(result.status, 0, output(result));
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 
-    const observationLines = await rawObservationLines(project);
+    const durableObservations = await durableCompletedObservations(project);
     assert.throws(
-      () => assertSingleNaturalObservation([...observationLines, observationLines[0]]),
+      () => assertSingleNaturalObservation([...durableObservations, durableObservations[0]]),
       "the duplicate-observation positive control must prove the assertion can fail",
     );
-    assertSingleNaturalObservation(observationLines);
+    assertSingleNaturalObservation(durableObservations);
+    assert.deepEqual(durableObservations[0].arguments, [2, 3]);
+    assert.deepEqual(durableObservations[0].completion, { kind: "return", value: 5 });
 
     const [candidateName] = await jsonFiles(path.join(project, ".replaylock", "observations", "pending"));
     assert.ok(candidateName, "record should create exactly one candidate");
@@ -232,22 +234,31 @@ async function jsonFiles(directory) {
   }
 }
 
-async function rawObservationLines(project) {
+async function durableCompletedObservations(project) {
   const sessionsRoot = path.join(project, ".replaylock", "observations", "sessions");
-  const lines = [];
+  const observations = [];
   for (const session of (await readdir(sessionsRoot)).sort()) {
-    const sessionDirectory = path.join(sessionsRoot, session);
-    const filenames = (await readdir(sessionDirectory)).filter((name) => name.endsWith(".jsonl")).sort();
-    for (const filename of filenames) {
-      const contents = await readFile(path.join(sessionDirectory, filename), "utf8");
-      lines.push(...contents.split("\n").filter((line) => line.length > 0));
+    const workersDirectory = path.join(sessionsRoot, session, "workers");
+    for (const worker of (await readdir(workersDirectory)).sort()) {
+      const chunksDirectory = path.join(workersDirectory, worker, "chunks");
+      const chunks = (await readdir(chunksDirectory))
+        .filter((name) => name.endsWith(".complete.json"))
+        .sort();
+      for (const chunk of chunks) {
+        const envelope = JSON.parse(await readFile(path.join(chunksDirectory, chunk), "utf8"));
+        observations.push(envelope.record);
+      }
     }
   }
-  return lines;
+  return observations;
 }
 
-function assertSingleNaturalObservation(lines) {
-  assert.equal(lines.length, 1, "recording must contain exactly one raw natural-call observation");
+function assertSingleNaturalObservation(observations) {
+  assert.equal(
+    observations.length,
+    1,
+    "recording must contain exactly one durable completed natural-call observation",
+  );
 }
 
 function expectedCaseId(artifact) {

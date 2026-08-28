@@ -4,3 +4,7 @@ dist/
 *.tsbuildinfo
 .replaylock/observations/
 .replaylock/verify/
+.replaylock/validate/
+.replaylock/catalog/
+.unlazy/
+.unlazy-hook-state.json
