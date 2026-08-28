@@ -49,8 +49,8 @@ import {
   preflightAcceptedCases,
   VerificationPreflightError,
 } from "./verification.js";
-import { preflightRecordingProject } from "./vite-plugin.js";
-import { projectLockfileDigest as digestProjectLockfile, readProjectLockfile } from "./project-lockfile.js";
+import { preflightRecordingProject, scanProjectEligibility, type ScanStatus } from "./vite-plugin.js";
+import { projectLockfileDigest as digestProjectLockfile, readProjectLockfile, type ProjectLockfile } from "./project-lockfile.js";
 import { emptyPackageCatalog } from "./package-catalog.js";
 
 async function main(arguments_: string[]): Promise<number> {
@@ -62,6 +62,8 @@ async function main(arguments_: string[]): Promise<number> {
       return review();
     case "verify":
       return verify();
+    case "scan":
+      return scan();
     default:
       printUsage();
       return 2;
@@ -440,6 +442,66 @@ async function review(): Promise<number> {
   return 0;
 }
 
+/**
+ * A read-only, static eligibility report: no session, no Vitest invocation,
+ * no writes under `.replaylock/`. Safe to run against a project that has
+ * never wired ReplayLock's Vite plugin in at all. Always exits `0`; this is
+ * a report, never a gate.
+ */
+async function scan(): Promise<number> {
+  const root = process.cwd();
+  let lockfile: ProjectLockfile | undefined;
+  try {
+    lockfile = await readProjectLockfile(root);
+  } catch {
+    lockfile = undefined;
+  }
+  let packageCatalog = emptyPackageCatalog;
+  try {
+    const catalogResolution = await resolveProjectPackageCatalog(root, "recording");
+    if (catalogResolution.ok) packageCatalog = catalogResolution.catalog ?? emptyPackageCatalog;
+  } catch {
+    // Best-effort: an invalid or unreadable catalog never fails a scan.
+  }
+
+  const report = scanProjectEligibility(root, { packageCatalog, ...(lockfile ? { lockfile } : {}) });
+  const counts: Record<ScanStatus, number> = {
+    eligible: 0,
+    "needs-review": 0,
+    ineligible: 0,
+    "unsupported-shape": 0,
+    excluded: 0,
+  };
+  for (const finding of report.findings) {
+    counts[finding.status] += 1;
+    console.log(
+      `${scanStatusCode(finding.status)} ${finding.source}:${finding.line}:${finding.column}: ${finding.exportName}` +
+        `${finding.reasonCode ? ` (${finding.reasonCode})` : ""}`,
+    );
+  }
+  console.log(
+    `Scanned ${report.findings.length} exported function(s): ${counts.eligible} eligible, ` +
+      `${counts["needs-review"]} needs-review, ${counts.ineligible} ineligible, ` +
+      `${counts["unsupported-shape"]} unsupported-shape, ${counts.excluded} excluded`,
+  );
+  return 0;
+}
+
+function scanStatusCode(status: ScanStatus): string {
+  switch (status) {
+    case "eligible":
+      return "SCAN_ELIGIBLE";
+    case "needs-review":
+      return "SCAN_NEEDS_REVIEW";
+    case "ineligible":
+      return "SCAN_INELIGIBLE";
+    case "unsupported-shape":
+      return "SCAN_UNSUPPORTED_SHAPE";
+    case "excluded":
+      return "SCAN_EXCLUDED";
+  }
+}
+
 async function verify(): Promise<number> {
   const root = process.cwd();
   const caseDirectory = path.join(root, ".replaylock", "cases");
@@ -588,7 +650,7 @@ function runChild(
 }
 
 function printUsage(): void {
-  console.error("Usage: replaylock <record|review|verify>");
+  console.error("Usage: replaylock <record|review|verify|scan>");
 }
 
 main(process.argv.slice(2)).then(

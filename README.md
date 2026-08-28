@@ -62,6 +62,14 @@ replaylock verify
 
 `verify` parses and preflights the complete accepted set before any target runs, then invokes each target in a disposable fresh Vitest process and compares the exact canonical completion. A return/throw change, error change, or structural value change is a regression. Verification does not generate one source test per case.
 
+## Scan
+
+```text
+replaylock scan
+```
+
+`scan` reports capture eligibility for every directly exported function across the project, whether or not it already carries a `@replaylock` directive, using the same source-policy and call-graph analysis `record`'s preflight runs. It launches no Vitest process, requires no Vite configuration, writes nothing under `.replaylock/`, and always exits `0`: it is a report, not a gate. Each line names the export's status — `SCAN_ELIGIBLE`, `SCAN_NEEDS_REVIEW` (unknown effects, no retained assumption), `SCAN_INELIGIBLE` (refuted, with the leading reason code), `SCAN_UNSUPPORTED_SHAPE`, or `SCAN_EXCLUDED` — followed by a project-wide summary count. Use it before wiring the Vite plugin into Vitest at all, to see how much of a codebase is worth annotating.
+
 ## Artifacts and privacy
 
 Pending candidates live under `.replaylock/observations/pending/`; blocked reports and session data remain under `.replaylock/observations/`. They are ignored by Git, written with owner-only permissions where supported, and may be incomplete after interrupted recording. Accepted cases are deterministic, versioned JSON under `.replaylock/cases/*.json`; they contain the locator, canonical arguments and completion, exact comparison contract, eligibility evidence, source and lockfile provenance, and runtime profile, but not timestamps, commands, environment variables, worker IDs, or occurrence counts. Verification and adapter-validation scratch data under `.replaylock/verify/`, `.replaylock/validate/`, and `.replaylock/catalog/` is ephemeral and ignored.

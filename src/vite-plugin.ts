@@ -160,6 +160,149 @@ export function preflightRecordingProject(
   return { captureTargets, eligibleTargets, diagnostics };
 }
 
+export type ScanStatus =
+  | "eligible"
+  | "needs-review"
+  | "ineligible"
+  | "unsupported-shape"
+  | "excluded";
+
+export interface ScanFinding {
+  source: string;
+  line: number;
+  column: number;
+  exportName: string;
+  status: ScanStatus;
+  reasonCode?: string;
+}
+
+export interface ScanReport {
+  findings: ScanFinding[];
+}
+
+/**
+ * Report every exported function's capture eligibility across the project,
+ * whether or not it already carries a `@replaylock` directive, without
+ * executing any test or writing anything under `.replaylock/`. This reuses
+ * the same shape recognition and call-graph analysis `record`'s preflight
+ * uses; it never launches a second interpretation of policy.
+ */
+export function scanProjectEligibility(
+  projectRoot: string,
+  resolution: PackageResolution = {},
+): ScanReport {
+  const findings: ScanFinding[] = [];
+  for (const sourcePath of projectSourceFiles(projectRoot)) {
+    const code = readFileSync(sourcePath, "utf8");
+    findings.push(...scanSourceFile(projectRoot, sourcePath, code, resolution));
+  }
+  findings.sort(compareScanFindings);
+  return { findings };
+}
+
+function scanSourceFile(
+  projectRoot: string,
+  sourcePath: string,
+  code: string,
+  resolution: PackageResolution,
+): ScanFinding[] {
+  const sourceFile = ts.createSourceFile(
+    sourcePath,
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    typescriptScriptKind(sourcePath),
+  );
+  const locatorResolution = resolveCallableModuleLocator(projectRoot, sourcePath);
+  if (!locatorResolution.ok) return [];
+
+  const findings: ScanFinding[] = [];
+  const projectModules = collectProjectModules(projectRoot, sourcePath, code);
+  for (const statement of sourceFile.statements) {
+    const target = supportedCaptureTarget(statement, sourceFile);
+    if (!target) {
+      for (const attempt of scannableExportAttempts(statement)) {
+        findings.push(scanFinding(sourceFile, locatorResolution.source, attempt.node, attempt.name, "unsupported-shape"));
+      }
+      continue;
+    }
+    const tags = ownReplaylockTags(statement);
+    const parsed = parseSourcePolicy(tags);
+    if (parsed.errors.length === 0 && parsed.policy.exclusionReasons.length > 0) {
+      findings.push(scanFinding(sourceFile, locatorResolution.source, target.callable, target.exportName, "excluded"));
+      continue;
+    }
+
+    const eligibility = analyzeProjectCallGraph({
+      modules: projectModules,
+      entryModule: locatorResolution.source,
+      exportName: target.exportName,
+      ...(resolution.packageCatalog ? { packageCatalog: resolution.packageCatalog } : {}),
+      ...(resolution.lockfile ? { lockfile: resolution.lockfile } : {}),
+    });
+    const hasAssumption = parsed.errors.length === 0 && parsed.policy.assumptionReasons.length > 0;
+    if (eligibility.verdict === "likely-safe" || (eligibility.verdict === "unknown" && hasAssumption)) {
+      findings.push(scanFinding(sourceFile, locatorResolution.source, target.callable, target.exportName, "eligible"));
+      continue;
+    }
+    const leading = eligibility.findings[0];
+    findings.push({
+      source: locatorResolution.source,
+      ...positionOf(sourceFile, target.callable),
+      exportName: target.exportName,
+      status: eligibility.verdict === "refuted" ? "ineligible" : "needs-review",
+      ...(leading ? { reasonCode: leading.code } : {}),
+    });
+  }
+  return findings;
+}
+
+/** Top-level exported function-looking declarations that failed `supportedCaptureTarget`. */
+function scannableExportAttempts(node: ts.Node): Array<{ node: ts.Node; name: string }> {
+  if (
+    ts.isFunctionDeclaration(node) &&
+    node.body &&
+    (hasModifier(node, ts.SyntaxKind.ExportKeyword) || hasModifier(node, ts.SyntaxKind.DefaultKeyword))
+  ) {
+    return [{ node, name: node.name?.text ?? "default" }];
+  }
+  if (ts.isVariableStatement(node) && hasModifier(node, ts.SyntaxKind.ExportKeyword)) {
+    const attempts: Array<{ node: ts.Node; name: string }> = [];
+    for (const declaration of node.declarationList.declarations) {
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.initializer !== undefined &&
+        isIndirectOrFunctionInitializer(declaration.initializer)
+      ) {
+        attempts.push({ node: declaration, name: declaration.name.text });
+      }
+    }
+    return attempts;
+  }
+  return [];
+}
+
+function scanFinding(
+  sourceFile: ts.SourceFile,
+  source: string,
+  node: ts.Node,
+  exportName: string,
+  status: ScanStatus,
+): ScanFinding {
+  return { source, ...positionOf(sourceFile, node), exportName, status };
+}
+
+function positionOf(sourceFile: ts.SourceFile, node: ts.Node): { line: number; column: number } {
+  const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  return { line: position.line + 1, column: position.character + 1 };
+}
+
+function compareScanFindings(left: ScanFinding, right: ScanFinding): number {
+  return left.source < right.source ? -1 : left.source > right.source ? 1
+    : left.line - right.line || left.column - right.column
+      || (left.exportName < right.exportName ? -1 : left.exportName > right.exportName ? 1 : 0);
+}
+
 interface EvaluatedCaptureSource {
   captureTargets: number;
   diagnostics: SourceDiagnostic[];
