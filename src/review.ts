@@ -6,7 +6,7 @@ import {
   type CaseArtifact,
 } from "./model.js";
 
-export type ReviewDecision = "accept" | "reject" | "skip";
+export type ReviewDecision = "accept" | "reject" | "skip" | "accept-remaining-in-file";
 
 export interface CandidateReplacement {
   existing: CaseArtifact;
@@ -138,6 +138,10 @@ export function parseReviewDecision(answer: string): ReviewDecision | undefined 
     case "s":
     case "skip":
       return "skip";
+    case "af":
+    case "accept-file":
+    case "accept-remaining-in-file":
+      return "accept-remaining-in-file";
     default:
       return undefined;
   }

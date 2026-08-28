@@ -26,6 +26,7 @@ import {
   parseCandidate,
   parseCase,
   validateSourceDiagnostic,
+  type CandidateArtifact,
   type CaseArtifact,
   type Observation,
   type SourceDiagnostic,
@@ -402,44 +403,76 @@ async function review(): Promise<number> {
   const terminal = createInterface({ input: stdin, output: stdout });
   const decisions = terminal[Symbol.asyncIterator]();
   try {
-    for (const { filename, candidate } of candidates) {
-      const pendingPath = path.join(pendingDirectory, filename);
-      console.log(formatCandidateReview(candidate));
-      const casePath = path.join(root, ".replaylock", "cases", `${candidate.caseId}.json`);
-      const existingText = await readTextIfPresent(casePath);
-      if (existingText !== undefined) {
-        const replacement = describeReplacement(parseCase(existingText), candidate);
-        if (replacement) console.log(replacement.diff);
-      }
-      stdout.write("[a]ccept, [r]eject, or [s]kip? ");
+    let index = 0;
+    while (index < candidates.length) {
+      const current = candidates[index]!;
+      await printCandidateForReview(root, current);
+      stdout.write("[a]ccept, [r]eject, [s]kip, or [af] accept remaining in this file? ");
       const decision = await decisions.next();
       const answer = parseReviewDecision(decision.done ? "" : decision.value);
       if (answer === undefined) {
-        console.error(`No review decision recorded; retained ${candidate.caseId}`);
+        console.error(`No review decision recorded; retained ${current.candidate.caseId}`);
         return 2;
       }
       if (answer === "reject") {
-        await unlink(pendingPath);
-        console.log(`Rejected ${candidate.caseId}`);
+        await unlink(path.join(pendingDirectory, current.filename));
+        console.log(`Rejected ${current.candidate.caseId}`);
+        index += 1;
         continue;
       }
       if (answer === "skip") {
-        console.log(`Skipped ${candidate.caseId}`);
+        console.log(`Skipped ${current.candidate.caseId}`);
+        index += 1;
         continue;
       }
-      let artifact: CaseArtifact;
-      try {
-        artifact = await acceptReviewedCandidate(casePath, candidate);
-      } catch (error) {
-        throw new Error(`STORE_WRITE_FAILED CASE_WRITE_FAILED: ${errorMessage(error)}`);
+      await acceptPendingCandidate(root, pendingDirectory, current);
+      index += 1;
+      if (answer === "accept-remaining-in-file") {
+        const module = current.candidate.locator.module;
+        while (index < candidates.length && candidates[index]!.candidate.locator.module === module) {
+          const next = candidates[index]!;
+          await printCandidateForReview(root, next);
+          await acceptPendingCandidate(root, pendingDirectory, next);
+          index += 1;
+        }
       }
-      await unlink(pendingPath);
-      console.log(`Accepted ${artifact.caseId}`);
     }
   } finally {
     terminal.close();
   }
   return 0;
+}
+
+interface PendingReviewEntry {
+  filename: string;
+  candidate: CandidateArtifact;
+}
+
+async function printCandidateForReview(root: string, entry: PendingReviewEntry): Promise<void> {
+  console.log(formatCandidateReview(entry.candidate));
+  const casePath = path.join(root, ".replaylock", "cases", `${entry.candidate.caseId}.json`);
+  const existingText = await readTextIfPresent(casePath);
+  if (existingText !== undefined) {
+    const replacement = describeReplacement(parseCase(existingText), entry.candidate);
+    if (replacement) console.log(replacement.diff);
+  }
+}
+
+/** The only place `review` promotes a pending candidate into a source-controlled case; a batch accept goes through the exact same per-candidate atomic write as a single one. */
+async function acceptPendingCandidate(
+  root: string,
+  pendingDirectory: string,
+  entry: PendingReviewEntry,
+): Promise<void> {
+  const casePath = path.join(root, ".replaylock", "cases", `${entry.candidate.caseId}.json`);
+  let artifact: CaseArtifact;
+  try {
+    artifact = await acceptReviewedCandidate(casePath, entry.candidate);
+  } catch (error) {
+    throw new Error(`STORE_WRITE_FAILED CASE_WRITE_FAILED: ${errorMessage(error)}`);
+  }
+  await unlink(path.join(pendingDirectory, entry.filename));
+  console.log(`Accepted ${artifact.caseId}`);
 }
 
 /**

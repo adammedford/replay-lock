@@ -38,6 +38,7 @@ const acceptanceFiles = [
   "test/acceptance/package-catalog-bun-lockfile.test.mjs",
   "test/acceptance/package-catalog-pnpm-lockfile.test.mjs",
   "test/acceptance/package-catalog-yarn-lockfile.test.mjs",
+  "test/acceptance/review-batch.test.mjs",
 ];
 run("verify-package-contract.mjs");
 runAcceptanceSuite();
