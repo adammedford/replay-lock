@@ -55,12 +55,22 @@ export function validateTrustedPackages(
   return Object.freeze({ entries: Object.freeze(entries) });
 }
 
-/** npm-only for this iteration: parses package-lock.json's packages[...] shape, falling back to the legacy dependencies shape. */
+/**
+ * Version lookup is implemented for `package-lock.json` (npm) and `bun.lock`
+ * (Bun's text lockfile). `pnpm-lock.yaml`, `yarn.lock`, and `bun.lockb` remain
+ * unparsed; a catalog entry for a project on one of those must use
+ * `unpinned: true` until a follow-up adds real version extraction.
+ */
 export function resolveTrustedPackageVersion(
   lockfile: ProjectLockfile,
   packageName: string,
 ): string | undefined {
-  if (lockfile.name !== "package-lock.json") return undefined;
+  if (lockfile.name === "package-lock.json") return resolveNpmVersion(lockfile, packageName);
+  if (lockfile.name === "bun.lock") return resolveBunTextVersion(lockfile, packageName);
+  return undefined;
+}
+
+function resolveNpmVersion(lockfile: ProjectLockfile, packageName: string): string | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(Buffer.from(lockfile.bytes).toString("utf8"));
@@ -77,6 +87,100 @@ export function resolveTrustedPackageVersion(
     if (isObject(entry) && typeof entry.version === "string") return entry.version;
   }
   return undefined;
+}
+
+/**
+ * Bun's text lockfile keys `packages` by exact package name; each value is an
+ * array whose first element is always a `"<name>@<resolution>"` string,
+ * regardless of how many further elements a dependency type adds. A scoped
+ * name's own leading `@` is never the separator: only the *last* `@` in the
+ * string marks the resolution boundary, so this splits there rather than at
+ * the first occurrence. A non-semver resolution (a git ref, a workspace
+ * link) is returned as-is; the caller's range check already rejects it.
+ */
+function resolveBunTextVersion(lockfile: ProjectLockfile, packageName: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = parseJsonWithComments(Buffer.from(lockfile.bytes).toString("utf8"));
+  } catch {
+    return undefined;
+  }
+  if (!isObject(parsed) || !isObject(parsed.packages)) return undefined;
+  const entry = parsed.packages[packageName];
+  if (!Array.isArray(entry) || entry.length === 0) return undefined;
+  const resolved = entry[0];
+  if (typeof resolved !== "string") return undefined;
+  const separator = resolved.lastIndexOf("@");
+  if (separator <= 0) return undefined;
+  const version = resolved.slice(separator + 1);
+  return version.length > 0 ? version : undefined;
+}
+
+/** A minimal, dependency-free JSONC reader: strips line and block comments and trailing commas outside string literals, then parses as strict JSON. Bun's bun.lock is JSONC, matching this project's zero-added-runtime-dependency posture. */
+function parseJsonWithComments(text: string): unknown {
+  return JSON.parse(stripJsoncTrailingCommas(stripJsoncComments(text)));
+}
+
+function stripJsoncComments(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!;
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "/") {
+      while (index < text.length && text[index] !== "\n") index += 1;
+      result += "\n";
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      index += 2;
+      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
+      index += 1;
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function stripJsoncTrailingCommas(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!;
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === ",") {
+      let lookahead = index + 1;
+      while (lookahead < text.length && /\s/.test(text[lookahead]!)) lookahead += 1;
+      if (text[lookahead] === "}" || text[lookahead] === "]") continue;
+    }
+    result += char;
+  }
+  return result;
 }
 
 /** The single entry point call-graph resolution consults for a package import that would otherwise be unknown evidence. */
