@@ -31,7 +31,12 @@ export function observeCall<T>(
   arguments_: readonly unknown[],
   invoke: () => T,
   valueAdapters?: ValueAdapterRegistry,
+  asynchronous = false,
 ): T {
+  if (asynchronous) {
+    return observeAsyncCall(metadata, arguments_, invoke as () => Promise<unknown>, valueAdapters) as T;
+  }
+
   const sessionDirectory = process.env.REPLAYLOCK_SESSION_DIR;
   const token = process.env.REPLAYLOCK_SESSION_TOKEN;
   if (!sessionDirectory || !token) return invoke();
@@ -61,6 +66,48 @@ export function observeCall<T>(
 
   if (completion.kind === "throw") throw thrown;
   return result as T;
+}
+
+/**
+ * The async counterpart of the synchronous path above: the captured callable
+ * is declared `async`, so `invoke` is awaited before a completion exists at
+ * all. This is a distinct path from the synchronous one's Promise/thenable
+ * guard in `createSessionRecord`, which exists for a *sync*-declared callable
+ * that unexpectedly returns a promise and must keep skipping that case.
+ */
+async function observeAsyncCall(
+  metadata: CaptureMetadata,
+  arguments_: readonly unknown[],
+  invoke: () => Promise<unknown>,
+  valueAdapters?: ValueAdapterRegistry,
+): Promise<unknown> {
+  const sessionDirectory = process.env.REPLAYLOCK_SESSION_DIR;
+  const token = process.env.REPLAYLOCK_SESSION_TOKEN;
+  if (!sessionDirectory || !token) return invoke();
+
+  const adapterOptions = valueAdapters ? { valueAdapters } : {};
+  const entry = snapshotEntryArguments(metadata.locator, arguments_, adapterOptions);
+
+  let completion: { kind: "return" | "throw"; value: unknown };
+  let result: unknown;
+  let thrown: unknown;
+  try {
+    result = await invoke();
+    completion = { kind: "return", value: result };
+  } catch (error) {
+    thrown = error;
+    completion = { kind: "throw", value: error };
+  }
+
+  try {
+    const record = createSessionRecord(metadata, token, arguments_, entry, completion, valueAdapters);
+    if (record) writeCompletedObservation(sessionDirectory, token, record);
+  } catch {
+    reportSessionStorageFailure(sessionDirectory, token);
+  }
+
+  if (completion.kind === "throw") throw thrown;
+  return result;
 }
 
 function createSessionRecord(

@@ -6,7 +6,7 @@ ReplayLock's static analysis and runtime checks can classify a supported callabl
 
 ## Supported V1 environment
 
-V1 is intentionally narrow: Node 22 with Vite and Vitest, directly exported named synchronous function declarations or exported const functions/arrows, and local development or test workloads. Browser, production, customer-data, raw Node-loader, worker, VM-realm, and non-Vitest integrations are outside the V1 compatibility boundary.
+V1 is intentionally narrow: Node 22 with Vite and Vitest, directly exported named function declarations or exported const functions/arrows — synchronous or `async`, but never a generator or async generator — and local development or test workloads. Browser, production, customer-data, raw Node-loader, worker, VM-realm, and non-Vitest integrations are outside the V1 compatibility boundary.
 
 Register ReplayLock's Vite plugin in the configuration used by Vitest:
 

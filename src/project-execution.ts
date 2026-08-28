@@ -421,12 +421,14 @@ function verificationHarness(
     const canonicalArguments = JSON.stringify(artifact.arguments);
     const exportName = JSON.stringify(artifact.locator.exportName);
     const locator = `${artifact.locator.module}#${artifact.locator.exportName}`;
-    return `test(${JSON.stringify(`ReplayLock ${artifact.caseId}`)}, () => {
+    return `test(${JSON.stringify(`ReplayLock ${artifact.caseId}`)}, async () => {
   const decodedArguments = decodeCanonicalValue(${canonicalArguments}, valueAdapterRegistry);
   if (!Array.isArray(decodedArguments)) throw new Error("CASE_SCHEMA_UNSUPPORTED: canonical arguments did not decode to an array");
   let completion;
   try {
-    completion = { kind: "return", value: target${index}[${exportName}](...decodedArguments) };
+    // Awaiting a synchronous target's already-resolved return value is a
+    // no-op; this one branch replays both sync and async cases correctly.
+    completion = { kind: "return", value: await target${index}[${exportName}](...decodedArguments) };
   } catch (error) {
     completion = { kind: "throw", value: error };
   }

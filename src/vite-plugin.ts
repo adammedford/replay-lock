@@ -358,7 +358,6 @@ function supportedCaptureTarget(node: ts.Node, sourceFile: ts.SourceFile): Captu
     node.name &&
     node.body &&
     !node.asteriskToken &&
-    !hasModifier(node, ts.SyntaxKind.AsyncKeyword) &&
     hasModifier(node, ts.SyntaxKind.ExportKeyword) &&
     !hasModifier(node, ts.SyntaxKind.DefaultKeyword)
   ) {
@@ -376,7 +375,7 @@ function supportedCaptureTarget(node: ts.Node, sourceFile: ts.SourceFile): Captu
       declaration &&
       ts.isIdentifier(declaration.name) &&
       declaration.initializer &&
-      isSynchronousFunctionInitializer(declaration.initializer) &&
+      isCapturableFunctionInitializer(declaration.initializer) &&
       isCaptureArgumentListSupported(declaration.initializer)
     ) {
       return { exportName: declaration.name.text, callable: declaration.initializer };
@@ -570,13 +569,12 @@ function writeSourceDiagnostic(directory: string, diagnostic: SourceDiagnostic):
   );
 }
 
-function isSynchronousFunctionInitializer(
+function isCapturableFunctionInitializer(
   expression: ts.Expression,
 ): expression is (ts.FunctionExpression & { body: ts.Block }) | ts.ArrowFunction {
   return (
     (ts.isFunctionExpression(expression) || ts.isArrowFunction(expression)) &&
-    !expression.asteriskToken &&
-    !hasModifier(expression, ts.SyntaxKind.AsyncKeyword)
+    !expression.asteriskToken
   );
 }
 
@@ -606,15 +604,20 @@ function instrumentTarget(
   const observedArguments = ts.isArrowFunction(callable)
     ? `[${callable.parameters.map((parameter) => parameter.name.getText(sourceFile)).join(", ")}]`
     : "Array.from(arguments)";
+  // The outer declaration keeps its own `async` keyword untouched; only the
+  // inner closure passed to the observer needs one, so any `await` in the
+  // original body remains syntactically valid inside it.
+  const asynchronous = hasModifier(callable, ts.SyntaxKind.AsyncKeyword);
+  const closurePrefix = asynchronous ? "async " : "";
 
   if (ts.isBlock(callable.body)) {
     const bodyStart = callable.body.getStart(sourceFile) + 1;
     const bodyEnd = callable.body.end - 1;
     transformed.appendLeft(
       bodyStart,
-      `\nreturn ${observerBinding}(${metadata}, ${observedArguments}, () => {`,
+      `\nreturn ${observerBinding}(${metadata}, ${observedArguments}, ${closurePrefix}() => {`,
     );
-    transformed.appendLeft(bodyEnd, `\n}, ${adapterBinding});\n`);
+    transformed.appendLeft(bodyEnd, `\n}, ${adapterBinding}, ${asynchronous});\n`);
     return;
   }
 
@@ -622,7 +625,7 @@ function instrumentTarget(
   transformed.overwrite(
     expression.getStart(sourceFile),
     expression.end,
-    `${observerBinding}(${metadata}, ${observedArguments}, () => (${expression.getText(sourceFile)}), ${adapterBinding})`,
+    `${observerBinding}(${metadata}, ${observedArguments}, ${closurePrefix}() => (${expression.getText(sourceFile)}), ${adapterBinding}, ${asynchronous})`,
   );
 }
 

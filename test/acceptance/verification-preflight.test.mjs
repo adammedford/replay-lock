@@ -71,7 +71,7 @@ test("removed capture policy and a new exclusion block before invocation", async
 
 test("a formerly supported export that becomes unsupported is blocked", async () => {
   const unsupportedShapes = [
-    `/** @replaylock capture */\nexport async function target(value: number): Promise<number> { throw new Error("TARGET_INVOKED"); }\n`,
+    `/** @replaylock capture */\nexport function* target(value: number): Generator<number> { throw new Error("TARGET_INVOKED"); }\n`,
     `/** @replaylock capture */\nexport const target = (value: number): number => value, companion = 1;\n`,
     `/** @replaylock capture */\nexport const target = (value = 1): number => value;\n`,
     `/** @replaylock capture */\nexport const target = (...values: number[]): number => values[0] ?? 0;\n`,

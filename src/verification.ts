@@ -232,7 +232,6 @@ function findExactExport(sourceFile: ts.SourceFile, exportName: string): ExactEx
       const supported = Boolean(
         statement.body &&
         !statement.asteriskToken &&
-        !hasModifier(statement, ts.SyntaxKind.AsyncKeyword) &&
         !hasModifier(statement, ts.SyntaxKind.DefaultKeyword),
       );
       return { supported, node: statement };
@@ -247,7 +246,6 @@ function findExactExport(sourceFile: ts.SourceFile, exportName: string): ExactEx
           initializer &&
           (ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer)) &&
           !initializer.asteriskToken &&
-          !hasModifier(initializer, ts.SyntaxKind.AsyncKeyword) &&
           (ts.isFunctionExpression(initializer) || initializer.parameters.every(
             (parameter) =>
               ts.isIdentifier(parameter.name) &&

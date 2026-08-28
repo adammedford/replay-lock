@@ -187,11 +187,6 @@ export default function defaulted(value: number): number {
 }
 
 /** @replaylock capture */
-export async function asynchronous(value: number): Promise<number> {
-  return value + 3;
-}
-
-/** @replaylock capture */
 export function* generated(value: number): Generator<number> {
   yield value + 4;
 }
@@ -242,7 +237,6 @@ export const unannotatedIndirect = local;
 `,
     test: `import defaulted, {
   asserted,
-  asynchronous,
   conditional,
   Container,
   eligible,
@@ -261,7 +255,6 @@ test("unsupported shapes retain their ordinary behavior", () => {
   expect(indirect(1)).toBe(11);
   expect(conditional(1)).toBe(11);
   expect(defaulted(1)).toBe(3);
-  expect(asynchronous(1)).toBeInstanceOf(Promise);
   expect(generated(1).next().value).toBe(5);
   expect(mutable(1)).toBe(6);
   expect(new Container().method(1)).toBe(7);
@@ -277,7 +270,7 @@ test("unsupported shapes retain their ordinary behavior", () => {
   try {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
-    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 14, output(result));
+    assert.equal((output(result).match(/UNSUPPORTED_CALLABLE/g) ?? []).length, 13, output(result));
     assert.doesNotMatch(output(result), /INVALID_POLICY/);
     assert.match(output(result), /Recorded 1 candidate\(s\)/);
 

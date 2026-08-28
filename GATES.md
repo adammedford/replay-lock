@@ -1,39 +1,30 @@
-# Gates: Trusted-package catalog for call-graph resolution (issue 21)
+# Gates: Record, review, and verify a directly exported async function with no reachable effects (issue 27)
 
 OWNS: src/**, scripts/**, test/acceptance/**, docs/**, README.md, GATES.md
 
-Scope: implement the project-declared, package+export+version-scoped trusted-package catalog described in GitHub issue 21, so a catalogued package call contributes visible TRUSTED_PACKAGE_CALL evidence instead of unknown PACKAGE_CALL evidence across record/review/verify, and both new acceptance test files plus README/docs document it.
+Scope: relax the source-policy, instrumentation, runtime-capture, and verify-replay boundaries so an exported `async function`/const async arrow with no reachable effects records a candidate, reviews normally, and verifies against a fresh process, while generators and async generators remain rejected and a sync function returning an unawaited promise keeps silently producing no observation.
 
 - [x] G0: this ledger states decisive outcomes that can fail
   CHECK: node /Users/adammedford/.claude/skills/unlazy/scripts/gate-lint.mjs GATES.md
   EXPECT: LINT OK
   EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=48630b7361dd44ee870917b12c3d19b9d7bdea738aaca16bb04d4cab83b772d2; output-bytes=8
 
-- [x] G1: the project builds and typechecks cleanly with the new trusted-package modules
-  CHECK: npm run build && npm run typecheck && echo TRUSTED_PACKAGE_TYPECHECK_OK
-  EXPECT: TRUSTED_PACKAGE_TYPECHECK_OK
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=0f822d2abfe14d0a42ca8a8b2eadec7674fdf8d8c69b2f9cf14be3e4de08fe4d; output-bytes=142
+- [x] G1: the project builds and typechecks cleanly with the async capture changes
+  CHECK: npm run build && npm run typecheck && echo ASYNC_TYPECHECK_OK
+  EXPECT: ASYNC_TYPECHECK_OK
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=ecfc54941c12d1122afe1f0aa5cc54dc9ea6fa6ec318902a8717430cf7544e48; output-bytes=132
 
-- [x] G2: trusted-package catalog validation (structural, duplicate, semver-range syntax, npm lockfile version resolution, CLI fail-closed on malformed config) is verified
-  CHECK: node scripts/verify-issue-21.mjs validation
-  EXPECT: trusted package catalog validation verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=52da9d880b8c73ed9aa10fa7090a156381ffd06431967c2cd6f126b01bc836df; output-bytes=1334
+- [x] G2: the async record/review/verify journey is verified end to end, including rejection handling, generator rejection, and the unchanged unawaited-promise skip
+  CHECK: node scripts/verify-issue-27.mjs journey
+  EXPECT: async record/review/verify journey verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=8e566e41baabfe04d29cb0ea6302743d22aabf426ad3e90afbda2147dfac6080; output-bytes=665
 
-- [x] G3: the trusted-package catalog record-review-verify journey is verified, including TRUSTED_PACKAGE_CALL evidence, namespace/default-import member access, shadowed-binding non-trust, and version-drift/removal reverting to fail-closed on verify
-  CHECK: node scripts/verify-issue-21.mjs integration
-  EXPECT: trusted package catalog integration verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=1341e6827dfb0923ed9aefd1a25dbd94dbe72467eb1ddae55c7d3fbc96e22d2c; output-bytes=982
+- [x] G3: README documents the async capture boundary
+  CHECK: node scripts/verify-issue-27.mjs docs
+  EXPECT: async trust boundary documentation verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=a0c65ee6dcad9721ed1697da0eb8b0e02c4a919ec064ca39a3f016b43492aef8; output-bytes=44
 
-- [x] G4: README and docs/trusted-packages.md document the trust model, config shape, diagnostic codes, and the npm-only version-resolution limitation
-  CHECK: node scripts/verify-issue-21.mjs docs
-  EXPECT: trusted package catalog documentation verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=02d555470d3b1fb50c92ffbfdbe0178b73c73f71ba345234839376700d649ac3; output-bytes=47
-
-- [x] G5: the complete locked verification suite passes with both new acceptance files registered in the manifest
-  CHECK: node scripts/verify-issue-21.mjs all
-  EXPECT: issue 21 acceptance suite verified
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=d1a1d6b7d90077b4f5b7a74c19632cdbfa542d6b6e4b505deef6653d32937c4c; output-bytes=250
-
-<!--
-Replace every placeholder before running the checker.
--->
+- [x] G4: the complete locked verification suite passes with the new acceptance file registered in the manifest
+  CHECK: node scripts/verify-issue-27.mjs all
+  EXPECT: issue 27 acceptance suite verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/adammedford/Documents/IsPure; path=401d268cc440/13 entries; EXPECT=matched; output-sha256=2c0956ffab3d202c9fa811921a5c183d66e8608e92699b566d3f313dc2fa7f85; output-bytes=252
