@@ -488,7 +488,15 @@ test("case-distinct modules execute naturally", () => {
     const result = runRecord(project);
     assert.equal(result.status, 2, output(result));
     assert.equal((output(result).match(/UNSUPPORTED_CALLABLE.*ambiguous casing/g) ?? []).length, 2);
-    assert.match(output(result), /Recorded 1 candidate\(s\)/);
+    // calculation.ts imports both ambiguous modules, so call-graph analysis
+    // conservatively taints the whole importing file when any of its
+    // imports cannot be resolved: `eligible` is unknown too even though it
+    // never calls into either ambiguous export. This is the same "unknown
+    // evidence is contagious" posture already used for effectful module
+    // initialization (see call-graph.test.mjs), not a narrower per-function
+    // taint -- every capture target in this fixture ends up blocked.
+    assert.match(output(result), /UNKNOWN_EFFECT src\/calculation\.ts:\d+:\d+: unknown effects require an explicit reviewed assumption before recording/);
+    assert.match(output(result), /NO_ELIGIBLE_TARGET: every capture target was blocked by policy or analysis/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
