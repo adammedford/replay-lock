@@ -10,7 +10,8 @@ import { artifactJson, createCandidate, parseCase } from "../../dist/model.js";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cliPath = path.join(repositoryRoot, "dist", "cli.js");
-const sourcePath = path.join("src", "calculation.ts");
+// Stored locators use POSIX separators even on a Windows filesystem.
+const sourcePath = "src/calculation.ts";
 const originalSource = `/** @replaylock capture */
 export function double(value: number): number { return value * 2; }
 `;
