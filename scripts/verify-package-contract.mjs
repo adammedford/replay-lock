@@ -14,15 +14,30 @@ assert.equal(process.versions.node.split(".")[0], "22", "verification must use N
 assert.equal(nvmrc, "22.19.0");
 assert.equal(packageJson.engines.node, ">=22.12.0 <23");
 assert.equal(packageJson.packageManager, "npm@11.5.2");
+assert.equal(packageJson.private, true, "open-source hosting must not enable npm publication");
+assert.deepEqual(packageJson.repository, {
+  type: "git",
+  url: "git+https://github.com/adammedford/replay-lock.git",
+});
+assert.equal(packageJson.homepage, "https://github.com/adammedford/replay-lock#readme");
+assert.deepEqual(packageJson.bugs, { url: "https://github.com/adammedford/replay-lock/issues" });
 assert.equal(packageJson.bin.replaylock, "./dist/cli.js");
 assert.equal(packageJson.exports["./vite"].default, "./dist/vite-plugin.js");
 assert.equal(packageJson.exports["./vite/runtime"].default, "./dist/runtime.js");
 for (const documentation of [
+  "LICENSE",
   "README.md",
+  "SECURITY.md",
+  "CONTRIBUTING.md",
   "docs/value-adapters.md",
   "docs/troubleshooting.md",
   "docs/pilot-checklist.md",
 ]) assert.ok(packageJson.files.includes(documentation), `${documentation} must ship with the package`);
+const license = await readFile(path.join(root, "LICENSE"), "utf8");
+assert.match(license, /^MIT License\r?\n/, "the package must include its MIT license");
+assert.ok(license.includes("Copyright (c) 2026 Adam Medford"));
+assert.equal(packageJson.license, "MIT");
+assert.equal(lock.packages[""].license, "MIT");
 assert.ok(gitignore.includes(".replaylock/observations/"));
 assert.ok(gitignore.includes(".replaylock/verify/"));
 assert.ok(gitignore.includes(".replaylock/validate/"));

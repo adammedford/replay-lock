@@ -2,7 +2,16 @@
   "name": "replaylock",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Opt-in reviewed characterization cases for Vitest",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adammedford/replay-lock.git"
+  },
+  "homepage": "https://github.com/adammedford/replay-lock#readme",
+  "bugs": {
+    "url": "https://github.com/adammedford/replay-lock/issues"
+  },
   "type": "module",
   "bin": {
     "replaylock": "./dist/cli.js"
@@ -23,7 +32,10 @@
   },
   "files": [
     "dist",
+    "LICENSE",
     "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
     "docs/value-adapters.md",
     "docs/trusted-packages.md",
     "docs/troubleshooting.md",

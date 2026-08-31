@@ -1,5 +1,7 @@
 # ReplayLock
 
+[![CI](https://github.com/adammedford/replay-lock/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adammedford/replay-lock/actions/workflows/ci.yml)
+
 ReplayLock records developer-selected calls that already occur in Vitest, asks a human to review them, and replays the accepted behavior in a fresh process. The result is a **reviewed characterization case** (or regression case), not a generated correctness test.
 
 ReplayLock's static analysis and runtime checks can classify a supported callable as **likely-safe**. That classification is a conservative eligibility judgment, not proof of purity, determinism, or correctness. Keep intentional unit and integration tests for the behavior your application is meant to have.
@@ -138,3 +140,9 @@ export default defineReplayLock({
 A catalogued match contributes `TRUSTED_PACKAGE_CALL` evidence, visible in `review` output and persisted in the accepted case, instead of falling through to unknown evidence. A version bump outside the declared range, or removal of the catalog entry, reverts the call to unknown and fails `verify` closed. See [Trusted Packages](docs/trusted-packages.md) for the full scope, the `unpinned` escape hatch, and the current npm-only version-resolution limitation.
 
 Before broader adoption, use the telemetry-free [manual pilot checklist](docs/pilot-checklist.md). Record measures locally, discuss false-safe findings explicitly, and expand scope only from observed blockers.
+
+## Contributing and security
+
+See [Contributing](CONTRIBUTING.md) for the development toolchain, verification commands, and pull-request workflow. Report vulnerabilities through the private channel described in the [security policy](SECURITY.md), not a public issue.
+
+ReplayLock is [MIT licensed](LICENSE). The package remains private to prevent npm publication; source availability is not an npm release.

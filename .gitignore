@@ -8,3 +8,4 @@ dist/
 .replaylock/catalog/
 .unlazy/
 .unlazy-hook-state.json
+/GATES.md
