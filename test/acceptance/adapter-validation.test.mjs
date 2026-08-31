@@ -72,7 +72,7 @@ test("isolated adapter validation verified", async () => {
   }
 });
 
-test("safe adapter diagnostics verified", async () => {
+test("safe adapter diagnostics verified", async (context) => {
   const cases = [
     {
       body: `process.stdout.write("VALIDATOR_OUTPUT_SECRET"); process.stderr.write("VALIDATOR_ERROR_SECRET"); throw new Error("VALIDATOR_THROW_SECRET");`,
@@ -87,8 +87,13 @@ test("safe adapter diagnostics verified", async () => {
   for (const fixture of cases) {
     const project = await makeProject({ deserializeBody: fixture.body });
     try {
-      const result = runRecord(project, 12_000);
-      assert.equal(result.status, 0, output(result));
+      // The whole CLI also loads configuration and runs Vitest; its deadline is
+      // distinct from the unchanged five-second isolated-validator safety limit.
+      const started = performance.now();
+      const result = runRecord(project);
+      context.diagnostic(`${fixture.code}: complete CLI took ${Math.round(performance.now() - started)}ms`);
+      assert.ifError(result.error);
+      assert.equal(result.status, 0, `${fixture.code}: ${output(result)}`);
       assert.match(output(result), new RegExp(fixture.code));
       assert.doesNotMatch(output(result), /VALIDATOR_OUTPUT_SECRET|VALIDATOR_ERROR_SECRET|VALIDATOR_THROW_SECRET/);
     } finally {

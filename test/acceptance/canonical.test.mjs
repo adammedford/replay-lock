@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -246,9 +245,9 @@ test("exact comparison detects scalar, structural, and completion-kind changes",
 });
 
 test("equivalent observations have byte-identical canonical output across processes", () => {
-  const modulePath = fileURLToPath(new URL("../../dist/canonical.js", import.meta.url));
+  const moduleUrl = new URL("../../dist/canonical.js", import.meta.url).href;
   const source = `
-    import { canonicalCompletionBytes, encodeCanonicalCompletion } from ${JSON.stringify(modulePath)};
+    import { canonicalCompletionBytes, encodeCanonicalCompletion } from ${JSON.stringify(moduleUrl)};
     const record = {};
     for (const key of JSON.parse(process.argv[1])) record[key] = { nested: [true, null, 4.5] };
     process.stdout.write(canonicalCompletionBytes(encodeCanonicalCompletion({ kind: "return", value: record })));

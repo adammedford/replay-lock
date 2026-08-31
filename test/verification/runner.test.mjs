@@ -140,6 +140,37 @@ test("manifest omissions, discoveries, and duplicates fail before building or ru
   }
 });
 
+test("issue verification builds with the locked compiler without an npm shell launcher", async () => {
+  const project = await createRunnerFixture({ complete: true });
+  try {
+    await copyFile(path.join(root, "scripts", "run-issue-verification.mjs"), path.join(project, "scripts", "run-issue-verification.mjs"));
+    await writeFile(path.join(project, "scripts", "issue-control.mjs"), `
+import { runIssueVerification } from "./run-issue-verification.mjs";
+runIssueVerification({ issueNumber: 0, scenario: "control", scenarios: { control: { marker: "portable issue verification passed" } }, testFile: "test/issue-control.test.mjs" });
+`);
+    await writeFile(path.join(project, "test", "issue-control.test.mjs"), `
+import assert from "node:assert/strict";
+import test from "node:test";
+import { REPLAYLOCK_VERSION } from "../dist/index.js";
+test("the issue check can consume its fresh build", () => assert.equal(REPLAYLOCK_VERSION, "0.1.0"));
+`);
+    const env = { ...process.env };
+    for (const key of Object.keys(env)) {
+      if (["path", "npm_execpath", "node_test_context"].includes(key.toLowerCase())) delete env[key];
+    }
+    // An empty PATH makes the old npm/npm.cmd spawn fail on every platform.
+    env.PATH = "";
+    const result = spawnSync(process.execPath, [path.join(project, "scripts", "issue-control.mjs")], {
+      cwd: project, encoding: "utf8", env, timeout: 30_000,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, /portable issue verification passed/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 async function createRunnerFixture({ complete = false, suite = complete } = {}) {
   const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-verification-"));
   try {

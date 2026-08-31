@@ -11,7 +11,8 @@ export function runIssueVerification({ issueNumber, scenario, scenarios, testFil
     `unknown issue ${issueNumber} verification scenario: ${scenario}`,
   );
 
-  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build", "--silent"]);
+  // Use the locked compiler directly; Windows cannot spawn npm.cmd without a shell.
+  run(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"]);
   const selected = scenarios[scenario];
   const testArguments = ["--test", "--test-concurrency=1"];
   if (selected.pattern) testArguments.push(`--test-name-pattern=${selected.pattern}`);
