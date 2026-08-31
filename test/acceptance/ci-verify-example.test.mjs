@@ -51,11 +51,58 @@ test("the example workflow references its companion script and runs replaylock v
   assert.match(workflow, /pull_request/);
 });
 
+test("repository and consumer workflows pin reviewed Actions and make their cache policies explicit", async () => {
+  const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+  const example = await readFile(workflowFile, "utf8");
+  for (const action of ["actions/checkout", "actions/setup-node"]) {
+    const pin = new RegExp(`uses: ${escape(action)}@([a-f0-9]{40}) # (v\\d+\\.\\d+\\.\\d+)`);
+    assert.match(ci, pin);
+    assert.match(example, pin);
+    assert.deepEqual(example.match(pin).slice(1), ci.match(pin).slice(1), `${action} pins and release comments must agree`);
+  }
+  for (const workflow of [ci, example]) {
+    assert.match(workflow, /permissions:\n  contents: read/);
+    assert.match(workflow, /timeout-minutes: 15/);
+    assert.match(workflow, /persist-credentials: false/);
+    assert.match(workflow, /github\.event\.pull_request\.number \|\| github\.run_id/);
+    assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
+    assert.match(workflow, /npm install --global npm@11\.5\.2/);
+  }
+  assert.match(ci, /node-version-file: \.nvmrc/);
+  assert.match(ci, /cache: npm/);
+  assert.match(example, /package-manager-cache: false/);
+  assert.doesNotMatch(example, /\bcache: npm/);
+  assert.match(example, /node-version: 22\.19\.0/);
+});
+
 test("docs/ci.md documents all three exit codes and links the example", async () => {
   const doc = await readFile(path.join(root, "docs", "ci.md"), "utf8");
   for (const code of ["`0`", "`1`", "`2`"]) assert.match(doc, new RegExp(escape(code)));
   assert.match(doc, /replaylock-verify\.yml/);
   assert.match(doc, /Block the merge/);
+});
+
+test("the required check runs full verification once with failure-only JUnit and bounded dependency updates", async () => {
+  const ci = await readFile(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+  assert.deepEqual(ci.slice(ci.indexOf("\njobs:\n")).match(/^  [\w-]+:/gm), ["  verify:"]);
+  assert.doesNotMatch(ci, /npm run build/);
+  assert.match(ci, /npm run typecheck/);
+  assert.match(ci, /npm run verify -- --reporter=spec --junit="\$RUNNER_TEMP\/acceptance-junit\.xml"/);
+  assert.match(ci, /id: verify/);
+  assert.match(ci, /if: \$\{\{ failure\(\) && steps\.verify\.outcome == 'failure' \}\}/);
+  assert.match(ci, /actions\/upload-artifact@[a-f0-9]{40} # v\d+\.\d+\.\d+/);
+  assert.match(ci, /path: \$\{\{ runner\.temp \}\}\/acceptance-junit\.xml/);
+  assert.match(ci, /retention-days: 7/);
+  assert.match(ci, /if-no-files-found: ignore/);
+  const dependabot = await readFile(path.join(root, ".github", "dependabot.yml"), "utf8");
+  const [actions, npm] = dependabot.split('package-ecosystem: "npm"');
+  assert.match(actions, /package-ecosystem: "github-actions"/);
+  assert.match(actions, /interval: weekly/);
+  assert.match(actions, /open-pull-requests-limit: 2/);
+  assert.match(actions, /groups:\n      github-actions:\n        patterns: \["\*"\]/);
+  assert.match(npm, /interval: monthly/);
+  assert.match(npm, /open-pull-requests-limit: 3/);
+  assert.doesNotMatch(npm, /groups:/);
 });
 
 test("the full pipeline reports the correct distinct outcome for a passing and a seeded-regression fixture", async () => {

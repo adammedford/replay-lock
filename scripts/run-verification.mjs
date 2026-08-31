@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseVerificationOptions } from "./verification-options.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const options = parseVerificationOptions(process.argv.slice(2));
 const acceptanceFiles = [
   "test/acceptance/core.test.mjs",
   "test/acceptance/source-policy.test.mjs",
@@ -42,7 +44,9 @@ const acceptanceFiles = [
   "test/acceptance/ci-verify-example.test.mjs",
   "test/acceptance/tolerance-comparison.test.mjs",
 ];
+assertAcceptanceManifest();
 run("verify-package-contract.mjs");
+run("verify-packed-consumer.mjs", "--skip-build");
 runAcceptanceSuite();
 console.log("verification suite passed");
 
@@ -56,7 +60,7 @@ function run(script, ...arguments_) {
   assert.equal(result.status, 0, `${script} failed`);
 }
 
-function runAcceptanceSuite() {
+function assertAcceptanceManifest() {
   const discovered = readdirSync(path.join(root, "test", "acceptance"))
     .filter((name) => name.endsWith(".test.mjs"))
     .map((name) => `test/acceptance/${name}`)
@@ -66,10 +70,18 @@ function runAcceptanceSuite() {
     discovered,
     "locked V1 suite manifest must include every acceptance file exactly once",
   );
+}
+
+function runAcceptanceSuite() {
+  const reporters = [`--test-reporter=${options.reporter}`];
+  if (options.junit !== undefined) {
+    mkdirSync(path.dirname(options.junit), { recursive: true });
+    reporters.push("--test-reporter-destination=stdout", "--test-reporter=junit", `--test-reporter-destination=${options.junit}`);
+  }
   const result = spawnSync(process.execPath, [
     "--test",
-    "--test-reporter=dot",
-    "--test-concurrency=1",
+    ...reporters,
+    `--test-concurrency=${options.concurrency}`,
     ...acceptanceFiles,
   ], {
     cwd: root,

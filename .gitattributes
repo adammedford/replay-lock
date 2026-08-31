@@ -1,0 +1,2 @@
+# Reviewed assumption fingerprints must see identical source/lock bytes on every OS.
+* text=auto eol=lf
