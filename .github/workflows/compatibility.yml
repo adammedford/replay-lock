@@ -1,0 +1,53 @@
+name: Compatibility
+
+on:
+  schedule:
+    # Monday at 06:17 UTC, away from the top-of-hour scheduling peak.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows full verification
+            os: windows-latest
+            suite: full
+          - name: macOS full verification
+            os: macos-latest
+            suite: full
+          - name: Minimum Node smoke
+            os: ubuntu-latest
+            suite: minimum
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.suite == 'minimum' && '22.12.0' || '' }}
+          node-version-file: ${{ matrix.suite == 'full' && '.nvmrc' || '' }}
+          cache: npm
+
+      - run: npm install --global npm@11.5.2
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - name: Full verification
+        if: ${{ matrix.suite == 'full' }}
+        run: npm run verify -- --concurrency=2 --reporter=spec
+
+      - name: Packed consumer smoke
+        if: ${{ matrix.suite == 'minimum' }}
+        run: node scripts/verify-packed-consumer.mjs
