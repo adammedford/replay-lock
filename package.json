@@ -49,9 +49,9 @@
   "packageManager": "npm@11.5.2",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node scripts/run-verification.mjs",
+    "test": "node scripts/verify.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "node scripts/run-verification.mjs"
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "magic-string": "1.2.2",

@@ -56,11 +56,13 @@ for (const [name, version] of Object.entries(expected)) {
   assert.equal(lock.packages[`node_modules/${name}`]?.version, version, `${name} lock entry must match`);
 }
 
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-const build = spawnSync(npmCommand, ["run", "build", "--silent"], {
+// Invoke the locked compiler with Node: direct Windows spawn cannot execute npm.cmd.
+assert.equal(packageJson.scripts.build, "tsc -p tsconfig.json");
+const build = spawnSync(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"], {
   cwd: root,
   encoding: "utf8",
 });
+assert.ifError(build.error);
 assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
 const cli = await readFile(path.join(root, "dist", "cli.js"), "utf8");
 assert.ok(cli.startsWith("#!/usr/bin/env node"), "compiled CLI must retain its executable shebang");
