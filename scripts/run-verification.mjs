@@ -87,6 +87,7 @@ function runAcceptanceSuite() {
     cwd: root,
     encoding: "utf8",
     stdio: "inherit",
+    env: { ...process.env, REPLAYLOCK_VERIFICATION_BUILD_READY: "1" },
   });
   if (result.error) throw result.error;
   assert.equal(result.status, 0, "locked V1 black-box acceptance suite failed");

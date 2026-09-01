@@ -166,6 +166,17 @@ test("the issue check can consume its fresh build", () => assert.equal(REPLAYLOC
     assert.ifError(result.error);
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     assert.match(result.stdout, /portable issue verification passed/);
+
+    // The outer runner has already built the package; nested issue checks must
+    // reuse that immutable build instead of racing another acceptance file.
+    await writeFile(path.join(project, "tsconfig.json"), "{ malformed after the successful build\n");
+    env.REPLAYLOCK_VERIFICATION_BUILD_READY = "1";
+    const nested = spawnSync(process.execPath, [path.join(project, "scripts", "issue-control.mjs")], {
+      cwd: project, encoding: "utf8", env, timeout: 30_000,
+    });
+    assert.ifError(nested.error);
+    assert.equal(nested.status, 0, `${nested.stdout}${nested.stderr}`);
+    assert.match(nested.stdout, /portable issue verification passed/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -201,6 +212,7 @@ import { setTimeout } from "node:timers/promises";
 import test from "node:test";
 
 test(${JSON.stringify(`fixture case: ${name}`)}, async () => {
+  if (process.env.REPLAYLOCK_VERIFICATION_BUILD_READY !== "1") throw new Error("outer runner did not mark its completed build");
   appendFileSync(process.env.REPLAYLOCK_RUNNER_EVENTS, JSON.stringify({ kind: "start", file: ${JSON.stringify(name)} }) + "\\n");
   await setTimeout(75);
   appendFileSync(process.env.REPLAYLOCK_RUNNER_EVENTS, JSON.stringify({ kind: "finish", file: ${JSON.stringify(name)} }) + "\\n");

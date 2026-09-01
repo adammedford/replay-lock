@@ -11,8 +11,13 @@ export function runIssueVerification({ issueNumber, scenario, scenarios, testFil
     `unknown issue ${issueNumber} verification scenario: ${scenario}`,
   );
 
-  // Use the locked compiler directly; Windows cannot spawn npm.cmd without a shell.
-  run(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"]);
+  // Standalone issue checks build themselves. The complete runner has already
+  // built and validated dist, so nested checks reuse that immutable snapshot
+  // instead of racing concurrent TypeScript emitters in the shared directory.
+  if (process.env.REPLAYLOCK_VERIFICATION_BUILD_READY !== "1") {
+    // Use the locked compiler directly; Windows cannot spawn npm.cmd without a shell.
+    run(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"]);
+  }
   const selected = scenarios[scenario];
   const testArguments = ["--test", "--test-concurrency=1"];
   if (selected.pattern) testArguments.push(`--test-name-pattern=${selected.pattern}`);
