@@ -10,6 +10,7 @@ parseVerificationOptions(options);
 
 // Keep the runner's own regression tests outside the runner to avoid recursion.
 for (const command of [
+  ["--test", "test/coverage/integrity.test.mjs", "test/coverage/remapping.test.mjs"],
   ["--test", "test/verification/runner.test.mjs"],
   ["scripts/run-verification.mjs", ...options],
 ]) {
