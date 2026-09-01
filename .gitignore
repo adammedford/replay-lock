@@ -9,3 +9,4 @@ dist/
 .unlazy/
 .unlazy-hook-state.json
 /GATES.md
+/coverage/

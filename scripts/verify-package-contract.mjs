@@ -49,6 +49,8 @@ const expected = {
   vite: "8.2.2",
   vitest: "4.1.11",
   "@types/node": "22.20.1",
+  "@jridgewell/sourcemap-codec": "1.5.5",
+  c8: "12.0.0",
 };
 for (const [name, version] of Object.entries(expected)) {
   const declared = packageJson.dependencies?.[name] ?? packageJson.devDependencies?.[name];
