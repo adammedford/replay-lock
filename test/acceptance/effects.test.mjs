@@ -148,6 +148,66 @@ export const calculate = function (input: { value: number }): number {
   console.log("effect fixture matrix verified");
 });
 
+test("class runtime evaluation visits only executable heritage, computed keys, static fields, and blocks", () => {
+  const cases = [
+    ["CLOCK_ACCESS", "class Derived extends (Date.now(), Object) {}"],
+    ["CLOCK_ACCESS", "class Derived { [Date.now()]() {} }"],
+    ["RANDOMNESS", "class Derived { static value = Math.random(); }"],
+    ["LOGGING", "class Derived { static { console.log(input); } }"],
+  ];
+  for (const [code, declaration] of cases) {
+    const result = analyze(`
+export function calculate(input: number): number {
+  ${declaration}
+  return input;
+}
+`);
+    assert.equal(result.verdict, "refuted", declaration);
+    assert.ok(result.findings.some((finding) => finding.code === code), declaration);
+  }
+
+  const safe = analyze(`
+export function calculate(input: number): number {
+  class Derived { method() { return Date.now(); } }
+  return input;
+}
+`);
+  assert.equal(safe.verdict, "likely-safe");
+  assert.deepEqual(safe.findings, []);
+});
+
+test("destructuring writes classify argument, receiver, and ambient targets while preserving local controls", () => {
+  const fixtures = [
+    ["ARGUMENT_MUTATION", "[input.value] = [2];"],
+    ["ARGUMENT_MUTATION", "({ nested: input.nested } = { nested: { value: 2 } });"],
+    ["RECEIVER_DEPENDENCE", "({ value: this.value } = { value: input });"],
+    ["AMBIENT_MUTATION", "({ value: ambientValue } = { value: input });"],
+  ];
+  for (const [code, statement] of fixtures) {
+    const result = analyze(`
+let ambientValue = 0;
+export function calculate(input: { value: number; nested?: { value: number } } | number): number {
+  ${statement}
+  return typeof input === "number" ? input : input.value;
+}
+`);
+    assert.equal(result.verdict, "refuted", statement);
+    assert.ok(result.findings.some((finding) => finding.code === code), statement);
+  }
+
+  const safe = analyze(`
+export function calculate(input: number): number {
+  let left = 0;
+  let right = 0;
+  [left, right] = [input, input + 1];
+  ({ left, right } = { left: right, right: left });
+  return left + right;
+}
+`);
+  assert.equal(safe.verdict, "likely-safe");
+  assert.deepEqual(safe.findings, []);
+});
+
 function analyze(sourceText) {
   return parseAndAnalyzeDirectEffects(sourceText, "src/calculation.ts", "calculate");
 }

@@ -131,6 +131,35 @@ test("all observable call behavior", () => {
   }
 });
 
+test("storage failure keeps the application result, emits infrastructure status, and records no candidate", async () => {
+  const project = await makeProject({
+    source: `/** @replaylock capture */
+export function calculate(value: number): number { return value + 1; }
+`,
+    testSource: `import { writeFileSync } from "node:fs";
+import path from "node:path";
+import { calculate } from "../src/calculation.js";
+import { expect, test } from "vitest";
+
+test("application behavior survives unavailable worker storage", () => {
+  writeFileSync(path.join(process.env.REPLAYLOCK_SESSION_DIR, "workers"), "blocked\\n");
+  expect(calculate(41)).toBe(42);
+});
+`,
+  });
+  try {
+    const result = runRecord(project);
+    assert.equal(result.status, 2, output(result));
+    assert.match(output(result), /STORE_WRITE_FAILED SESSION_PARTIAL: STORAGE_FAILURE/);
+    assert.deepEqual(
+      await entriesOrEmpty(path.join(project, ".replaylock", "observations", "pending")),
+      [],
+    );
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("composed source maps retain authored failure locations", async () => {
   const authoredLine = 6;
   const project = await makeProject({

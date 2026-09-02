@@ -19,6 +19,7 @@ import {
   registerSessionWorker,
   replaceArtifactAtomic,
 } from "../../dist/session.js";
+import { observeCall } from "../../dist/runtime.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cliPath = path.join(root, "dist", "cli.js");
@@ -212,6 +213,60 @@ test("partial success exits two and wrapped failure status remains primary with 
       rm(successfulProject, { recursive: true, force: true }),
       rm(failingProject, { recursive: true, force: true }),
     ]);
+  }
+});
+
+test("runtime storage failure preserves behavior, writes a value-free marker, and cannot yield a trusted record", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "replaylock-runtime-storage-failure-"));
+  const token = "a".repeat(64);
+  const secretArgument = "STORAGE_FAILURE_ARGUMENT_SECRET";
+  const secretCompletion = "STORAGE_FAILURE_COMPLETION_SECRET";
+  const previousDirectory = process.env.REPLAYLOCK_SESSION_DIR;
+  const previousToken = process.env.REPLAYLOCK_SESSION_TOKEN;
+  try {
+    // The marker directory remains writable, while worker registration cannot
+    // create its storage tree. This forces the runtime's public catch path.
+    await writeFile(path.join(directory, "workers"), "blocked\n");
+    process.env.REPLAYLOCK_SESSION_DIR = directory;
+    process.env.REPLAYLOCK_SESSION_TOKEN = token;
+    const metadata = {
+      locator: { module: "src/direct.ts", exportName: "calculate" },
+      sourceGraphDigest: `sha256:${"d".repeat(64)}`,
+    };
+    assert.equal(
+      observeCall(metadata, [secretArgument], () => secretCompletion),
+      secretCompletion,
+    );
+    const aggregate = aggregateSession(directory, token, (value) => value);
+    assert.equal(aggregate.partial, true);
+    assert.deepEqual(aggregate.records, []);
+    assert.deepEqual(aggregate.failures, [{ code: "SESSION_PARTIAL", reason: "STORAGE_FAILURE" }]);
+    const [markerName] = await readdir(path.join(directory, "failures"));
+    assert.ok(markerName);
+    const marker = await readFile(path.join(directory, "failures", markerName), "utf8");
+    assert.equal(marker.includes(secretArgument), false);
+    assert.equal(marker.includes(secretCompletion), false);
+    assert.equal(marker.includes(token), false);
+    assert.match(marker, /SESSION_PARTIAL/);
+    assert.match(marker, /STORAGE_FAILURE/);
+
+    // If even the value-free marker cannot be persisted, the wrapped behavior
+    // still wins and no incomplete worker can become a candidate.
+    await rm(path.join(directory, "failures"), { recursive: true, force: true });
+    await writeFile(path.join(directory, "failures"), "blocked\n");
+    assert.throws(
+      () => observeCall(metadata, [secretArgument], () => { throw new Error(secretCompletion); }),
+      /STORAGE_FAILURE_COMPLETION_SECRET/,
+    );
+    const failedMarker = await readFile(path.join(directory, "failures"), "utf8");
+    assert.equal(failedMarker.includes(secretArgument), false);
+    assert.equal(failedMarker.includes(secretCompletion), false);
+  } finally {
+    if (previousDirectory === undefined) delete process.env.REPLAYLOCK_SESSION_DIR;
+    else process.env.REPLAYLOCK_SESSION_DIR = previousDirectory;
+    if (previousToken === undefined) delete process.env.REPLAYLOCK_SESSION_TOKEN;
+    else process.env.REPLAYLOCK_SESSION_TOKEN = previousToken;
+    await rm(directory, { recursive: true, force: true });
   }
 });
 
