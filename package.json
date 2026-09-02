@@ -52,6 +52,7 @@
     "test": "node scripts/verify.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "node scripts/verify.mjs",
+    "verify:dogfood": "node scripts/verify-dogfood.mjs",
     "coverage": "node scripts/run-coverage.mjs"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import MagicString from "magic-string";
 import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
@@ -15,6 +16,10 @@ import { findProjectConfigurationSync } from "./project-configuration.js";
 import { resolveProjectPackageCatalog } from "./project-execution.js";
 import { selectProjectLockfile, type ProjectLockfile } from "./project-lockfile.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
+
+const replayLockImplementationRoot = realpathSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
+);
 
 interface PackageResolution {
   packageCatalog?: PackageCatalog;
@@ -76,6 +81,11 @@ export function replaylock(): Plugin {
 
       const id = rawId.split("?", 1)[0] ?? rawId;
       if (id.includes("/node_modules/") || !isTypeScriptSourceFilename(id)) return null;
+      // Vite realpaths linked dependencies before transform, so a consumer's
+      // `node_modules/replaylock` can arrive here as ReplayLock's checkout path.
+      // Permit this package to dogfood its own source, but never let its
+      // implementation annotations become capture targets in another project.
+      if (isReplayLockImplementationModule(resolvedConfig.root, id)) return null;
 
       const sourceFile = ts.createSourceFile(
         id,
@@ -129,6 +139,21 @@ export function replaylock(): Plugin {
       };
     },
   };
+}
+
+function isReplayLockImplementationModule(projectRoot: string, modulePath: string): boolean {
+  const physicalProjectRoot = physicalPath(projectRoot);
+  if (physicalProjectRoot === replayLockImplementationRoot) return false;
+  const relative = path.relative(replayLockImplementationRoot, physicalPath(modulePath));
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+function physicalPath(value: string): string {
+  try {
+    return realpathSync(value);
+  } catch {
+    return path.resolve(value);
+  }
 }
 
 export interface RecordingPreflight {

@@ -36,6 +36,9 @@ jobs:
         id: verify
         run: npm run verify -- --reporter=spec --junit="$RUNNER_TEMP/acceptance-junit.xml"
 
+      - name: Verify reviewed dogfood
+        run: npm run verify:dogfood
+
       - name: Upload acceptance failures
         if: ${{ failure() && steps.verify.outcome == 'failure' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

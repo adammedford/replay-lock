@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "caseId": "adc534b6b0ef06c813a832edbf94199bf989328b6db3eaefffef42bcb36267b4",
+  "locator": {
+    "module": "src/typescript-script-kind.ts",
+    "exportName": "typescriptScriptKind"
+  },
+  "arguments": {
+    "kind": "array",
+    "items": [
+      {
+        "kind": "string",
+        "value": "view.jsx"
+      }
+    ]
+  },
+  "completion": {
+    "kind": "return",
+    "value": {
+      "kind": "number",
+      "value": 2
+    }
+  },
+  "comparison": "exact",
+  "eligibility": {
+    "basis": "assumption",
+    "verdict": "likely-safe",
+    "reasonCodes": [
+      "ASSUMED_UNKNOWN_EFFECT"
+    ],
+    "assumption": {
+      "reason": "reviewed deterministic TypeScript ScriptKind boundary",
+      "fingerprint": "sha256:ccd39d08c64124ceb9dece798e549738f577a611d7fcf122932aa35cdcfcd529",
+      "originalEvidence": [
+        {
+          "code": "PACKAGE_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 1,
+          "column": 1,
+          "message": "imported module could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 22,
+          "column": 7,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 22,
+          "column": 39,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 23,
+          "column": 7,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 23,
+          "column": 39,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 24,
+          "column": 7,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 24,
+          "column": 43,
+          "message": "call target could not be resolved"
+        },
+        {
+          "code": "UNKNOWN_CALL",
+          "source": "src/typescript-script-kind.ts",
+          "line": 25,
+          "column": 10,
+          "message": "call target could not be resolved"
+        }
+      ],
+      "analyzerVersion": "1",
+      "intrinsicCatalogVersion": "1"
+    }
+  },
+  "provenance": {
+    "sourceGraphDigest": "sha256:115d7ac7b4b00664f16c18e492ed6a62f73109b58ba7c8b7fe45dea4ffea142d",
+    "lockfileDigest": "sha256:049114fcd8bea14365b673218d634936088a6720fb2979a54dc80f91640f42c0",
+    "runtimeProfile": {
+      "node": "v22.19.0",
+      "vite": "8.2.2",
+      "vitest": "4.1.11",
+      "replaylock": "0.1.0",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "timezone": "America/Chicago",
+      "locale": "en-US"
+    },
+    "captureStatus": "complete"
+  }
+}
