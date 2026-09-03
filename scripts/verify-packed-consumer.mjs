@@ -48,7 +48,19 @@ try {
   }, null, 2) + "\n");
   // Inherit npm's configured cache (warmed by CI's npm ci). Do not cache
   // node_modules or bypass the actual dependency installation with symlinks.
-  runNpm(["install", tarball, "--prefer-offline", "--no-audit", "--no-fund"], consumer);
+  // npm 11.5.2 can crash with an internal edgesOut error while resolving this
+  // tarball's full dependency graph with the modern peer resolver. The
+  // legacy resolver still performs a real clean installation, while avoiding
+  // that npm implementation defect. The generated consumer lockfile also
+  // exercises ReplayLock's supported project-lockfile contract.
+  runNpm([
+    "install",
+    tarball,
+    "--legacy-peer-deps",
+    "--prefer-offline",
+    "--no-audit",
+    "--no-fund",
+  ], consumer);
   const installed = path.join(consumer, "node_modules", "replaylock");
   assert.equal((await lstat(installed)).isSymbolicLink(), false, "the consumer must install extracted package files");
   assert.notEqual(await realpath(installed), await realpath(root), "the consumer must not resolve the checkout");
