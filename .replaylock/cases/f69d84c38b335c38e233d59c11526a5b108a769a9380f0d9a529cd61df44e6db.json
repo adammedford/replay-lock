@@ -30,7 +30,7 @@
     ],
     "assumption": {
       "reason": "reviewed deterministic RegExp boundary",
-      "fingerprint": "sha256:f64582bd7ed30bfcceee95cc37592aebc4a2c0a25e38c0d5810315da97fa0607",
+      "fingerprint": "sha256:c43856bcceb7740be64ffe989744287137a4c0b24d01f763063f2c5826602ecf",
       "originalEvidence": [
         {
           "code": "PACKAGE_CALL",
@@ -53,7 +53,7 @@
   },
   "provenance": {
     "sourceGraphDigest": "sha256:115d7ac7b4b00664f16c18e492ed6a62f73109b58ba7c8b7fe45dea4ffea142d",
-    "lockfileDigest": "sha256:049114fcd8bea14365b673218d634936088a6720fb2979a54dc80f91640f42c0",
+    "lockfileDigest": "sha256:35eb748f05c54e54d89c68c1b6457603c763de8c956acf054998aa4777714eca",
     "runtimeProfile": {
       "node": "v22.19.0",
       "vite": "8.2.2",

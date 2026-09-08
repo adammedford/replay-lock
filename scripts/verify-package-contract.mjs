@@ -44,7 +44,7 @@ assert.ok(gitignore.includes(".replaylock/validate/"));
 assert.equal(gitignore.includes(".replaylock/"), false, "accepted cases must remain committable");
 
 const expected = {
-  "magic-string": "1.2.2",
+  "magic-string": "1.2.3",
   typescript: "6.0.3",
   vite: "8.2.2",
   vitest: "4.1.11",
