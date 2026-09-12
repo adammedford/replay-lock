@@ -1,0 +1,753 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-10T22:00:17.568Z",
+  "pairs": 5,
+  "extended": false,
+  "measurement": "analysis plus all source transforms; edit through changed module transform; serial fresh-process replay",
+  "environment": {
+    "node": "22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M4 Pro"
+  },
+  "runnerSha256": "8dcf27ee2b429aab9ec7b38add6cd590758ae073c69e34239f872c9877ca0d60",
+  "baseline": {
+    "sha256": "54ef6aa5b986788844f9c6377a4fdd0b48bdccb1937600537f76ab5ec9801627"
+  },
+  "final": {
+    "sha256": "1d2f070acda8b5a873d934f4adb98d38d4d7a4ce59d30a0ac2bab0f3fd1cc84f"
+  },
+  "runs": [
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 60.69429100000002,
+      "editToReadyMs": 7.558832999999993,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.9759579999999914,
+        "captureMs": 111.63770799999998,
+        "addedMicroseconds": 10.866174999999998
+      },
+      "peakKiB": 202416
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 22.957625000000007,
+      "editToReadyMs": 4.137542000000025,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.442292000000009,
+        "captureMs": 109.53245800000002,
+        "addedMicroseconds": 10.6090166
+      },
+      "peakKiB": 202656
+    },
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 889.092292,
+      "editToReadyMs": 9.032167000000072,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.429582999999866,
+        "captureMs": 105.29770800000006,
+        "addedMicroseconds": 10.186812500000018
+      },
+      "peakKiB": 323696
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 70.43295900000001,
+      "editToReadyMs": 18.253083000000004,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.16862500000002,
+        "captureMs": 106.479916,
+        "addedMicroseconds": 10.331129099999998
+      },
+      "peakKiB": 206160
+    },
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 69216.452792,
+      "editToReadyMs": 71.90862499999639,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.7118329999939306,
+        "captureMs": 101.61683300000732,
+        "addedMicroseconds": 9.79050000000134
+      },
+      "peakKiB": 336128
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 1460.241083,
+      "editToReadyMs": 97.52400000000011,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.851667000000134,
+        "captureMs": 103.696958,
+        "addedMicroseconds": 10.084529099999987
+      },
+      "peakKiB": 220160
+    },
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 740.6208330000001,
+      "processes": 2,
+      "peakKiB": 191872
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 712.751583,
+      "processes": 2,
+      "peakKiB": 194912
+    },
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5027.112167,
+      "processes": 11,
+      "peakKiB": 195152
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5039.110791,
+      "processes": 11,
+      "peakKiB": 197712
+    },
+    {
+      "pair": 0,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 47874.078041,
+      "processes": 101,
+      "peakKiB": 195312
+    },
+    {
+      "pair": 0,
+      "phase": "final",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 48409.990041,
+      "processes": 101,
+      "peakKiB": 198784
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 23.248333000000002,
+      "editToReadyMs": 3.908249999999981,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.3893329999999935,
+        "captureMs": 107.988708,
+        "addedMicroseconds": 10.459937500000002
+      },
+      "peakKiB": 202272
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 51.274708000000004,
+      "editToReadyMs": 3.300041999999962,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 5.3371250000000146,
+        "captureMs": 116.54616699999997,
+        "addedMicroseconds": 11.120904199999996
+      },
+      "peakKiB": 202944
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 70.379625,
+      "editToReadyMs": 18.226125000000025,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.0537499999999795,
+        "captureMs": 104.91358300000002,
+        "addedMicroseconds": 10.185983300000004
+      },
+      "peakKiB": 205856
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 846.8720410000001,
+      "editToReadyMs": 8.068874999999935,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.3254159999999047,
+        "captureMs": 105.68333299999995,
+        "addedMicroseconds": 10.235791700000005
+      },
+      "peakKiB": 320960
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 1320.1805419999998,
+      "editToReadyMs": 92.85400000000004,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.4970420000001923,
+        "captureMs": 103.13233300000002,
+        "addedMicroseconds": 10.063529099999982
+      },
+      "peakKiB": 224128
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 67123.561208,
+      "editToReadyMs": 83.32187499999418,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.909875000012107,
+        "captureMs": 104.17295799999556,
+        "addedMicroseconds": 10.126308299998346
+      },
+      "peakKiB": 358080
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 713.741459,
+      "processes": 2,
+      "peakKiB": 194528
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 698.063666,
+      "processes": 2,
+      "peakKiB": 191072
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5178.318792,
+      "processes": 11,
+      "peakKiB": 198768
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5135.655792,
+      "processes": 11,
+      "peakKiB": 195200
+    },
+    {
+      "pair": 1,
+      "phase": "final",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 49214.012584,
+      "processes": 101,
+      "peakKiB": 198144
+    },
+    {
+      "pair": 1,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 49412.94875,
+      "processes": 101,
+      "peakKiB": 195600
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 51.227000000000004,
+      "editToReadyMs": 3.6583329999999705,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 5.616750000000025,
+        "captureMs": 119.61525,
+        "addedMicroseconds": 11.399849999999999
+      },
+      "peakKiB": 208272
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 24.65066600000003,
+      "editToReadyMs": 4.483959000000027,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.4463329999999814,
+        "captureMs": 112.19070800000003,
+        "addedMicroseconds": 10.874437500000004
+      },
+      "peakKiB": 204640
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 877.595042,
+      "editToReadyMs": 8.414667000000009,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.3957080000000133,
+        "captureMs": 107.40891599999986,
+        "addedMicroseconds": 10.401320799999985
+      },
+      "peakKiB": 324256
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 78.25054200000002,
+      "editToReadyMs": 22.117291000000023,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.640125000000012,
+        "captureMs": 109.13941699999998,
+        "addedMicroseconds": 10.549929199999998
+      },
+      "peakKiB": 205520
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 70487.41425,
+      "editToReadyMs": 77.14941699999326,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.500417000002926,
+        "captureMs": 105.33420899999328,
+        "addedMicroseconds": 10.283379199999036
+      },
+      "peakKiB": 392848
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 1405.804667,
+      "editToReadyMs": 102.90858400000002,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.485500000000002,
+        "captureMs": 107.26333399999999,
+        "addedMicroseconds": 10.477783399999998
+      },
+      "peakKiB": 224240
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 702.749,
+      "processes": 2,
+      "peakKiB": 189856
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 720.038833,
+      "processes": 2,
+      "peakKiB": 195344
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 4978.901708,
+      "processes": 11,
+      "peakKiB": 192800
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 4976.7615000000005,
+      "processes": 11,
+      "peakKiB": 195344
+    },
+    {
+      "pair": 2,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 47228.467875,
+      "processes": 101,
+      "peakKiB": 194992
+    },
+    {
+      "pair": 2,
+      "phase": "final",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 47552.955084,
+      "processes": 101,
+      "peakKiB": 198464
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 22.027749999999997,
+      "editToReadyMs": 4.28887499999999,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.3607089999999857,
+        "captureMs": 106.87691700000002,
+        "addedMicroseconds": 10.351620800000003
+      },
+      "peakKiB": 202320
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 50.91137499999999,
+      "editToReadyMs": 3.1447919999999954,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 5.513832999999977,
+        "captureMs": 118.10487500000005,
+        "addedMicroseconds": 11.259104200000007
+      },
+      "peakKiB": 202208
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 67.948542,
+      "editToReadyMs": 19.30854099999999,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.1978749999999536,
+        "captureMs": 104.65108299999997,
+        "addedMicroseconds": 10.145320800000002
+      },
+      "peakKiB": 205216
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 810.4438749999999,
+      "editToReadyMs": 8.246250000000146,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.3402920000000904,
+        "captureMs": 106.88291600000002,
+        "addedMicroseconds": 10.354262399999994
+      },
+      "peakKiB": 320336
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 1288.975875,
+      "editToReadyMs": 91.053541,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.685999999999922,
+        "captureMs": 104.03275000000008,
+        "addedMicroseconds": 10.134675000000016
+      },
+      "peakKiB": 219504
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 64839.151042000005,
+      "editToReadyMs": 68.88229200000205,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.4162500000020373,
+        "captureMs": 104.90375000000495,
+        "addedMicroseconds": 10.24875000000029
+      },
+      "peakKiB": 360352
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 700.979875,
+      "processes": 2,
+      "peakKiB": 194320
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 693.525542,
+      "processes": 2,
+      "peakKiB": 189296
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5007.374167,
+      "processes": 11,
+      "peakKiB": 197200
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 5018.899083,
+      "processes": 11,
+      "peakKiB": 193088
+    },
+    {
+      "pair": 3,
+      "phase": "final",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 48079.114083,
+      "processes": 101,
+      "peakKiB": 198240
+    },
+    {
+      "pair": 3,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 46959.606625,
+      "processes": 101,
+      "peakKiB": 195008
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 49.45275000000004,
+      "editToReadyMs": 3.0452080000000024,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 5.361167000000023,
+        "captureMs": 118.841791,
+        "addedMicroseconds": 11.348062399999998
+      },
+      "peakKiB": 207952
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "load",
+      "size": 10,
+      "coldLoadMs": 22.381207999999987,
+      "editToReadyMs": 3.804292000000004,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.428875000000005,
+        "captureMs": 108.02987500000003,
+        "addedMicroseconds": 10.460100000000002
+      },
+      "peakKiB": 201936
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 807.2929589999999,
+      "editToReadyMs": 7.279291999999941,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.5906660000000556,
+        "captureMs": 103.95624999999995,
+        "addedMicroseconds": 10.13655839999999
+      },
+      "peakKiB": 322928
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "load",
+      "size": 100,
+      "coldLoadMs": 66.71170800000002,
+      "editToReadyMs": 17.67066600000004,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 3.1352079999999773,
+        "captureMs": 103.92587500000002,
+        "addedMicroseconds": 10.079066700000004
+      },
+      "peakKiB": 205536
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 63593.257292,
+      "editToReadyMs": 69.906041000002,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.500166999998328,
+        "captureMs": 101.26849999999831,
+        "addedMicroseconds": 9.876833299999998
+      },
+      "peakKiB": 351120
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "load",
+      "size": 1000,
+      "coldLoadMs": 1422.2804580000002,
+      "editToReadyMs": 94.37454099999991,
+      "invocation": {
+        "iterations": 10000,
+        "disabledMs": 2.4117919999998776,
+        "captureMs": 101.78154099999983,
+        "addedMicroseconds": 9.936974899999996
+      },
+      "peakKiB": 225888
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 704.950542,
+      "processes": 2,
+      "peakKiB": 189120
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "replay",
+      "size": 1,
+      "replayMs": 699.3389999999999,
+      "processes": 2,
+      "peakKiB": 194656
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 4877.299291,
+      "processes": 11,
+      "peakKiB": 193120
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "replay",
+      "size": 10,
+      "replayMs": 4950.786375,
+      "processes": 11,
+      "peakKiB": 195664
+    },
+    {
+      "pair": 4,
+      "phase": "baseline",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 47342.486833,
+      "processes": 101,
+      "peakKiB": 195184
+    },
+    {
+      "pair": 4,
+      "phase": "final",
+      "kind": "replay",
+      "size": 100,
+      "replayMs": 47331.760584,
+      "processes": 101,
+      "peakKiB": 199152
+    }
+  ],
+  "budget": {
+    "large": {
+      "baseline": 67123.561208,
+      "final": 1405.804667
+    },
+    "small": {
+      "baseline": 51.227000000000004,
+      "final": 22.957625000000007
+    },
+    "improvementPercent": 97.90564647986459
+  }
+}

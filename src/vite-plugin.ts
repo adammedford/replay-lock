@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, readFileSync, readdirSync, realpathSync, sta
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MagicString from "magic-string";
+import { devRecordingPlugin } from "./dev-server.js";
 import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
@@ -26,7 +27,8 @@ interface PackageResolution {
   lockfile?: ProjectLockfile;
 }
 
-export function replaylock(): Plugin {
+export function replaylock(options: { dev?: boolean } = {}): Plugin {
+  if (options.dev) return devRecordingPlugin();
   // Activation is a capability, not a mode that can be toggled while Vite is
   // processing a module graph. Snapshot it when the plugin is constructed so
   // an ordinary Vite process cannot become instrumented through a later env

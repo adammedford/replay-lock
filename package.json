@@ -19,6 +19,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/dev-browser-api.js",
       "default": "./dist/index.js"
     },
     "./vite": {
@@ -28,6 +29,14 @@
     "./vite/runtime": {
       "types": "./dist/runtime.d.ts",
       "default": "./dist/runtime.js"
+    },
+    "./dev/runtime": {
+      "types": "./dist/dev-runtime.d.ts",
+      "default": "./dist/dev-runtime.js"
+    },
+    "./dev/values": {
+      "types": "./dist/dev-values.d.ts",
+      "default": "./dist/dev-values.js"
     }
   },
   "files": [
@@ -41,6 +50,9 @@
     "docs/troubleshooting.md",
     "docs/pilot-checklist.md",
     "docs/ci.md",
+    "docs/development-recording.md",
+    "docs/performance.md",
+    "docs/pilots/README.md",
     "examples/github-actions"
   ],
   "engines": {
@@ -53,7 +65,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "node scripts/verify.mjs",
     "verify:dogfood": "node scripts/verify-dogfood.mjs",
-    "coverage": "node scripts/run-coverage.mjs"
+    "coverage": "node scripts/run-coverage.mjs",
+    "bench:dev": "node scripts/bench-dev.mjs",
+    "pilot:dev": "node scripts/pilot-dev.mjs",
+    "conformance:dev": "node scripts/dev-conformance.mjs"
   },
   "dependencies": {
     "magic-string": "1.2.2",
@@ -65,5 +80,9 @@
     "@jridgewell/sourcemap-codec": "1.5.5",
     "@types/node": "22.20.1",
     "c8": "12.0.0"
+  },
+  "optionalDependencies": {
+    "@vitest/browser-playwright": "4.1.11",
+    "playwright": "1.63.0"
   }
 }

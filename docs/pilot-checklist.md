@@ -46,3 +46,9 @@ Record counts or elapsed minutes without source or value content:
 - [ ] Review all false-safe findings and privacy failures before expansion.
 - [ ] Choose future scope from observed blockers, not a predetermined platform roadmap.
 - [ ] Preserve ReplayLock's public seam: record, human review, fresh-process verify.
+
+## Development capture pilots
+
+For Vite development workloads, add `replaylock({ dev: true })`, run `replaylock scan --dev --json`, and launch with `replaylock record -- npm run dev` or attach with `replaylock record --attach <local-url>`. Save `replaylock report --session <id> --json` alongside the version and timing notes. Distinguish unexercised eligible functions, unknown execution of excluded functions, runtime value rejections, retention omissions and partial delivery. The default retention sample is 20 cases per callable/realm and two per input/effect-structure group; intentional omissions are not lost observations.
+
+The [pinned public pilot runner](pilots/README.md) records reproducible setup and compatibility evidence with synthetic data. Its scripted review is explicitly labeled and has no human review-time measurement. Use the manual measures above for a human adoption study; do not treat a validated blocked-pilot report as a successful record/review/verify journey.

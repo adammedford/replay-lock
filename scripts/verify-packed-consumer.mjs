@@ -77,11 +77,14 @@ try {
     import { REPLAYLOCK_VERSION, defineReplayLock, defineValueAdapter } from "replaylock";
     import { replaylock } from "replaylock/vite";
     import { observeCall } from "replaylock/vite/runtime";
+    import { observeDevCall } from "replaylock/dev/runtime";
     assert.equal(REPLAYLOCK_VERSION, ${JSON.stringify(manifest.version)});
     assert.equal(typeof defineReplayLock, "function");
     assert.equal(typeof defineValueAdapter, "function");
     assert.equal(replaylock().name, "replaylock");
     assert.equal(typeof observeCall, "function");
+    assert.equal(typeof observeDevCall, "function");
+    assert.equal(replaylock({ dev: true }).name, "replaylock:dev");
     const require = createRequire(import.meta.resolve("replaylock"));
     console.log(join(dirname(require.resolve("vitest/package.json")), "vitest.mjs"));
   `], consumer, { stdoutOnly: true });
@@ -166,6 +169,48 @@ export default {
   assert.match(drift, /OUTPUT_MISMATCH/, "source mutation must fail for behavioral drift, not a setup failure");
   assert.deepEqual(await jsonFiles(cases), accepted);
   assert.deepEqual(await readFile(casePath), originalBytes, "failing verify must not update the accepted case");
+
+  // The extracted package must also observe a real development server workload.
+  await writeFile(sourcePath, source);
+  await writeFile(path.join(consumer, "src", "development.ts"), "export function quote(value: number) { return value + Math.random(); }\n");
+  assert.match(runCli(cli, ["scan", "--dev"], consumer), /SCAN_ELIGIBLE/);
+  const development = runNode(["--input-type=module", "--eval", `
+    import assert from 'node:assert/strict';
+    import { readdir, readFile } from 'node:fs/promises';
+    import { createServer } from 'vite';
+    import { replaylock } from 'replaylock/vite';
+    const server = await createServer({configFile:false,plugins:[replaylock({dev:true})],server:{host:'127.0.0.1',port:0}});
+    try {
+      await server.listen();
+      let names = [];
+      for (let n=0; n<100 && !names.length; n++) {
+        try { names = await readdir('.replaylock/dev'); } catch {}
+        if (!names.length) await new Promise(resolve=>setTimeout(resolve,20));
+      }
+      const manifest = JSON.parse(await readFile('.replaylock/dev/'+names[0], 'utf8'));
+      async function control(action) {
+        const response = await fetch(manifest.url+'__replaylock/'+action, {method:'POST',headers:{'X-ReplayLock-Token':manifest.token},body:'{}'});
+        assert.equal(response.status,200,await response.clone().text());
+        return response.json();
+      }
+      await control('start');
+      const module = await server.ssrLoadModule('/src/development.ts');
+      assert.equal(typeof module.quote(4),'number');
+      const result = await control('stop');
+      assert.equal(result.candidates,1,JSON.stringify(result));
+      console.log('packed development capture verified');
+    } finally { await server.close(); }
+  `], consumer);
+  assert.match(development, /packed development capture verified/);
+  runCli(cli, ["review"], consumer, { input: "accept\n" });
+  assert.match(runCli(cli, ["verify"], consumer), /Verified 1 V2 case\(s\)/);
+  runNode(["--conditions=browser", "--input-type=module", "--eval", `
+    import assert from 'node:assert/strict';
+    import { defineReplayLock, defineValueAdapter } from 'replaylock';
+    assert.ok(import.meta.resolve('replaylock').endsWith('/dev-browser-api.js'));
+    assert.equal(typeof defineValueAdapter,'function');
+    assert.equal(defineReplayLock({capture:{mode:'automatic'}}).capture.mode,'automatic');
+  `], consumer);
 } finally {
   await rm(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }
@@ -177,7 +222,7 @@ function assertPackedFiles(names) {
   const required = [
     "package.json", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md",
     "docs/value-adapters.md", "docs/trusted-packages.md", "docs/troubleshooting.md",
-    "docs/pilot-checklist.md", "docs/ci.md",
+    "docs/pilot-checklist.md", "docs/ci.md", "docs/development-recording.md",
     "examples/github-actions/replaylock-verify.yml", "examples/github-actions/report-verify-exit.sh",
     ...exportTargets(manifest.exports).map(packagePath), packagePath(manifest.bin.replaylock),
   ];

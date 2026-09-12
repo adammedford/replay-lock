@@ -1,0 +1,522 @@
+{
+  "schemaVersion": 1,
+  "phase": "baseline",
+  "generatedAt": "2026-09-10T21:49:56.672Z",
+  "runnerSha256": "27741f1ce5c7ac036d3be41a4c3a82222151a3c53ceb52b02adda14a4862a33c",
+  "manifestSha256": "55c04cb91cb6f0ba7aead36121df90d07f6ee510181c8b935654b2f9e4c68418",
+  "environment": {
+    "node": "22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timezone": "America/Chicago",
+    "locale": "en-US"
+  },
+  "replaylock": {
+    "tarballSha256": "54ef6aa5b986788844f9c6377a4fdd0b48bdccb1937600537f76ab5ec9801627"
+  },
+  "pilots": [
+    {
+      "id": "homer",
+      "repository": "https://github.com/bastienwirtz/homer.git",
+      "revision": "daa017dfe1ea8d0875697aede091319b6134bb4b",
+      "realm": "browser",
+      "status": "blocked",
+      "startedAt": "2026-09-10T21:49:56.682Z",
+      "finishedAt": "2026-09-10T21:50:06.126Z",
+      "durationMs": 9444.429625,
+      "data": "synthetic-local",
+      "humanReviewMs": null,
+      "reviewMode": "scripted-synthetic-only",
+      "packageManager": {
+        "name": "pnpm",
+        "version": "11.9.0"
+      },
+      "source": {
+        "verifiedRevision": "daa017dfe1ea8d0875697aede091319b6134bb4b",
+        "packageJsonSha256": "3b8f5dada9933b2b5c88d7d10d55bfe51d8c96dd22e30751565c0b8c8e7d2286",
+        "lockfile": "pnpm-lock.yaml",
+        "lockfileSha256": "d4543d0858343feba8303a2ecfc6fc7ab44eb03b168b1a12595b53ff7783585e",
+        "packageJsonAfterSha256": "3b8f5dada9933b2b5c88d7d10d55bfe51d8c96dd22e30751565c0b8c8e7d2286",
+        "lockfileAfterSha256": "d4543d0858343feba8303a2ecfc6fc7ab44eb03b168b1a12595b53ff7783585e"
+      },
+      "stages": {
+        "checkout": {
+          "status": "passed",
+          "commandId": 4
+        },
+        "install": {
+          "status": "passed",
+          "commandId": 7
+        },
+        "scan": {
+          "status": "passed",
+          "commandId": 8
+        },
+        "record": {
+          "status": "failed",
+          "commandId": 9
+        },
+        "workload": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "review": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "offlineReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "refactorReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "regression": {
+          "status": "not-run",
+          "commandId": null
+        }
+      },
+      "counts": {
+        "eligibleNode": 0,
+        "eligibleBrowser": 0,
+        "excludedNode": 2,
+        "excludedBrowser": 2,
+        "observations": null,
+        "candidates": null,
+        "accepted": null,
+        "replayed": null,
+        "refactorSurvived": null,
+        "regressionsDetected": null
+      },
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "init",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 18.0745,
+          "outputSha256": "389c1b66e1fa4c62856cd2366411e32decef915243a325a9f0bc3cb04df92c31",
+          "outputBytes": 127,
+          "excerpt": "Initialized empty Git repository in /private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app/.git/\n",
+          "id": 0
+        },
+        {
+          "argv": [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/bastienwirtz/homer.git"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 11.670792000000006,
+          "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "outputBytes": 0,
+          "excerpt": "",
+          "id": 1
+        },
+        {
+          "argv": [
+            "git",
+            "fetch",
+            "--depth",
+            "1",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/homer",
+            "daa017dfe1ea8d0875697aede091319b6134bb4b"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 43.643709,
+          "outputSha256": "5d2a11ccfbe9e507edd8a46de1aa6b3618cfa4d5858b3532c68c6c919fc505f6",
+          "outputBytes": 159,
+          "excerpt": "From /Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/homer\n * branch            daa017dfe1ea8d0875697aede091319b6134bb4b -> FETCH_HEAD\n",
+          "id": 2
+        },
+        {
+          "argv": [
+            "git",
+            "checkout",
+            "--detach",
+            "daa017dfe1ea8d0875697aede091319b6134bb4b"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 38.406875000000014,
+          "outputSha256": "0891e9b8a545660a483f32109f8da1a50821f9074e0fcf86c637012047adb8b9",
+          "outputBytes": 51,
+          "excerpt": "HEAD is now at daa017d chore: release version bump\n",
+          "id": 3
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 11.196834000000024,
+          "outputSha256": "1a59994b85bd521345dfa247374963483792f0bea15d8ab8b89665ed326699d1",
+          "outputBytes": 41,
+          "excerpt": "daa017dfe1ea8d0875697aede091319b6134bb4b\n",
+          "id": 4
+        },
+        {
+          "argv": [
+            "pnpm",
+            "--version"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 211.603542,
+          "outputSha256": "d9f29f5aab43c8c1a8d6acc856e258b89735f541aa5e1f07b39a62f28bfa8d06",
+          "outputBytes": 7,
+          "excerpt": "11.9.0\n",
+          "id": 5
+        },
+        {
+          "argv": [
+            "pnpm",
+            "install",
+            "--frozen-lockfile"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 4049.7792499999996,
+          "outputSha256": "1370760849d1242b5fdec8b051510fddeca7dd048fbbb96970360636743bdf8b",
+          "outputBytes": 1267,
+          "excerpt": "? Verifying lockfile against supply-chain policies (552 entries)...\nLockfile is up to date, resolution step is skipped\nProgress: resolved 1, reused 0, downloaded 0, added 0\nPackages: +475\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nProgress: resolved 475, reused 186, downloaded 52, added 180\nProgress: resolved 475, reused 186, downloaded 288, added 464\n✓ Lockfile passes supply-chain policies (552 entries in 2.2s)\nProgress: resolved 475, reused 186, downloaded 289, added 474\nProgress: resolved 475, reused 186, downloaded 289, added 475, done\n.../node_modules/@parcel/watcher install$ node scripts/build-from-source.js\n.../esbuild@0.27.2/node_modules/esbuild postinstall$ node install.js\n.../node_modules/@parcel/watcher install: Done\n.../esbuild@0.27.2/node_modules/esbuild postinstall: Done\n\ndependencies:\n+ @fortawesome/fontawesome-free 7.3.1\n+ bulma 1.0.4\n+ lodash.merge 4.6.2\n+ vue 3.5.41\n+ yaml 2.9.0\n\ndevDependencies:\n+ @eslint/js 10.0.1\n+ @vitejs/plugin-vue 6.0.8\n+ eslint 10.9.1\n+ eslint-config-prettier 10.1.8\n+ eslint-plugin-vue 10.9.2\n+ globals 17.11.0\n+ http-server 14.1.1\n+ prettier 3.9.6\n+ sass-embedded 1.103.1\n+ vite 8.2.2\n+ vite-plugin-pwa 1.3.0\n+ vue-eslint-parser 10.4.1\n\nDone in 3.9s using pnpm v11.9.0\n",
+          "id": 6
+        },
+        {
+          "argv": [
+            "npm",
+            "install",
+            "--legacy-peer-deps",
+            "--no-audit",
+            "--no-fund",
+            "--ignore-scripts",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/baseline/replaylock-0.1.0.tgz"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 2262.9067079999995,
+          "outputSha256": "f763016074c303f16b9cd5d7017dc543ca0622d8f6709dfd68ec687646dbcfc0",
+          "outputBytes": 25,
+          "excerpt": "\nadded 86 packages in 2s\n",
+          "id": 7
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer/node_modules/replaylock/dist/cli.js",
+            "scan",
+            "--dev"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1379.8453339999996,
+          "outputSha256": "bbfa53c98a3fc9482d90ee3c26caa5f18c10c8fd2b9b5dfbd3e22464090faa7c",
+          "outputBytes": 395,
+          "excerpt": "SCAN_SKIPPED node src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED node src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\nScanned node: 0 eligible, 2 skipped findings\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\nScanned browser: 0 eligible, 2 skipped findings\n",
+          "id": 8
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/Users/adammedford/Documents/IsPure/scripts/pilot-dev.mjs",
+            "--record-probe",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/capture-request.json"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app",
+          "exitCode": 2,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1412.6218750000007,
+          "outputSha256": "6fc79cec905e01518dc9d39a563e7bd9524f692b5a11f1a91429330efdde4f1c",
+          "outputBytes": 1376,
+          "excerpt": "\n> homer@26.08.3 dev\n> vite\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - JSON import \"./package.json\" without import attributes (vite.pilot-original.config.js:10:25). Add `with { type: 'json' }`\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\nerror when starting dev server:\nError: NO_ELIGIBLE_TARGET\n    at start (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer/node_modules/replaylock/dist/dev-server.js:90:19)\n    at async BasicMinimalPluginContext.configureServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer/node_modules/replaylock/dist/dev-server.js:233:17)\n    at async _createServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:26631:84)\n    at async CAC.<anonymous> (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/cli.js:708:18)\n\nNO_ELIGIBLE_TARGET\n",
+          "id": 9
+        }
+      ],
+      "workflows": [],
+      "blocker": {
+        "stage": "record",
+        "code": "NO_ELIGIBLE_TARGET",
+        "detail": "COMMAND_FAILED\n\n> homer@26.08.3 dev\n> vite\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - JSON import \"./package.json\" without import attributes (vite.pilot-original.config.js:10:25). Add `with { type: 'json' }`\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\nerror when starting dev server:\nError: NO_ELIGIBLE_TARGET\n    at start (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer/node_modules/replaylock/dist/dev-server.js:90:19)\n    at async BasicMinimalPluginContext.configureServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/consumer/node_modules/replaylock/dist/dev-server.js:233:17)\n    at async _createServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:26631:84)\n    at async CAC.<anonymous> (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-Hu5MEs/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/cli.js:708:18)\n\nNO_ELIGIBLE_TARGET\n",
+        "commandId": 9,
+        "category": "compatibility"
+      },
+      "offline": false,
+      "regressionCodes": [],
+      "installedReplaylockSha256": "54ef6aa5b986788844f9c6377a4fdd0b48bdccb1937600537f76ab5ec9801627",
+      "scanOutput": "SCAN_SKIPPED node src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED node src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\nScanned node: 0 eligible, 2 skipped findings\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\nScanned browser: 0 eligible, 2 skipped findings\n"
+    },
+    {
+      "id": "epic-stack",
+      "repository": "https://github.com/epicweb-dev/epic-stack.git",
+      "revision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+      "realm": "node",
+      "status": "blocked",
+      "startedAt": "2026-09-10T21:50:07.281Z",
+      "finishedAt": "2026-09-10T21:52:16.244Z",
+      "durationMs": 128964.99716600002,
+      "data": "synthetic-local",
+      "humanReviewMs": null,
+      "reviewMode": "scripted-synthetic-only",
+      "packageManager": {
+        "name": "npm",
+        "version": "11.5.2"
+      },
+      "source": {
+        "verifiedRevision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+        "packageJsonSha256": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+        "lockfile": "package-lock.json",
+        "lockfileSha256": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+        "packageJsonAfterSha256": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+        "lockfileAfterSha256": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51"
+      },
+      "stages": {
+        "checkout": {
+          "status": "passed",
+          "commandId": 4
+        },
+        "install": {
+          "status": "passed",
+          "commandId": 7
+        },
+        "scan": {
+          "status": "failed",
+          "commandId": 8
+        },
+        "record": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "workload": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "review": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "offlineReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "refactorReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "regression": {
+          "status": "not-run",
+          "commandId": null
+        }
+      },
+      "counts": {
+        "eligibleNode": null,
+        "eligibleBrowser": null,
+        "excludedNode": null,
+        "excludedBrowser": null,
+        "observations": null,
+        "candidates": null,
+        "accepted": null,
+        "replayed": null,
+        "refactorSurvived": null,
+        "regressionsDetected": null
+      },
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "init",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 19.45366699999977,
+          "outputSha256": "ef0da0c4dacf126adef2adb31f34bab343fb53fd32582c1d0f35ad548f6ae55e",
+          "outputBytes": 132,
+          "excerpt": "Initialized empty Git repository in /private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app/.git/\n",
+          "id": 0
+        },
+        {
+          "argv": [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/epicweb-dev/epic-stack.git"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 11.287125000000742,
+          "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "outputBytes": 0,
+          "excerpt": "",
+          "id": 1
+        },
+        {
+          "argv": [
+            "git",
+            "fetch",
+            "--depth",
+            "1",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/epic-stack",
+            "8473afd804b66dba6a23f317908dc35d1535e90d"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 100.62366699999984,
+          "outputSha256": "34629815dfbca5fe233a993700ba66e63c1b2e3e832bfa00b162f89714c1e44e",
+          "outputBytes": 164,
+          "excerpt": "From /Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/epic-stack\n * branch            8473afd804b66dba6a23f317908dc35d1535e90d -> FETCH_HEAD\n",
+          "id": 2
+        },
+        {
+          "argv": [
+            "git",
+            "checkout",
+            "--detach",
+            "8473afd804b66dba6a23f317908dc35d1535e90d"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 80.1234999999997,
+          "outputSha256": "522828e145f53d0c08365436ba18cd3b5c403ab21264c9651c8637d5019f5813",
+          "outputBytes": 68,
+          "excerpt": "HEAD is now at 8473afd docs: fix typo framwork -> framework (#1098)\n",
+          "id": 3
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 11.21929099999943,
+          "outputSha256": "bcce5d620e47f3d87dbb252084e23ada45016d57091092ddaaac3d2df201909b",
+          "outputBytes": 41,
+          "excerpt": "8473afd804b66dba6a23f317908dc35d1535e90d\n",
+          "id": 4
+        },
+        {
+          "argv": [
+            "npm",
+            "--version"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 55.55729100000099,
+          "outputSha256": "22dcde1dea054fc08109baec659d6e6e1a882f4e52b01bb04386229df71dc38a",
+          "outputBytes": 7,
+          "excerpt": "11.5.2\n",
+          "id": 5
+        },
+        {
+          "argv": [
+            "npm",
+            "ci",
+            "--no-audit",
+            "--no-fund"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 7630.517207999999,
+          "outputSha256": "3d2960ca51b62f06133a205b970dabc9ba9de06dfbfe7fe2c734c36641ac2a00",
+          "outputBytes": 174,
+          "excerpt": "npm warn deprecated @types/glob@9.0.0: This is a stub types definition. glob provides its own type definitions, so you do not need this installed.\n\nadded 1279 packages in 8s\n",
+          "id": 6
+        },
+        {
+          "argv": [
+            "npm",
+            "install",
+            "--legacy-peer-deps",
+            "--no-audit",
+            "--no-fund",
+            "--ignore-scripts",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/baseline/replaylock-0.1.0.tgz"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/consumer",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1029.1259169999976,
+          "outputSha256": "2477bf2f47919c0408c89e94d8e762dd62291441c231b396303c6ff134847ba2",
+          "outputBytes": 28,
+          "excerpt": "\nadded 86 packages in 975ms\n",
+          "id": 7
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/consumer/node_modules/replaylock/dist/cli.js",
+            "scan",
+            "--dev"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-7X4QkY/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": "TIMEOUT",
+          "durationMs": 120023.14383300001,
+          "outputSha256": "2bfc3803ddf4ec7995da20de28ffbfc1dd3a124d6c6086e25ed6e878676944a6",
+          "outputBytes": 267407,
+          "excerpt": " browser other/sly/transform-icon.ts#prependLicenseInfo (UNKNOWN_CALL)\nSCAN_SKIPPED browser prisma/seed.ts#seed (AMBIENT_STATE)\nSCAN_SKIPPED browser prisma/seed.ts#seed (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser prisma/seed.ts#seed (LOGGING)\nSCAN_SKIPPED browser prisma/seed.ts#seed (UNKNOWN_CALL)\nSCAN_SKIPPED browser prisma/seed.ts#seed (UNKNOWN_MODULE)\nSCAN_SKIPPED browser prisma/seed.ts#seed (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser prisma/seed.ts#seed (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#escapeRegExp (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#escapeRegExp (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#escapeRegExp (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString (RANDOMNESS)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString32 (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString32 (RANDOMNESS)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString32 (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#getRandomString32 (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#getEpicStackVersion (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getEpicStackVersion (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#main (AMBIENT_MUTATION)\nSCAN_SKIPPED browser remix.init/index.mjs#main (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#main (DETACHED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#main (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#main (ENVIRONMENT_DEPENDENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#main (IO)\nSCAN_SKIPPED browser remix.init/index.mjs#main (LOGGING)\nSCAN_SKIPPED browser remix.init/index.mjs#main (RANDOMNESS)\nSCAN_SKIPPED browser remix.init/index.mjs#main (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#main (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#main (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#main (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#main (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (AMBIENT_MUTATION)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (DETACHED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (IO)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (LOGGING)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (RANDOMNESS)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#setupDeployment (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (LOGGING)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#ensureLoggedIn (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (AMBIENT_MUTATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (DETACHED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (AMBIENT_MUTATION)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (DETACHED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser server/index.ts#getHost (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser server/index.ts#getHost (UNKNOWN_CALL)\nSCAN_SKIPPED browser server/index.ts#getHost (UNKNOWN_MODULE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (AMBIENT_STATE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (ARGUMENT_MUTATION)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (ENVIRONMENT_DEPENDENCE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNKNOWN_CALL)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNKNOWN_MODULE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNSUPPORTED_CALLABLE)\nScanned browser: 2 eligible, 1536 skipped findings\n",
+          "id": 8
+        }
+      ],
+      "workflows": [],
+      "blocker": {
+        "stage": "scan",
+        "code": "TIMEOUT",
+        "detail": "TIMEOUT\ndex.mjs#getPreferredRegion (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#getPreferredRegion (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (AMBIENT_MUTATION)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (AMBIENT_STATE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (DETACHED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_CALL)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_MODULE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNKNOWN_REFERENCE)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNSUPPORTED_ASYNC)\nSCAN_SKIPPED browser remix.init/index.mjs#makeFlyRequest (UNSUPPORTED_CALLABLE)\nSCAN_SKIPPED browser server/index.ts#getHost (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser server/index.ts#getHost (UNKNOWN_CALL)\nSCAN_SKIPPED browser server/index.ts#getHost (UNKNOWN_MODULE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (AMBIENT_STATE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (ARGUMENT_MUTATION)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (ENVIRONMENT_DEPENDENCE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNKNOWN_CALL)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNKNOWN_MODULE)\nSCAN_SKIPPED browser server/utils/monitoring.ts#init (UNSUPPORTED_CALLABLE)\nScanned browser: 2 eligible, 1536 skipped findings\n",
+        "commandId": 8,
+        "category": "compatibility"
+      },
+      "offline": false,
+      "regressionCodes": [],
+      "installedReplaylockSha256": "54ef6aa5b986788844f9c6377a4fdd0b48bdccb1937600537f76ab5ec9801627"
+    }
+  ]
+}

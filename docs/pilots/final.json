@@ -1,0 +1,522 @@
+{
+  "schemaVersion": 1,
+  "phase": "final",
+  "generatedAt": "2026-09-10T22:00:13.256Z",
+  "runnerSha256": "27741f1ce5c7ac036d3be41a4c3a82222151a3c53ceb52b02adda14a4862a33c",
+  "manifestSha256": "55c04cb91cb6f0ba7aead36121df90d07f6ee510181c8b935654b2f9e4c68418",
+  "environment": {
+    "node": "22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timezone": "America/Chicago",
+    "locale": "en-US"
+  },
+  "replaylock": {
+    "tarballSha256": "1d2f070acda8b5a873d934f4adb98d38d4d7a4ce59d30a0ac2bab0f3fd1cc84f"
+  },
+  "pilots": [
+    {
+      "id": "homer",
+      "repository": "https://github.com/bastienwirtz/homer.git",
+      "revision": "daa017dfe1ea8d0875697aede091319b6134bb4b",
+      "realm": "browser",
+      "status": "blocked",
+      "startedAt": "2026-09-10T22:00:13.280Z",
+      "finishedAt": "2026-09-10T22:00:20.914Z",
+      "durationMs": 7633.960958,
+      "data": "synthetic-local",
+      "humanReviewMs": null,
+      "reviewMode": "scripted-synthetic-only",
+      "packageManager": {
+        "name": "pnpm",
+        "version": "11.9.0"
+      },
+      "source": {
+        "verifiedRevision": "daa017dfe1ea8d0875697aede091319b6134bb4b",
+        "packageJsonSha256": "3b8f5dada9933b2b5c88d7d10d55bfe51d8c96dd22e30751565c0b8c8e7d2286",
+        "lockfile": "pnpm-lock.yaml",
+        "lockfileSha256": "d4543d0858343feba8303a2ecfc6fc7ab44eb03b168b1a12595b53ff7783585e",
+        "packageJsonAfterSha256": "3b8f5dada9933b2b5c88d7d10d55bfe51d8c96dd22e30751565c0b8c8e7d2286",
+        "lockfileAfterSha256": "d4543d0858343feba8303a2ecfc6fc7ab44eb03b168b1a12595b53ff7783585e"
+      },
+      "stages": {
+        "checkout": {
+          "status": "passed",
+          "commandId": 4
+        },
+        "install": {
+          "status": "passed",
+          "commandId": 7
+        },
+        "scan": {
+          "status": "passed",
+          "commandId": 8
+        },
+        "record": {
+          "status": "failed",
+          "commandId": 9
+        },
+        "workload": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "review": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "offlineReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "refactorReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "regression": {
+          "status": "not-run",
+          "commandId": null
+        }
+      },
+      "counts": {
+        "eligibleNode": 0,
+        "eligibleBrowser": 0,
+        "excludedNode": 2,
+        "excludedBrowser": 2,
+        "observations": null,
+        "candidates": null,
+        "accepted": null,
+        "replayed": null,
+        "refactorSurvived": null,
+        "regressionsDetected": null
+      },
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "init",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 18.23804100000001,
+          "outputSha256": "3ad4e360d0e3d4b6f4fad91d19baa2640a64f51268ab655a9f2c8f326565dc8b",
+          "outputBytes": 127,
+          "excerpt": "Initialized empty Git repository in /private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app/.git/\n",
+          "id": 0
+        },
+        {
+          "argv": [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/bastienwirtz/homer.git"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 10.73545900000002,
+          "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "outputBytes": 0,
+          "excerpt": "",
+          "id": 1
+        },
+        {
+          "argv": [
+            "git",
+            "fetch",
+            "--depth",
+            "1",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/homer",
+            "daa017dfe1ea8d0875697aede091319b6134bb4b"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 45.70712500000002,
+          "outputSha256": "5d2a11ccfbe9e507edd8a46de1aa6b3618cfa4d5858b3532c68c6c919fc505f6",
+          "outputBytes": 159,
+          "excerpt": "From /Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/homer\n * branch            daa017dfe1ea8d0875697aede091319b6134bb4b -> FETCH_HEAD\n",
+          "id": 2
+        },
+        {
+          "argv": [
+            "git",
+            "checkout",
+            "--detach",
+            "daa017dfe1ea8d0875697aede091319b6134bb4b"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 37.123333,
+          "outputSha256": "0891e9b8a545660a483f32109f8da1a50821f9074e0fcf86c637012047adb8b9",
+          "outputBytes": 51,
+          "excerpt": "HEAD is now at daa017d chore: release version bump\n",
+          "id": 3
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 9.998249999999985,
+          "outputSha256": "1a59994b85bd521345dfa247374963483792f0bea15d8ab8b89665ed326699d1",
+          "outputBytes": 41,
+          "excerpt": "daa017dfe1ea8d0875697aede091319b6134bb4b\n",
+          "id": 4
+        },
+        {
+          "argv": [
+            "pnpm",
+            "--version"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 229.28883299999995,
+          "outputSha256": "d9f29f5aab43c8c1a8d6acc856e258b89735f541aa5e1f07b39a62f28bfa8d06",
+          "outputBytes": 7,
+          "excerpt": "11.9.0\n",
+          "id": 5
+        },
+        {
+          "argv": [
+            "pnpm",
+            "install",
+            "--frozen-lockfile"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 2595.7470839999996,
+          "outputSha256": "657911de7d8cd1fb68419874fb36094362955eaf086f2286a1e4b00a3a2ba76b",
+          "outputBytes": 1002,
+          "excerpt": "✓ Lockfile passes supply-chain policies (verified 10m ago)\nLockfile is up to date, resolution step is skipped\nProgress: resolved 1, reused 0, downloaded 0, added 0\nPackages: +475\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nProgress: resolved 475, reused 475, downloaded 0, added 463\nProgress: resolved 475, reused 475, downloaded 0, added 474\nProgress: resolved 475, reused 475, downloaded 0, added 475, done\n.../node_modules/@parcel/watcher install$ node scripts/build-from-source.js\n.../node_modules/@parcel/watcher install: Done\n\ndependencies:\n+ @fortawesome/fontawesome-free 7.3.1\n+ bulma 1.0.4\n+ lodash.merge 4.6.2\n+ vue 3.5.41\n+ yaml 2.9.0\n\ndevDependencies:\n+ @eslint/js 10.0.1\n+ @vitejs/plugin-vue 6.0.8\n+ eslint 10.9.1\n+ eslint-config-prettier 10.1.8\n+ eslint-plugin-vue 10.9.2\n+ globals 17.11.0\n+ http-server 14.1.1\n+ prettier 3.9.6\n+ sass-embedded 1.103.1\n+ vite 8.2.2\n+ vite-plugin-pwa 1.3.0\n+ vue-eslint-parser 10.4.1\n\nDone in 2.5s using pnpm v11.9.0\n",
+          "id": 6
+        },
+        {
+          "argv": [
+            "npm",
+            "install",
+            "--legacy-peer-deps",
+            "--no-audit",
+            "--no-fund",
+            "--ignore-scripts",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/final/replaylock-0.1.0.tgz"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1898.1898330000004,
+          "outputSha256": "f763016074c303f16b9cd5d7017dc543ca0622d8f6709dfd68ec687646dbcfc0",
+          "outputBytes": 25,
+          "excerpt": "\nadded 86 packages in 2s\n",
+          "id": 7
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer/node_modules/replaylock/dist/cli.js",
+            "scan",
+            "--dev"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1371.7584580000002,
+          "outputSha256": "a46e3d5eb052d8171d6d4352c0e62b32a2836c0299c49569cf9f0a505cc3683a",
+          "outputBytes": 825,
+          "excerpt": "SCAN_SKIPPED node src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED node src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\n  EFFECTFUL_INITIALIZATION src/mixins/service.js:6:1 via EFFECTFUL_INITIALIZATION src/mixins/service.js:1:29 -> EFFECTFUL_INITIALIZATION src/utils/updateScheduler.js:107:25\n  UNKNOWN_CALL src/mixins/service.js:9:33\nScanned node: 0 eligible, 2 skipped findings\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\n  EFFECTFUL_INITIALIZATION src/mixins/service.js:6:1 via EFFECTFUL_INITIALIZATION src/mixins/service.js:1:29 -> EFFECTFUL_INITIALIZATION src/utils/updateScheduler.js:107:25\n  UNKNOWN_CALL src/mixins/service.js:9:33\nScanned browser: 0 eligible, 2 skipped findings\n",
+          "id": 8
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/Users/adammedford/Documents/IsPure/scripts/pilot-dev.mjs",
+            "--record-probe",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/capture-request.json"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app",
+          "exitCode": 2,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1412.0049159999999,
+          "outputSha256": "5e7a27826c6aebceb9c88b4f6706a83912ac34b35bd6ce54892be3e4fb54d441",
+          "outputBytes": 1377,
+          "excerpt": "\n> homer@26.08.3 dev\n> vite\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - JSON import \"./package.json\" without import attributes (vite.pilot-original.config.js:10:25). Add `with { type: 'json' }`\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\nerror when starting dev server:\nError: NO_ELIGIBLE_TARGET\n    at start (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer/node_modules/replaylock/dist/dev-server.js:132:19)\n    at async BasicMinimalPluginContext.configureServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer/node_modules/replaylock/dist/dev-server.js:322:17)\n    at async _createServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:26631:84)\n    at async CAC.<anonymous> (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/cli.js:708:18)\n\nNO_ELIGIBLE_TARGET\n",
+          "id": 9
+        }
+      ],
+      "workflows": [],
+      "blocker": {
+        "stage": "record",
+        "code": "NO_ELIGIBLE_TARGET",
+        "detail": "COMMAND_FAILED\n\n> homer@26.08.3 dev\n> vite\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - JSON import \"./package.json\" without import attributes (vite.pilot-original.config.js:10:25). Add `with { type: 'json' }`\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\nerror when starting dev server:\nError: NO_ELIGIBLE_TARGET\n    at start (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer/node_modules/replaylock/dist/dev-server.js:132:19)\n    at async BasicMinimalPluginContext.configureServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/consumer/node_modules/replaylock/dist/dev-server.js:322:17)\n    at async _createServer (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:26631:84)\n    at async CAC.<anonymous> (file:///private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-homer-7VUNMW/app/node_modules/.pnpm/vite@8.2.2_esbuild@0.27.2_sass-embedded@1.103.1_sass@1.103.1_terser@5.51.0_yaml@2.9.0/node_modules/vite/dist/node/cli.js:708:18)\n\nNO_ELIGIBLE_TARGET\n",
+        "commandId": 9,
+        "category": "compatibility"
+      },
+      "offline": false,
+      "regressionCodes": [],
+      "installedReplaylockSha256": "1d2f070acda8b5a873d934f4adb98d38d4d7a4ce59d30a0ac2bab0f3fd1cc84f",
+      "scanOutput": "SCAN_SKIPPED node src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED node src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\n  EFFECTFUL_INITIALIZATION src/mixins/service.js:6:1 via EFFECTFUL_INITIALIZATION src/mixins/service.js:1:29 -> EFFECTFUL_INITIALIZATION src/utils/updateScheduler.js:107:25\n  UNKNOWN_CALL src/mixins/service.js:9:33\nScanned node: 0 eligible, 2 skipped findings\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (EFFECTFUL_INITIALIZATION)\nSCAN_SKIPPED browser src/mixins/service.js#mergeHeaders (UNKNOWN_CALL)\n  EFFECTFUL_INITIALIZATION src/mixins/service.js:6:1 via EFFECTFUL_INITIALIZATION src/mixins/service.js:1:29 -> EFFECTFUL_INITIALIZATION src/utils/updateScheduler.js:107:25\n  UNKNOWN_CALL src/mixins/service.js:9:33\nScanned browser: 0 eligible, 2 skipped findings\n"
+    },
+    {
+      "id": "epic-stack",
+      "repository": "https://github.com/epicweb-dev/epic-stack.git",
+      "revision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+      "realm": "node",
+      "status": "blocked",
+      "startedAt": "2026-09-10T22:00:22.410Z",
+      "finishedAt": "2026-09-10T22:02:31.762Z",
+      "durationMs": 129351.266333,
+      "data": "synthetic-local",
+      "humanReviewMs": null,
+      "reviewMode": "scripted-synthetic-only",
+      "packageManager": {
+        "name": "npm",
+        "version": "11.5.2"
+      },
+      "source": {
+        "verifiedRevision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+        "packageJsonSha256": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+        "lockfile": "package-lock.json",
+        "lockfileSha256": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+        "packageJsonAfterSha256": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+        "lockfileAfterSha256": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51"
+      },
+      "stages": {
+        "checkout": {
+          "status": "passed",
+          "commandId": 4
+        },
+        "install": {
+          "status": "passed",
+          "commandId": 7
+        },
+        "scan": {
+          "status": "failed",
+          "commandId": 8
+        },
+        "record": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "workload": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "review": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "offlineReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "refactorReplay": {
+          "status": "not-run",
+          "commandId": null
+        },
+        "regression": {
+          "status": "not-run",
+          "commandId": null
+        }
+      },
+      "counts": {
+        "eligibleNode": null,
+        "eligibleBrowser": null,
+        "excludedNode": null,
+        "excludedBrowser": null,
+        "observations": null,
+        "candidates": null,
+        "accepted": null,
+        "replayed": null,
+        "refactorSurvived": null,
+        "regressionsDetected": null
+      },
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "init",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 20.712541999999303,
+          "outputSha256": "f177484f71f01e6f6b90730ec0f486c3b8dbf38ea8cfbe5604eafbe279b21aff",
+          "outputBytes": 132,
+          "excerpt": "Initialized empty Git repository in /private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app/.git/\n",
+          "id": 0
+        },
+        {
+          "argv": [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/epicweb-dev/epic-stack.git"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 12.299124999999549,
+          "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "outputBytes": 0,
+          "excerpt": "",
+          "id": 1
+        },
+        {
+          "argv": [
+            "git",
+            "fetch",
+            "--depth",
+            "1",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/epic-stack",
+            "8473afd804b66dba6a23f317908dc35d1535e90d"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 109.03258399999868,
+          "outputSha256": "34629815dfbca5fe233a993700ba66e63c1b2e3e832bfa00b162f89714c1e44e",
+          "outputBytes": 164,
+          "excerpt": "From /Users/adammedford/Documents/IsPure/.unlazy/dev-usability/pilot-sources/epic-stack\n * branch            8473afd804b66dba6a23f317908dc35d1535e90d -> FETCH_HEAD\n",
+          "id": 2
+        },
+        {
+          "argv": [
+            "git",
+            "checkout",
+            "--detach",
+            "8473afd804b66dba6a23f317908dc35d1535e90d"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 74.20733300000029,
+          "outputSha256": "522828e145f53d0c08365436ba18cd3b5c403ab21264c9651c8637d5019f5813",
+          "outputBytes": 68,
+          "excerpt": "HEAD is now at 8473afd docs: fix typo framwork -> framework (#1098)\n",
+          "id": 3
+        },
+        {
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 13.586750000000393,
+          "outputSha256": "bcce5d620e47f3d87dbb252084e23ada45016d57091092ddaaac3d2df201909b",
+          "outputBytes": 41,
+          "excerpt": "8473afd804b66dba6a23f317908dc35d1535e90d\n",
+          "id": 4
+        },
+        {
+          "argv": [
+            "npm",
+            "--version"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 60.51879200000076,
+          "outputSha256": "22dcde1dea054fc08109baec659d6e6e1a882f4e52b01bb04386229df71dc38a",
+          "outputBytes": 7,
+          "excerpt": "11.5.2\n",
+          "id": 5
+        },
+        {
+          "argv": [
+            "npm",
+            "ci",
+            "--no-audit",
+            "--no-fund"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 7984.032958,
+          "outputSha256": "3d2960ca51b62f06133a205b970dabc9ba9de06dfbfe7fe2c734c36641ac2a00",
+          "outputBytes": 174,
+          "excerpt": "npm warn deprecated @types/glob@9.0.0: This is a stub types definition. glob provides its own type definitions, so you do not need this installed.\n\nadded 1279 packages in 8s\n",
+          "id": 6
+        },
+        {
+          "argv": [
+            "npm",
+            "install",
+            "--legacy-peer-deps",
+            "--no-audit",
+            "--no-fund",
+            "--ignore-scripts",
+            "/Users/adammedford/Documents/IsPure/.unlazy/dev-usability/final/replaylock-0.1.0.tgz"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/consumer",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": null,
+          "durationMs": 1055.483500000002,
+          "outputSha256": "12ad3a739f8e5d44e2f5457326d8e771bf00fb2aab2c81ef920a79caa12f04b0",
+          "outputBytes": 28,
+          "excerpt": "\nadded 86 packages in 999ms\n",
+          "id": 7
+        },
+        {
+          "argv": [
+            "/Users/adammedford/.nvm/versions/node/v22.19.0/bin/node",
+            "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/consumer/node_modules/replaylock/dist/cli.js",
+            "scan",
+            "--dev"
+          ],
+          "cwd": "/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/replaylock-epic-stack-IRCFGS/app",
+          "exitCode": 0,
+          "signal": null,
+          "errorCode": "TIMEOUT",
+          "durationMs": 120017.166333,
+          "outputSha256": "bc71be35ea4a94f493dc3e3144055495cf2c6fd2acded2bfad2e7180604ba0c5",
+          "outputBytes": 549201,
+          "excerpt": ":10:22\n  IO remix.init/index.mjs:172:9\n  LOGGING remix.init/index.mjs:145:3\n  RANDOMNESS remix.init/index.mjs:201:45 via RANDOMNESS remix.init/index.mjs:16:33 -> RANDOMNESS remix.init/index.mjs:15:37\n  UNKNOWN_CALL remix.init/index.mjs:133:13\n  UNKNOWN_MODULE remix.init/index.mjs:132:1 via UNKNOWN_MODULE remix.init/index.mjs:1:18\n  UNKNOWN_REFERENCE remix.init/index.mjs:145:3\n  UNSUPPORTED_ASYNC remix.init/index.mjs:135:36\n  UNSUPPORTED_CALLABLE remix.init/index.mjs:132:1\n  AMBIENT_STATE remix.init/index.mjs:293:29\n  EFFECTFUL_INITIALIZATION remix.init/index.mjs:292:1 via EFFECTFUL_INITIALIZATION remix.init/index.mjs:2:19 -> EFFECTFUL_INITIALIZATION node_modules/execa/index.js:10:22\n  LOGGING remix.init/index.mjs:320:3\n  UNKNOWN_CALL remix.init/index.mjs:293:29\n  UNKNOWN_MODULE remix.init/index.mjs:292:1 via UNKNOWN_MODULE remix.init/index.mjs:1:18\n  UNKNOWN_REFERENCE remix.init/index.mjs:320:3\n  UNSUPPORTED_ASYNC remix.init/index.mjs:293:23\n  UNSUPPORTED_CALLABLE remix.init/index.mjs:293:29\n  AMBIENT_MUTATION remix.init/index.mjs:329:12 via AMBIENT_MUTATION remix.init/index.mjs:352:3\n  AMBIENT_STATE remix.init/index.mjs:329:12 via AMBIENT_STATE remix.init/index.mjs:351:7\n  DETACHED_ASYNC remix.init/index.mjs:329:12 via DETACHED_ASYNC remix.init/index.mjs:355:21\n  EFFECTFUL_INITIALIZATION remix.init/index.mjs:326:1 via EFFECTFUL_INITIALIZATION remix.init/index.mjs:2:19 -> EFFECTFUL_INITIALIZATION node_modules/execa/index.js:10:22\n  UNKNOWN_CALL remix.init/index.mjs:334:36\n  UNKNOWN_MODULE remix.init/index.mjs:326:1 via UNKNOWN_MODULE remix.init/index.mjs:1:18\n  UNKNOWN_REFERENCE remix.init/index.mjs:329:12 via UNKNOWN_REFERENCE remix.init/index.mjs:357:9\n  UNSUPPORTED_ASYNC remix.init/index.mjs:334:30\n  UNSUPPORTED_CALLABLE remix.init/index.mjs:329:12 via UNSUPPORTED_CALLABLE remix.init/index.mjs:350:1\n  AMBIENT_MUTATION remix.init/index.mjs:352:3\n  AMBIENT_STATE remix.init/index.mjs:351:7\n  DETACHED_ASYNC remix.init/index.mjs:355:21\n  EFFECTFUL_INITIALIZATION remix.init/index.mjs:350:1 via EFFECTFUL_INITIALIZATION remix.init/index.mjs:2:19 -> EFFECTFUL_INITIALIZATION node_modules/execa/index.js:10:22\n  UNKNOWN_CALL remix.init/index.mjs:352:14\n  UNKNOWN_MODULE remix.init/index.mjs:350:1 via UNKNOWN_MODULE remix.init/index.mjs:1:18\n  UNKNOWN_REFERENCE remix.init/index.mjs:357:9\n  UNSUPPORTED_ASYNC remix.init/index.mjs:352:15\n  UNSUPPORTED_CALLABLE remix.init/index.mjs:350:1\n  EFFECTFUL_INITIALIZATION server/index.ts:20:7\n  UNKNOWN_CALL server/index.ts:26:2\n  UNKNOWN_MODULE server/index.ts:25:17 via UNKNOWN_MODULE server/index.ts:4:33\n  AMBIENT_STATE server/utils/monitoring.ts:31:32\n  ARGUMENT_MUTATION server/utils/monitoring.ts:10:2 via ARGUMENT_MUTATION node_modules/@sentry/react-router/build/esm/client/sdk.js:26:3 -> ARGUMENT_MUTATION node_modules/@sentry/core/build/esm/utils/sdkMetadata.js:30:3\n  EFFECTFUL_INITIALIZATION server/utils/monitoring.ts:9:1 via EFFECTFUL_INITIALIZATION server/utils/monitoring.ts:1:39 -> EFFECTFUL_INITIALIZATION node_modules/@prisma/instrumentation/dist/index.mjs:191:20\n  ENVIRONMENT_DEPENDENCE server/utils/monitoring.ts:11:8\n  UNKNOWN_CALL server/utils/monitoring.ts:30:4\n  UNKNOWN_MODULE server/utils/monitoring.ts:9:1 via UNKNOWN_MODULE server/utils/monitoring.ts:1:39 -> UNKNOWN_MODULE node_modules/@prisma/instrumentation/dist/index.mjs:2:33\n  UNSUPPORTED_CALLABLE server/utils/monitoring.ts:10:2 via UNSUPPORTED_CALLABLE node_modules/@sentry/react-router/build/esm/client/sdk.js:26:3 -> UNSUPPORTED_CALLABLE node_modules/@sentry/core/build/esm/utils/sdkMetadata.js:16:1\nScanned browser: 2 eligible, 1536 skipped findings\n  ⚠️  Future Flag Warning: Route middleware support is changing in React Router v8.\n     You can use the `future.v8_middleware` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_middleware\n  ⚠️  Future Flag Warning: Route module splitting behavior is changing in React Router v8.\n     You can use the `future.v8_splitRouteModules` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_splitRouteModules\n  ⚠️  Future Flag Warning: Vite Environment API usage is changing in React Router v8.\n     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_viteEnvironmentApi\n  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.\n     You can use the `future.v8_passThroughRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_passThroughRequests\n  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.\n     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_trailingSlashAwareDataRequests\n  ⚠️  Future Flag Warning: Route middleware support is changing in React Router v8.\n     You can use the `future.v8_middleware` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_middleware\n  ⚠️  Future Flag Warning: Route module splitting behavior is changing in React Router v8.\n     You can use the `future.v8_splitRouteModules` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_splitRouteModules\n  ⚠️  Future Flag Warning: Vite Environment API usage is changing in React Router v8.\n     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_viteEnvironmentApi\n  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.\n     You can use the `future.v8_passThroughRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_passThroughRequests\n  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.\n     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_trailingSlashAwareDataRequests\n",
+          "id": 8
+        }
+      ],
+      "workflows": [],
+      "blocker": {
+        "stage": "scan",
+        "code": "TIMEOUT",
+        "detail": "TIMEOUT\nte Environment API usage is changing in React Router v8.\n     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_viteEnvironmentApi\n  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.\n     You can use the `future.v8_passThroughRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_passThroughRequests\n  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.\n     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_trailingSlashAwareDataRequests\n  ⚠️  Future Flag Warning: Route middleware support is changing in React Router v8.\n     You can use the `future.v8_middleware` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_middleware\n  ⚠️  Future Flag Warning: Route module splitting behavior is changing in React Router v8.\n     You can use the `future.v8_splitRouteModules` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_splitRouteModules\n  ⚠️  Future Flag Warning: Vite Environment API usage is changing in React Router v8.\n     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_viteEnvironmentApi\n  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.\n     You can use the `future.v8_passThroughRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_passThroughRequests\n  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.\n     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.\n     -> https://reactrouter.com/upgrading/future-flags#v8_trailingSlashAwareDataRequests\n",
+        "commandId": 8,
+        "category": "compatibility"
+      },
+      "offline": false,
+      "regressionCodes": [],
+      "installedReplaylockSha256": "1d2f070acda8b5a873d934f4adb98d38d4d7a4ce59d30a0ac2bab0f3fd1cc84f"
+    }
+  ]
+}

@@ -16,11 +16,13 @@ Both `1` and `2` should fail the CI check — a pipeline should never treat `2` 
 
 The example assumes `replaylock` is an installed dependency and your accepted cases are committed under `.replaylock/cases/`, per [Artifacts and privacy](../README.md#artifacts-and-privacy).
 
+For browser V2 cases, install the optional Playwright provider and run `npx playwright install --with-deps chromium` after dependency installation and before verification. Node-only cases do not require a browser. An external trace mismatch reports `EFFECT_TRACE_MISMATCH` and exits `1`, while a missing browser provider is an infrastructure failure with exit `2`.
+
 The example pins Node 22.19.0, npm 11.5.2, and reviewed Action commits. It grants only repository read access, limits a job to fifteen minutes, and cancels superseded pull-request runs without canceling pushes to `main`. It explicitly disables `setup-node`'s automatic package-manager cache: consumer repositories should choose caching deliberately for their own lockfile. ReplayLock's own CI explicitly caches npm's download cache using its committed lockfile; neither workflow caches `node_modules`, and `npm ci` still performs a clean installation.
 
 ## Developing ReplayLock itself
 
-The required `verify` job uses `.nvmrc` and the pinned npm version, then runs type checking and `npm run verify`. Full verification runs CLI-runner regression tests, builds and checks the package contract, installs a real packed tarball into a clean temporary consumer, and runs every file in the locked 35-file acceptance suite. The installed consumer exercises public imports and the executable CLI through natural recording, explicit review, successful replay, and a seeded behavioral mismatch; its accepted bytes must never change during verification.
+The required `verify` job uses `.nvmrc` and the pinned npm version, installs Chromium, then runs type checking and `npm run verify`. Full verification runs CLI-runner regression tests, builds and checks the package contract, installs a real packed tarball into a clean temporary consumer, and runs every file in the locked 45-file acceptance suite. The installed consumer exercises public imports and the executable CLI through natural Vitest and development recording, explicit review, successful V1/V2 replay, and a seeded behavioral mismatch; its accepted bytes must never change during verification.
 
 Acceptance files run with bounded concurrency two by default. Reproduce serially or request readable output with:
 
@@ -40,6 +42,7 @@ The Tuesday 06:17 UTC coverage workflow (also manually runnable) uses exactly `c
 
 ```sh
 npm ci
+npx playwright install --with-deps chromium
 npm run coverage
 ```
 

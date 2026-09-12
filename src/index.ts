@@ -13,3 +13,4 @@ export {
   type ValueAdapterDefinition,
 } from "./adapters.js";
 export { replaylock } from "./vite-plugin.js";
+export type { DevOptions, DevLocator, DevCase, DevRetentionPolicy } from "./dev-contract.js";

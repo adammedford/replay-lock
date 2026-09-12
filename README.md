@@ -2,9 +2,35 @@
 
 [![CI](https://github.com/adammedford/replay-lock/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adammedford/replay-lock/actions/workflows/ci.yml)
 
-ReplayLock records developer-selected calls that already occur in Vitest, asks a human to review them, and replays the accepted behavior in a fresh process. The result is a **reviewed characterization case** (or regression case), not a generated correctness test.
+ReplayLock records calls during local development or Vitest workloads, asks a human to review them, and replays the accepted behavior in isolation. The result is a **reviewed characterization case** (or regression case), not a generated correctness test.
 
 ReplayLock's static analysis and runtime checks can classify a supported callable as **likely-safe**. That classification is a conservative eligibility judgment, not proof of purity, determinism, or correctness. Keep intentional unit and integration tests for the behavior your application is meant to have.
+
+## Development recording
+
+For a Vite development server, install the plugin in `vite.config.ts`:
+
+```ts
+import { defineConfig } from "vite";
+import { replaylock } from "replaylock/vite";
+
+export default defineConfig({ plugins: [replaylock({ dev: true })] });
+```
+
+```sh
+replaylock record -- npm run dev
+# Or attach to an already running server with that plugin:
+replaylock record --attach http://localhost:5173/
+# Use the application, then Ctrl-C to stop and drain the recording.
+replaylock review
+replaylock verify
+```
+
+Development mode automatically selects supported exported, private, and stateless named nested functions. Each call records its arguments, completion, and supported external reads: randomness, clocks, GET/HEAD fetches, file reads, and individually enabled environment variables. A fresh random draw still occurs during every live invocation; replay supplies that invocation's recorded draw. Identical arguments with different external inputs produce distinct V2 cases.
+
+Vite browser and Vite-managed Node execution are supported. Browser verification uses optional Playwright Chromium (`npx playwright install chromium`); Node-only cases need no browser installation. Development instrumentation is inactive in production builds. Existing annotated Vitest capture and V1 cases remain supported.
+
+See [Development recording](docs/development-recording.md) for configuration, supported reads, recovery, private callable limits, and the browser value contract.
 
 ## Supported V1 environment
 
@@ -146,3 +172,5 @@ Before broader adoption, use the telemetry-free [manual pilot checklist](docs/pi
 See [Contributing](CONTRIBUTING.md) for the development toolchain, verification commands, and pull-request workflow. Report vulnerabilities through the private channel described in the [security policy](SECURITY.md), not a public issue.
 
 ReplayLock is [MIT licensed](LICENSE). The package remains private to prevent npm publication; source availability is not an npm release.
+
+Development capture now supports bounded retention and value-free session reports. Use `replaylock scan --dev --json` to inspect eligibility and source explanations, then `replaylock report --session <id> --json` to inspect invocation counts, exclusions and sampling. See [development recording](docs/development-recording.md), [performance/conformance](docs/performance.md), and the [public pilots](docs/pilots/README.md).
