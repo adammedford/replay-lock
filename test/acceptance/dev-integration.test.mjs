@@ -365,3 +365,27 @@ test('externally stopped npm-launched recording releases its application before 
     await rm(directory,{recursive:true,force:true});
   }
 });
+
+test('interrupted startup escalates only its unresponsive launched command', {timeout:35000,skip:process.platform==='win32'},async()=>{
+  const directory=await fixture();let recorder,pid;
+  const unrelated=httpServer((_,response)=>response.end('unrelated'));
+  await new Promise(resolve=>unrelated.listen(0,'127.0.0.1',resolve));
+  try{
+    const childFile=path.join(directory,'stubborn.mjs');
+    await writeFile(path.join(directory,'vite.config.mjs'),`import {replaylock} from 'replaylock/vite'; export default {plugins:[replaylock({dev:true})],server:{fs:{allow:${JSON.stringify([directory,root])}}}};`);
+    await writeFile(childFile,`import {writeFileSync} from 'node:fs';process.on('SIGTERM',()=>{});writeFileSync('stubborn.pid',String(process.pid));setInterval(()=>{},1000);`);
+    recorder=running(directory,[cli,'record','--',process.execPath,childFile]);
+    pid=Number(await until(async()=>{try{return await readFile(path.join(directory,'stubborn.pid'),'utf8');}catch{return null;}}).catch(error=>{throw Error(`${error.message}: ${recorder.output()}`);}));
+    recorder.child.kill('SIGTERM');recorder.child.kill('SIGTERM');
+    const finished=await recorder.completed;
+    assert.equal(finished.status,2,finished.output);
+    assert.match(finished.output,/SESSION_INTERRUPTED/);
+    await until(()=>{try{process.kill(pid,0);return false;}catch{return true;}},5000);
+    const response=await fetch(`http://127.0.0.1:${unrelated.address().port}/`);assert.equal(await response.text(),'unrelated');
+  }finally{
+    recorder?.child.kill('SIGKILL');
+    if(pid){try{process.kill(pid,'SIGKILL');}catch{}}
+    await new Promise(resolve=>unrelated.close(resolve));
+    await rm(directory,{recursive:true,force:true});
+  }
+});

@@ -392,6 +392,7 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
     if (!manifest) {
       if (childError) throw childError;
       if (childStatus !== undefined) return childStatus || 2;
+      if (signaled) throw new Error("SESSION_INTERRUPTED: recording stopped before development listener was ready");
       throw new Error("PLUGIN_NOT_ACTIVE: no active local ReplayLock dev plugin was found");
     }
     async function control(operation: string): Promise<Record<string, unknown>> {
@@ -435,22 +436,34 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
     return childStatus || 2;
   } finally {
     try {
-      if (child && childStatus === undefined && child.pid) {
-        const exited = new Promise<void>(resolve => { child!.once("exit", () => resolve()); });
-        if (process.platform !== "win32") { try { process.kill(-child.pid, "SIGTERM"); } catch {} }
-        else child.kill("SIGTERM");
-        let timeout: ReturnType<typeof setTimeout> | undefined;
-        try {
-          await Promise.race([exited, new Promise<never>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error("PROCESS_CLEANUP_FAILED: launched development command did not exit")), 10000);
-          })]);
-        } finally { if (timeout) clearTimeout(timeout); }
-      }
+      if (child) await finishOwnedCommand(child);
       if (child && manifest) await removeLaunchManifest(root, launch, manifest.pid);
     } finally {
       process.off("SIGINT", stopSignal); process.off("SIGTERM", stopSignal);
     }
   }
+}
+async function finishOwnedCommand(child: ChildProcess): Promise<void> {
+  if (!child.pid) return;
+  const pid = child.pid;
+  const active = (): boolean => {
+    if (process.platform === "win32") return child.exitCode === null && child.signalCode === null;
+    try { process.kill(-pid, 0); return true; }
+    catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
+  };
+  const signal = (name: NodeJS.Signals): void => {
+    if (!active()) return;
+    try { if (process.platform === "win32") child.kill(name); else process.kill(-pid, name); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+  };
+  signal("SIGTERM");
+  const gracefulDeadline = Date.now() + 10000;
+  while (active() && Date.now() < gracefulDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  if (!active()) return;
+  signal("SIGKILL");
+  const forcedDeadline = Date.now() + 5000;
+  while (active() && Date.now() < forcedDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  if (active()) throw new Error("PROCESS_CLEANUP_FAILED: launched development command did not exit");
 }
 async function removeLaunchManifest(root: string, launch: string, pid: number): Promise<void> {
   const directory = path.join(root, ".replaylock", "dev");
