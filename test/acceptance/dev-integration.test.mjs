@@ -339,3 +339,29 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('externally stopped npm-launched recording releases its application before the controller exits', {timeout:45000,skip:process.platform==='win32'}, async()=>{
+  const directory=await fixture();let recorder,manifest;
+  try{
+    const viteCli=path.join(root,'node_modules/vite/bin/vite.js');
+    await writeFile(path.join(directory,'package.json'),JSON.stringify({name:'dev-fixture',version:'1.0.0',type:'module',scripts:{dev:`node ${JSON.stringify(viteCli)} --host 127.0.0.1 --port 0`}}));
+    await writeFile(path.join(directory,'vite.config.mjs'),`import {replaylock} from 'replaylock/vite'; export default {plugins:[replaylock({dev:true})],server:{fs:{allow:${JSON.stringify([directory,root])}}}};`);
+    recorder=running(directory,[cli,'record','--','npm','run','dev']);
+    manifest=await until(async()=>(await manifests(directory))[0]);
+    await until(()=>recorder.output().includes('ReplayLock attached'));
+    const response=await fetch(manifest.url);assert.equal(response.status,200);
+    assert.equal((await control(manifest,'stop')).status,200);
+    await until(()=>recorder.child.exitCode!==null,12000);
+    const exit=recorder.child.exitCode;
+    assert.equal(exit,0,recorder.output());
+    await until(async()=>{try{await fetch(manifest.url,{signal:AbortSignal.timeout(1000)});return false;}catch{return true;}},5000);
+    await until(async()=>(await manifests(directory)).length===0,5000);
+    let pipeTimer;
+    const finished=await Promise.race([recorder.completed,new Promise((_,reject)=>{pipeTimer=setTimeout(()=>reject(Error('npm descendants still hold recording output pipes')),5000);})]).finally(()=>clearTimeout(pipeTimer));
+    assert.equal(finished.status,0,finished.output);
+  }finally{
+    recorder?.child.kill('SIGTERM');
+    if(manifest){try{process.kill(manifest.pid,'SIGTERM');}catch{}}
+    await rm(directory,{recursive:true,force:true});
+  }
+});

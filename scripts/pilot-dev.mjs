@@ -24,13 +24,13 @@ async function fileDigest(file){return sha256(await readFile(file));}
 async function probeRecord(request){
   const {root,cli,id,output}=request;
   const child=spawn(process.execPath,[cli,'record','--','npm','run','dev'],{cwd:root,stdio:['ignore','pipe','pipe'],detached:process.platform!=='win32',env:{...process.env,NODE_ENV:'development',MOCKS:'true',...(id==='epic-stack'?{DATABASE_URL:'file:./data.db?connection_limit=1'}:{})}});
-  let transcript='',ended=false,status;child.stdout.on('data',d=>transcript+=d);child.stderr.on('data',d=>transcript+=d);child.on('close',code=>{ended=true;status=code;});child.on('error',error=>{ended=true;transcript+=error.code;});
-  let browser;
+  let transcript='',ended=false,exited=false,status;child.stdout.on('data',d=>transcript+=d);child.stderr.on('data',d=>transcript+=d);child.on('exit',()=>{exited=true;});child.on('close',code=>{ended=true;status=code;});child.on('error',error=>{ended=true;exited=true;transcript+=error.code;});
+  let browser,activeLaunch;
   const result={workflows:[],observations:null,candidates:null,session:null};
   const command=async(manifest,operation)=>{const response=await fetch(`${manifest.url}__replaylock/${operation}`,{method:'POST',headers:{'Content-Type':'application/json','X-ReplayLock-Token':manifest.token},body:'{}'});const value=await response.json();if(!response.ok)throw Error(value.code);return value;};
   try{
     let manifest;const deadline=Date.now()+40000;
-    while(!manifest&&!ended&&Date.now()<deadline){try{for(const name of await readdir(path.join(root,'.replaylock/dev'))){const value=JSON.parse(await readFile(path.join(root,'.replaylock/dev',name),'utf8'));if(value.launch&&Number.isSafeInteger(value.pid)&&value.pid>0&&transcript.includes(`ReplayLock attached to ${value.url}`)){try{process.kill(value.pid,0);manifest=value;}catch{}}}}catch{}if(!manifest)await pause(100);}
+    while(!manifest&&!ended&&Date.now()<deadline){try{for(const name of await readdir(path.join(root,'.replaylock/dev'))){const value=JSON.parse(await readFile(path.join(root,'.replaylock/dev',name),'utf8'));if(value.launch&&Number.isSafeInteger(value.pid)&&value.pid>0&&transcript.includes(`ReplayLock attached to ${value.url}`)){try{process.kill(value.pid,0);manifest=value;activeLaunch=value.launch;}catch{}}}}catch{}if(!manifest)await pause(100);}
     if(!manifest)throw Error(/NO_ELIGIBLE_TARGET/.test(transcript)?'NO_ELIGIBLE_TARGET':'PLUGIN_NOT_ACTIVE');
     const {chromium}=await import('playwright');browser=await chromium.launch({headless:true});const page=await browser.newPage();page.setDefaultNavigationTimeout(120000);
     // Workloads use only the application's bundled configuration / seeded data.
@@ -48,8 +48,20 @@ async function probeRecord(request){
     const stopped=await command(manifest,'stop');result.observations=stopped.observations;result.candidates=stopped.candidates;result.session=stopped.session;result.recordingBlocks=stopped.recordingBlocks;
     assert.ok(stopped.candidates>0,'NO_WORKFLOW_CANDIDATES');assert.equal(stopped.recordingBlocks,0,'PARTIAL_CAPTURE');
     await writeFile(output,JSON.stringify(result));console.log('PILOT WORKLOAD RECORDED');
-  }catch(error){await writeFile(path.join(path.dirname(output),'record-startup.log'),transcript);await writeFile(output,JSON.stringify({...result,code:error.message}));console.error(transcript.slice(-5000));console.error(error.message);process.exitCode=2;}
-  finally{if(browser)await browser.close();try{process.platform==='win32'?child.kill('SIGTERM'):process.kill(-child.pid,'SIGTERM');}catch{}for(let n=0;n<20&&!ended;n++)await pause(100);}
+  }catch(error){result.code=error.message;await writeFile(path.join(path.dirname(output),'record-startup.log'),transcript);console.error(transcript.slice(-5000));console.error(error.message);process.exitCode=2;}
+  finally{
+    if(browser)await browser.close();
+    // Give the controller time to finish its own stop and owned-process cleanup.
+    for(let n=0;n<200&&!exited;n++)await pause(100);
+    let signaledByProbe=false;
+    if(!exited){signaledByProbe=true;try{process.platform==='win32'?child.kill('SIGTERM'):process.kill(-child.pid,'SIGTERM');}catch{}}
+    for(let n=0;n<50&&!ended;n++)await pause(100);
+    let discoveryRemoved=false;
+    try{const directory=path.join(root,'.replaylock/dev');const entries=await readdir(directory);discoveryRemoved=!(await Promise.all(entries.filter(name=>name.endsWith('.json')).map(async name=>{try{return JSON.parse(await readFile(path.join(directory,name),'utf8')).launch===activeLaunch;}catch{return false;}}))).some(Boolean);}catch(error){discoveryRemoved=error.code==='ENOENT';}
+    result.cleanup={controllerExited:exited,outputPipesClosed:ended,discoveryRemoved,signaledByProbe};
+    if(!exited||!ended||!discoveryRemoved){result.code='PROCESS_CLEANUP_FAILED';process.exitCode=2;child.stdout.destroy();child.stderr.destroy();}
+    await writeFile(output,JSON.stringify(result));
+  }
 }
 async function runPilot(pin,settings){
   const startedAt=new Date().toISOString(),start=performance.now(),temporary=await realpath(await mkdtemp(path.join(tmpdir(),`replaylock-${pin.id}-`))),root=path.join(temporary,'app'),consumer=path.join(temporary,'consumer');

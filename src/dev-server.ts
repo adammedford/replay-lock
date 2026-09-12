@@ -372,6 +372,7 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
   if (!url && !command.length) throw new Error("Usage: replaylock record -- npm run dev");
   const launch = randomUUID();
   let child: ChildProcess | undefined, childStatus: number | undefined, childError: Error | undefined;
+  let manifest: Manifest | undefined;
   let signaled = false;
   const stopSignal = () => { signaled = true; };
   process.on("SIGINT", stopSignal); process.on("SIGTERM", stopSignal);
@@ -383,7 +384,6 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
       child.once("exit", (code, signal) => { childStatus = signal ? 2 : code ?? 2; });
       child.once("error", error => { childError = error; });
     }
-    let manifest: Manifest | undefined;
     const deadline = Date.now() + (url ? 1000 : 30000);
     while (!manifest && Date.now() < deadline && childStatus === undefined && !childError && !signaled) {
       manifest = await findManifest(root, url, launch);
@@ -434,11 +434,33 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
     console.error("SESSION_PARTIAL: development server exited before recording was stopped");
     return childStatus || 2;
   } finally {
-    process.off("SIGINT", stopSignal); process.off("SIGTERM", stopSignal);
-    if (child && childStatus === undefined && child.pid) {
-      if (process.platform !== "win32") { try { process.kill(-child.pid, "SIGTERM"); } catch {} }
-      else child.kill("SIGTERM");
+    try {
+      if (child && childStatus === undefined && child.pid) {
+        const exited = new Promise<void>(resolve => { child!.once("exit", () => resolve()); });
+        if (process.platform !== "win32") { try { process.kill(-child.pid, "SIGTERM"); } catch {} }
+        else child.kill("SIGTERM");
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([exited, new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error("PROCESS_CLEANUP_FAILED: launched development command did not exit")), 10000);
+          })]);
+        } finally { if (timeout) clearTimeout(timeout); }
+      }
+      if (child && manifest) await removeLaunchManifest(root, launch, manifest.pid);
+    } finally {
+      process.off("SIGINT", stopSignal); process.off("SIGTERM", stopSignal);
     }
+  }
+}
+async function removeLaunchManifest(root: string, launch: string, pid: number): Promise<void> {
+  const directory = path.join(root, ".replaylock", "dev");
+  let names: string[]; try { names = await readdir(directory); } catch { return; }
+  for (const name of names.filter(name => /^server-\d+-[a-f0-9-]+\.json$/.test(name))) {
+    const file = path.join(directory, name);
+    try {
+      const value = JSON.parse(await readFile(file, "utf8")) as Partial<Manifest>;
+      if (value.launch === launch && value.pid === pid && value.root === realpathSync(root)) await rm(file, { force: true });
+    } catch { /* The server may have removed its own manifest. */ }
   }
 }
 async function findManifest(root: string, url: string | undefined, launch: string): Promise<Manifest | undefined> {
