@@ -281,7 +281,7 @@ test("stop reports missing browser acknowledgements and keeps sealed observation
   } finally { await browser?.close(); await vite?.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("browser queue overflow reaches the collector as a partial-capture diagnostic", { timeout: 60000 }, async () => {
+test("browser queue overflow reaches the collector as a partial-capture diagnostic", { timeout: 120000 }, async () => {
   const directory = await fixture(); let browser, vite;
   try {
     await writeFile(path.join(directory, "src/calculation.js"), "export function echo(value) { return value; }");
@@ -294,7 +294,10 @@ test("browser queue overflow reaches the collector as a partial-capture diagnost
     await page.route("**/__replaylock/observations", route => disconnected ? route.abort() : route.continue());
     await page.evaluate(() => { for (let index = 0; index < 1001; index++) globalThis.runEcho(7); });
     disconnected = false;
-    await until(async () => (await control(manifest, "status")).body.blocks > 0, 30000);
+    // The diagnostic follows up to 1,000 sequential uploads. A controlled 40 ms
+    // transport delay takes about 59 seconds to drain; this checks delivery,
+    // not a development-latency budget. Keep a bounded allowance for CI.
+    await until(async () => (await control(manifest, "status")).body.blocks > 0, 90000);
     const stopped = await control(manifest, "stop");
     assert.equal(stopped.status, 200); assert.ok(stopped.body.recordingBlocks > 0);
     assert.ok(stopped.body.observations < 1001); assert.equal(stopped.body.candidates, 1);
