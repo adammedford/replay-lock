@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-13T01:48:28.548Z",
+  "sourceRevision": "5b32cf94ed51ab00c43a2d98ffb410270bbeebd4",
+  "source": {
+    "packageJsonSha256": "c7c895e812ffa46c06d65766e01e82397fbcac48bc35f28f1f4230804b397198",
+    "lockfileSha256": "88da2115c10d3147f76e603ab25660382103543b24d5a68201d92721570488b5"
+  },
+  "artifact": {
+    "tarballSha256": "b06be4ebcc70d84d87653e8ccc252ddd8be5756fd95f5ca87ede74aabb285411"
+  },
+  "environment": {
+    "node": "22.19.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "runnerSha256": "d93e2ed3775b802870fd34754d9a28bed816e3ffc389a9f119e2e559ffdd9f93",
+  "workflowRunnerSha256": "10ffdf4b195fb66854432ff7fc866e1a8a2a868af549fd32241e1b814c49138f",
+  "workflow": {
+    "status": "passed",
+    "categoryVisible": true,
+    "suggestionsVisible": true,
+    "blockedRequests": [
+      "https://generativelanguage.googleapis.com",
+      "https://generativelanguage.googleapis.com",
+      "https://generativelanguage.googleapis.com",
+      "https://generativelanguage.googleapis.com"
+    ],
+    "pageErrors": [
+      "Cannot read properties of undefined (reading 'age')",
+      "Cannot read properties of undefined (reading 'age')"
+    ]
+  },
+  "recording": {
+    "observations": 21,
+    "candidates": 2,
+    "recordingBlocks": 14,
+    "session": "e5d5d384-ac4e-4d6c-800b-59547447b2e2"
+  },
+  "cleanup": {
+    "controllerExited": true,
+    "outputPipesClosed": true,
+    "ownedGroupExited": true,
+    "listenerClosed": true,
+    "discoveryRemoved": true,
+    "signaledByProbe": false,
+    "controllerExitCode": 2
+  },
+  "captureStatus": "partial",
+  "status": "passed",
+  "transcriptTail": "\n> smartvk-bmi-calculator@0.0.0 dev\n> vite --host 127.0.0.1 --port 43187 --strictPort\n\nReplayLock: 4 eligible environment targets; 132 skipped findings\nReplayLock RECORDING e5d5d384-ac4e-4d6c-800b-59547447b2e2\nRe-optimizing dependencies because lockfile has changed\n\n  VITE v5.4.11  ready in 987 ms\n\n  ➜  Local:   http://127.0.0.1:43187/smartvk-bmi-calculator/\nReplayLock attached to http://127.0.0.1:43187/smartvk-bmi-calculator/; press Ctrl-C to stop recording\nBrowserslist: caniuse-lite is outdated. Please run:\n  npx update-browserslist-db@latest\n  Why you should do it regularly: https://github.com/browserslist/update-db#readme\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-client.js\" points to missing source files\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-runtime.js\" points to missing source files\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-values.js\" points to missing source files\nReplayLock UNSUPPORTED_VALUE\nReplayLock INCOMPLETE_OBSERVATION\nReplayLock: recorded 21 completed observations; 2 pending candidates\nRecorded 21 observation(s); 2 pending candidate(s)\n"
+}

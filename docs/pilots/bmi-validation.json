@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-13T01:48:58.513Z",
+  "runnerSha256": "99e18366262dcc00d879279eb6ad6afba70a95232747ffdc699093e2a182cc30",
+  "guardSha256": "cdb7f0d6d0978ba4e7ee8e9be856f011e1f88360c8ad2ded393a3adcbd7845ec",
+  "cases": [
+    {
+      "caseId": "4475c30ab8a3a7338cb430382b93cf2394121eb37aa0011a2c2986e77ab92557",
+      "locator": {
+        "kind": "export",
+        "module": "src/utils/healthSuggestions.ts",
+        "namePath": [
+          "getHealthSuggestions"
+        ]
+      },
+      "environment": "browser",
+      "input": {
+        "items": [
+          {
+            "kind": "number",
+            "value": 24.2
+          },
+          {
+            "kind": "string",
+            "value": "Normal weight"
+          }
+        ],
+        "kind": "array"
+      },
+      "trace": [],
+      "completion": {
+        "kind": "return",
+        "value": {
+          "items": [
+            {
+              "entries": [
+                {
+                  "key": "description",
+                  "value": {
+                    "kind": "string",
+                    "value": "Maintain your balanced diet with a mix of proteins, carbs, and healthy fats."
+                  }
+                },
+                {
+                  "key": "icon",
+                  "value": {
+                    "kind": "string",
+                    "value": "Utensils"
+                  }
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": "string",
+                    "value": "Balanced Diet"
+                  }
+                }
+              ],
+              "kind": "record"
+            },
+            {
+              "entries": [
+                {
+                  "key": "description",
+                  "value": {
+                    "kind": "string",
+                    "value": "Continue with regular physical activity to maintain your healthy weight."
+                  }
+                },
+                {
+                  "key": "icon",
+                  "value": {
+                    "kind": "string",
+                    "value": "Dumbbell"
+                  }
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": "string",
+                    "value": "Exercise Routine"
+                  }
+                }
+              ],
+              "kind": "record"
+            },
+            {
+              "entries": [
+                {
+                  "key": "description",
+                  "value": {
+                    "kind": "string",
+                    "value": "Drink 8-10 glasses of water daily to maintain proper bodily functions and support your metabolism."
+                  }
+                },
+                {
+                  "key": "icon",
+                  "value": {
+                    "kind": "string",
+                    "value": "Droplets"
+                  }
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": "string",
+                    "value": "Hydration"
+                  }
+                }
+              ],
+              "kind": "record"
+            },
+            {
+              "entries": [
+                {
+                  "key": "description",
+                  "value": {
+                    "kind": "string",
+                    "value": "Aim for 7-9 hours of quality sleep per night to support your body's recovery and metabolism."
+                  }
+                },
+                {
+                  "key": "icon",
+                  "value": {
+                    "kind": "string",
+                    "value": "Moon"
+                  }
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": "string",
+                    "value": "Sleep Schedule"
+                  }
+                }
+              ],
+              "kind": "record"
+            }
+          ],
+          "kind": "array"
+        }
+      }
+    },
+    {
+      "caseId": "86679d0c291abd554544ab73a5bfc8b5dd78cc04697c97e84415708033092e1b",
+      "locator": {
+        "kind": "export",
+        "module": "src/utils/bmiCalculator.ts",
+        "namePath": [
+          "getBMICategory"
+        ]
+      },
+      "environment": "browser",
+      "input": {
+        "items": [
+          {
+            "kind": "number",
+            "value": 24.2
+          }
+        ],
+        "kind": "array"
+      },
+      "trace": [],
+      "completion": {
+        "kind": "return",
+        "value": {
+          "kind": "string",
+          "value": "Normal weight"
+        }
+      }
+    }
+  ],
+  "originalSourceSha256": "cdd2a2fe9f22917fdedca7accf1ac7a5b7f33e4b783379241dcf57491011ab30",
+  "offlineReplay": {
+    "exitCode": 0,
+    "verifiedTwo": true,
+    "outputMismatch": false,
+    "outputTail": "el\" plugin. This option is deprecated, please use `oxc` instead.\n8:49:02 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.\nBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`\n8:49:02 PM [vite] warning: `esbuild` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `oxc` instead.\n8:49:02 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.\nYou or a plugin you are using have set `optimizeDeps.esbuildOptions` but this option is now deprecated. Vite now uses Rolldown to optimize the dependencies. Please use `optimizeDeps.rolldownOptions` instead.\nVerified 2 V2 case(s)\n"
+  },
+  "benignEditReplay": {
+    "exitCode": 0,
+    "verifiedTwo": true,
+    "outputMismatch": false,
+    "outputTail": "el\" plugin. This option is deprecated, please use `oxc` instead.\n8:49:05 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.\nBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`\n8:49:05 PM [vite] warning: `esbuild` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `oxc` instead.\n8:49:05 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.\nYou or a plugin you are using have set `optimizeDeps.esbuildOptions` but this option is now deprecated. Vite now uses Rolldown to optimize the dependencies. Please use `optimizeDeps.rolldownOptions` instead.\nVerified 2 V2 case(s)\n"
+  },
+  "seededRegression": {
+    "exitCode": 1,
+    "verifiedTwo": false,
+    "outputMismatch": true,
+    "outputTail": "were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`\n8:49:09 PM [vite] warning: `esbuild` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `oxc` instead.\n8:49:09 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by \"vite:react-babel\" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.\nYou or a plugin you are using have set `optimizeDeps.esbuildOptions` but this option is now deprecated. Vite now uses Rolldown to optimize the dependencies. Please use `optimizeDeps.rolldownOptions` instead.\nOUTPUT_MISMATCH 86679d0c291abd554544ab73a5bfc8b5dd78cc04697c97e84415708033092e1b\nOUTPUT_MISMATCH src/utils/bmiCalculator.ts#getBMICategory realm=browser case=86679d0c291abd554544ab73a5bfc8b5dd78cc04697c97e84415708033092e1b; return -> return; path $.value; expected \"Normal weight\"; actual \"Overweight\"\n"
+  },
+  "status": "passed",
+  "restoredSourceSha256": "cdd2a2fe9f22917fdedca7accf1ac7a5b7f33e4b783379241dcf57491011ab30"
+}

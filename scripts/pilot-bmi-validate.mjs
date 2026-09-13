@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = await realpath(process.argv[2]);
+const output = path.resolve(process.argv[3]);
+assert.ok(root.startsWith('/private/tmp/replaylock70-app'), 'use the isolated pilot checkout');
+const sha256 = value => createHash('sha256').update(value).digest('hex');
+const cli = path.join(root, 'node_modules/replaylock/dist/cli.js');
+const guard = fileURLToPath(new URL('./pilot-offline-guard.mjs', import.meta.url));
+const source = path.join(root, 'src/utils/bmiCalculator.ts');
+const original = await readFile(source, 'utf8');
+const cases = await Promise.all((await readdir(path.join(root, '.replaylock/cases'))).filter(name => name.endsWith('.json')).map(async name => JSON.parse(await readFile(path.join(root, '.replaylock/cases', name), 'utf8'))));
+assert.equal(cases.length, 2);
+assert.deepEqual(cases.map(item => item.locator.namePath.at(-1)).sort(), ['getBMICategory', 'getHealthSuggestions']);
+assert.ok(cases.every(item => item.environment === 'browser' && item.trace.length === 0));
+assert.ok(cases.every(item => item.arguments.kind === 'array' && item.eligibility.verdict === 'replayable'));
+
+function verify() {
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, [cli, 'verify'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_OPTIONS: `--import=${guard}`, PATH: path.dirname(process.execPath) + path.delimiter + process.env.PATH } });
+    let transcript = '';
+    child.stdout.on('data', data => { transcript += data; });
+    child.stderr.on('data', data => { transcript += data; });
+    child.on('close', code => resolve({ exitCode: code, verifiedTwo: /Verified 2 V2 case\(s\)/.test(transcript), outputMismatch: /OUTPUT_MISMATCH/.test(transcript), outputTail: transcript.slice(-1000) }));
+  });
+}
+const report = { schemaVersion: 1, generatedAt: new Date().toISOString(), runnerSha256: sha256(await readFile(fileURLToPath(import.meta.url))), guardSha256: sha256(await readFile(guard)), cases: cases.map(item => ({ caseId: item.caseId, locator: item.locator, environment: item.environment, input: item.arguments, trace: item.trace, completion: item.completion })), originalSourceSha256: sha256(original) };
+try {
+  report.offlineReplay = await verify();
+  assert.equal(report.offlineReplay.exitCode, 0);
+  assert.equal(report.offlineReplay.verifiedTwo, true);
+  await writeFile(source, '// Behavior-preserving pilot comment\n' + original);
+  report.benignEditReplay = await verify();
+  assert.equal(report.benignEditReplay.exitCode, 0);
+  assert.equal(report.benignEditReplay.verifiedTwo, true);
+  assert.ok(original.includes('if (bmi < 24.9)'));
+  await writeFile(source, original.replace('if (bmi < 24.9)', 'if (bmi < 24.0)'));
+  report.seededRegression = await verify();
+  assert.equal(report.seededRegression.exitCode, 1);
+  assert.equal(report.seededRegression.outputMismatch, true);
+  report.status = 'passed';
+} catch (error) {
+  report.status = 'failed';
+  report.error = String(error.message ?? error);
+} finally {
+  await writeFile(source, original);
+  report.restoredSourceSha256 = sha256(await readFile(source));
+  await writeFile(output, JSON.stringify(report, null, 2) + '\n');
+}
+assert.equal(report.status, 'passed', JSON.stringify(report));
+console.log(JSON.stringify({ status: report.status, offlineReplay: report.offlineReplay.exitCode, benignEditReplay: report.benignEditReplay.exitCode, seededRegression: report.seededRegression.exitCode, restored: report.restoredSourceSha256 === report.originalSourceSha256 }));

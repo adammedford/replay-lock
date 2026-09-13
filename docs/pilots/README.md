@@ -15,3 +15,5 @@ The existing application config is wrapped locally to add `replaylock({ dev: tru
 A missing prerequisite, unsupported host/configuration, exclusion or workflow failure stops that pilot with a measured blocker. The runner preserves the evidence rather than upgrading the application's dependencies or weakening capture safety to make it pass. Unsupported syntax and host integration remain follow-up work. Controlled acceptance fixtures separately require successful Node/browser record, review, offline verify and regression detection; blocked public pilots do not replace that coverage.
 
 The paired [performance evidence](performance.json) and its methodology are described in [performance.md](../performance.md). Timing budgets are explicitly invoked; they are not part of ordinary correctness CI.
+
+The adoption follow-up has [paired browser latency evidence](browser-latency.md) and a [proposed explicit budget](browser-latency-budget.json). The [BMI application journey](bmi-journey.md) retains an unattended recording and review/replay/regression evidence, including its partial-capture limits.
