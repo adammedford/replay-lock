@@ -30,7 +30,7 @@
     ],
     "assumption": {
       "reason": "reviewed deterministic TypeScript ScriptKind boundary",
-      "fingerprint": "sha256:c4ce19d65a9058d6044ead09754f6da2e83d36cc47abcec58527a0b5cbb6d9fa",
+      "fingerprint": "sha256:27882279e2645a8330413423f91164af46380fd0bfa3d38628c72b523a53f5c5",
       "originalEvidence": [
         {
           "code": "PACKAGE_CALL",
@@ -95,7 +95,7 @@
   },
   "provenance": {
     "sourceGraphDigest": "sha256:115d7ac7b4b00664f16c18e492ed6a62f73109b58ba7c8b7fe45dea4ffea142d",
-    "lockfileDigest": "sha256:35eb748f05c54e54d89c68c1b6457603c763de8c956acf054998aa4777714eca",
+    "lockfileDigest": "sha256:fd482d428384bb0d7af1aa72f5b8f37aabf5af75647f8831d8bb948f78b03538",
     "runtimeProfile": {
       "node": "v22.19.0",
       "vite": "8.2.2",

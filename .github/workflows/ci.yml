@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Install browser for development replay acceptance
+        run: npx playwright install --with-deps chromium
+
       - run: npm run typecheck
 
       - name: Verify

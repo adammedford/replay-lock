@@ -55,6 +55,13 @@ import {
 import { preflightRecordingProject, scanProjectEligibility, type ScanStatus } from "./vite-plugin.js";
 import { projectLockfileDigest as digestProjectLockfile, readProjectLockfile, type ProjectLockfile } from "./project-lockfile.js";
 import { emptyPackageCatalog } from "./package-catalog.js";
+import { hasDevelopmentPlugin, recordDevelopment } from "./dev-server.js";
+import { parseDevCase, reviewDevCandidates } from "./dev-artifacts.js";
+import { preflightDevCases, validateDevCaseAdapters, verifyDevCases } from "./dev-verify.js";
+import { loadDevConfiguration } from "./dev-options.js";
+import { analyzeDevProject } from "./dev-transform.js";
+import { formatDevDiagnostic, formatDevReport, readDevSessionReport } from "./dev-report.js";
+import { finishScanWorker, runScanProcess, scanWorkerArgument } from "./scan-process.js";
 
 async function main(arguments_: string[]): Promise<number> {
   const [command, ...rest] = arguments_;
@@ -66,7 +73,14 @@ async function main(arguments_: string[]): Promise<number> {
     case "verify":
       return verify();
     case "scan":
-      return scan();
+      return runScanProcess(rest);
+    case "report": {
+      const id = rest[0] === "--session" ? rest[1] : undefined;
+      if (!id || rest.length > 3 || (rest[2] !== undefined && rest[2] !== "--json")) throw new Error("Usage: replaylock report --session <id> [--json]");
+      const report = await readDevSessionReport(process.cwd(), id);
+      console.log(rest.includes("--json") ? JSON.stringify(report, null, 2) : formatDevReport(report));
+      return 0;
+    }
     default:
       printUsage();
       return 2;
@@ -74,6 +88,11 @@ async function main(arguments_: string[]): Promise<number> {
 }
 
 async function record(arguments_: string[]): Promise<number> {
+  const childSeparator = arguments_.indexOf("--");
+  const options = childSeparator === -1 ? arguments_ : arguments_.slice(0, childSeparator);
+  if (options.includes("--attach") || options.includes("--dev") || options.includes("--recover") || await hasDevelopmentPlugin(process.cwd())) {
+    return recordDevelopment(process.cwd(), arguments_);
+  }
   const separator = arguments_.indexOf("--");
   const childArguments = separator >= 0 ? arguments_.slice(separator + 1) : [];
   const [childCommand, ...childRest] = childArguments;
@@ -314,9 +333,18 @@ async function readAcceptedCases(root: string): Promise<CaseArtifact[]> {
   const directory = path.join(root, ".replaylock", "cases");
   const cases: CaseArtifact[] = [];
   for (const filename of await jsonFiles(directory)) {
-    cases.push(parseCase(await readFile(path.join(directory, filename), "utf8")));
+    const text = await readFile(path.join(directory, filename), "utf8");
+    if (caseSchemaVersion(text, filename) === 2) { parseDevCase(text); continue; }
+    cases.push(parseCase(text));
   }
   return cases;
+}
+
+function caseSchemaVersion(text: string, filename: string): unknown {
+  try {
+    const value: unknown = JSON.parse(text);
+    return value && typeof value === "object" && "schemaVersion" in value ? value.schemaVersion : undefined;
+  } catch { throw new Error(`CASE_SCHEMA_UNSUPPORTED ${filename}: malformed accepted artifact`); }
 }
 
 async function unlinkIfPresent(filePath: string): Promise<void> {
@@ -398,6 +426,7 @@ async function review(): Promise<number> {
   })));
   candidates.sort((left, right) => compareReviewCandidates(left.candidate, right.candidate));
   if (candidates.length === 0) {
+    if ((await jsonFiles(path.join(root, ".replaylock", "observations", "pending-v2"))).length) return reviewDevCandidates(root);
     console.log("No pending candidates");
     return 0;
   }
@@ -451,6 +480,7 @@ async function review(): Promise<number> {
         }
       }
     }
+    if ((await jsonFiles(path.join(root, ".replaylock", "observations", "pending-v2"))).length) return await reviewDevCandidates(root, decisions);
   } finally {
     terminal.close();
   }
@@ -496,8 +526,23 @@ async function acceptPendingCandidate(
  * never wired ReplayLock's Vite plugin in at all. Always exits `0`; this is
  * a report, never a gate.
  */
-async function scan(): Promise<number> {
+async function scan(arguments_: string[]): Promise<number> {
   const root = process.cwd();
+  if (arguments_.includes("--dev") || await hasDevelopmentPlugin(root)) {
+    if (arguments_.some(argument => argument !== "--dev" && argument !== "--json")) throw new Error("Usage: replaylock scan --dev [--json]");
+    const { options } = await loadDevConfiguration(root);
+    const reports = [];
+    for (const environment of ["node", "browser"] as const) {
+      const report = analyzeDevProject(root, options, environment);
+      if (arguments_.includes("--json")) { reports.push({ environment, ...report }); continue; }
+      for (const target of report.targets) console.log(`SCAN_ELIGIBLE ${environment} ${target.locator.module}#${target.locator.namePath.join(".")}`);
+      for (const diagnostic of report.diagnostics) console.log(`SCAN_SKIPPED ${environment} ${diagnostic.locator?.module ?? ""}#${diagnostic.locator?.namePath.join(".") ?? ""} (${diagnostic.code})`);
+      for (const diagnostic of report.diagnostics) console.log(formatDevDiagnostic(diagnostic));
+      console.log(`Scanned ${environment}: ${report.targets.length} eligible, ${report.diagnostics.length} skipped findings`);
+    }
+    if (arguments_.includes("--json")) console.log(JSON.stringify({ schemaVersion: 1, environments: reports }, null, 2));
+    return 0;
+  }
   let lockfile: ProjectLockfile | undefined;
   try {
     lockfile = await readProjectLockfile(root);
@@ -563,7 +608,23 @@ async function verify(): Promise<number> {
     filename,
     text: await readFile(path.join(caseDirectory, filename), "utf8"),
   })));
-  const cases = await preflightAcceptedCases(root, caseInputs);
+  const devInputs = caseInputs.filter(input => caseSchemaVersion(input.text, input.filename) === 2);
+  const legacyInputs = caseInputs.filter(input => !devInputs.includes(input));
+  const devCases = devInputs.map(input => {
+    let artifact;
+    try { artifact = parseDevCase(input.text); }
+    catch (error) {
+      const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[A-Z_]+$/.test(error.code) ? error.code : "CASE_SCHEMA_UNSUPPORTED";
+      throw new Error(`${code} ${input.filename}`);
+    }
+    if (input.filename !== `${artifact.caseId}.json`) throw new Error("CASE_ID_MISMATCH: accepted artifact filename does not match its identity");
+    return artifact;
+  });
+  const devConfig = devCases.length ? await loadDevConfiguration(root) : undefined;
+  // Requalify both complete sets before either runner can invoke a target.
+  const cases = legacyInputs.length ? await preflightAcceptedCases(root, legacyInputs) : [];
+  if (devConfig) await preflightDevCases(root, devCases, devConfig.options);
+  if (!cases.length && devConfig) return verifyDevCases(root, devCases, devConfig.options);
   const adapterValidation = await validateProjectAdapters({
     root,
     documents: cases,
@@ -577,6 +638,7 @@ async function verify(): Promise<number> {
     }
   }
 
+  if (devConfig && await validateDevCaseAdapters(root, devCases, devConfig.options) !== 0) return 2;
   const replay = await replayAcceptedCases({ root, cases });
   if (replay.status === "behavioral-failure") return 1;
   if (replay.status === "infrastructure-failure") {
@@ -584,6 +646,7 @@ async function verify(): Promise<number> {
     return 2;
   }
   console.log(`Verified ${replay.count} case(s)`);
+  if (devConfig) return verifyDevCases(root, devCases, devConfig.options);
   return 0;
 }
 
@@ -698,15 +761,18 @@ function runChild(
 }
 
 function printUsage(): void {
-  console.error("Usage: replaylock <record|review|verify|scan>");
+  console.error("Usage: replaylock <record|review|verify|scan|report>");
 }
 
-main(process.argv.slice(2)).then(
-  (status) => {
+const scanWorker = process.argv[2] === scanWorkerArgument && typeof process.send === "function";
+(scanWorker ? scan(process.argv.slice(3)) : main(process.argv.slice(2))).then(
+  async (status) => {
     process.exitCode = status;
+    if (scanWorker) await finishScanWorker(status);
   },
-  (error: unknown) => {
+  async (error: unknown) => {
     console.error(formatUnhandledDiagnostic(error));
     process.exitCode = 2;
+    if (scanWorker) await finishScanWorker(2);
   },
 );

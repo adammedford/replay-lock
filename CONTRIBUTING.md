@@ -18,6 +18,7 @@ Otherwise, install those same versions with your preferred toolchain manager. Co
 node --version
 npm --version
 npm ci
+npx playwright install chromium
 ```
 
 ## Making a change
@@ -34,7 +35,7 @@ npm run verify
 git diff --check
 ```
 
-`npm run verify` builds the package and runs its contract checks and the complete locked acceptance suite. Do not replace it with only a focused test run or remove tests from the manifest to obtain a passing result. Focused checks are useful while iterating, but the full verification command is the handoff requirement.
+`npm run verify` builds the package and runs its contract checks and the complete locked acceptance suite, including real Chromium development capture and replay. On Linux, use `npx playwright install --with-deps chromium` to install required system libraries too. Do not replace full verification with only a focused test run or remove tests from the manifest to obtain a passing result. Focused checks are useful while iterating, but the full verification command is the handoff requirement.
 
 ## Pull requests
 

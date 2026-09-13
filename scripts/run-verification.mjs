@@ -8,6 +8,16 @@ import { parseVerificationOptions } from "./verification-options.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseVerificationOptions(process.argv.slice(2));
 const acceptanceFiles = [
+  "test/acceptance/dev-analysis-cache.test.mjs",
+  "test/acceptance/dev-conformance.test.mjs",
+  "test/acceptance/dev-diagnostics.test.mjs",
+  "test/acceptance/dev-pilots.test.mjs",
+  "test/acceptance/dev-reporting.test.mjs",
+  "test/acceptance/dev-retention.test.mjs",
+  "test/acceptance/dev-artifacts.test.mjs",
+  "test/acceptance/dev-integration.test.mjs",
+  "test/acceptance/dev-trace.test.mjs",
+  "test/acceptance/dev-transform.test.mjs",
   "test/acceptance/core.test.mjs",
   "test/acceptance/source-policy.test.mjs",
   "test/acceptance/effects.test.mjs",

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "status": "proposed",
+  "maximumAddedMedianMs": {
+    "coldPageMs": 2000,
+    "navigationMs": 100,
+    "visibleHmrMs": 2000
+  }
+}

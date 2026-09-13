@@ -6,6 +6,8 @@ dist/
 .replaylock/verify/
 .replaylock/validate/
 .replaylock/catalog/
+.replaylock/dev/
+.replaylock/conformance-failures/
 .unlazy/
 .unlazy-hook-state.json
 /GATES.md

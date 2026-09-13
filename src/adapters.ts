@@ -1,4 +1,5 @@
 import { types as utilTypes } from "node:util";
+import type { DevOptions } from "./dev-contract.js";
 import type { BuiltInValue } from "./canonical.js";
 
 export type ReplayValue = BuiltInValue;
@@ -33,7 +34,7 @@ export interface TrustedPackage {
   readonly exports: readonly TrustedPackageExport[];
 }
 
-export interface ReplayLockConfiguration {
+export interface ReplayLockConfiguration extends DevOptions {
   readonly valueAdapters: readonly ValueAdapter[];
   readonly trustedPackages: readonly TrustedPackage[];
 }
@@ -115,10 +116,10 @@ export function defineValueAdapter<Value extends object>(
   });
 }
 
-const replayLockConfigurationKeys = new Set(["valueAdapters", "trustedPackages"]);
+const replayLockConfigurationKeys = new Set(["valueAdapters", "trustedPackages", "capture", "effects"]);
 
 export function defineReplayLock(
-  configuration: {
+  configuration: DevOptions & {
     readonly valueAdapters?: readonly ValueAdapter[];
     readonly trustedPackages?: readonly TrustedPackage[];
   } = {},
@@ -142,6 +143,8 @@ export function defineReplayLock(
   return Object.freeze({
     valueAdapters: Object.freeze(copyAdapterArray(configuredAdapters)),
     trustedPackages: Object.freeze(copyTrustedPackageArray(configuredCatalog)),
+    ...(descriptors.capture ? { capture: dataDescriptorValue(descriptors.capture, "configuration.capture") as NonNullable<DevOptions["capture"]> } : {}),
+    ...(descriptors.effects ? { effects: dataDescriptorValue(descriptors.effects, "configuration.effects") as NonNullable<DevOptions["effects"]> } : {}),
   });
 }
 

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "recordingSession": "2d7eed19-4aa4-414d-b3c5-decd40589453",
+  "method": "interactive review after inspecting complete candidate arguments, trace, completion, and provenance",
+  "decisions": [
+    {
+      "caseId": "86679d0c291abd554544ab73a5bfc8b5dd78cc04697c97e84415708033092e1b",
+      "callable": "src/utils/bmiCalculator.ts#getBMICategory",
+      "decision": "accepted",
+      "acceptedCaseSha256": "164b1409be71aeb646a59b7f4fe43d1115331d1ec88a34c9a2bcce395e286594"
+    },
+    {
+      "caseId": "4475c30ab8a3a7338cb430382b93cf2394121eb37aa0011a2c2986e77ab92557",
+      "callable": "src/utils/healthSuggestions.ts#getHealthSuggestions",
+      "decision": "accepted",
+      "acceptedCaseSha256": "3fe95ab659abc075c82044f813c082a9b82c6fe25a234b8d80a5e500660fb52e"
+    }
+  ]
+}
