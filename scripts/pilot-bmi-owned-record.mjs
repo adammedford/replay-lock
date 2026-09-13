@@ -11,10 +11,13 @@ const sha256 = value => createHash('sha256').update(value).digest('hex');
 const root = await realpath(process.argv[2]);
 const output = path.resolve(process.argv[3]);
 const port = Number(process.argv[4] ?? 43187);
-assert.ok(root.startsWith('/private/tmp/replaylock70-app'), 'use the isolated pilot checkout');
+assert.ok(process.argv[5], 'pass the packed ReplayLock tarball as the fourth argument');
+const tarball = path.resolve(process.argv[5]);
 assert.ok(Number.isInteger(port) && port > 0 && port < 65536);
 assert.equal(sha256(await readFile(path.join(root, 'package.json'))), 'c7c895e812ffa46c06d65766e01e82397fbcac48bc35f28f1f4230804b397198');
 assert.equal(sha256(await readFile(path.join(root, 'package-lock.json'))), '88da2115c10d3147f76e603ab25660382103543b24d5a68201d92721570488b5');
+assert.equal(sha256(await readFile(path.join(root, 'src/utils/bmiCalculator.ts'))), 'cdd2a2fe9f22917fdedca7accf1ac7a5b7f33e4b783379241dcf57491011ab30');
+assert.equal(sha256(await readFile(path.join(root, 'src/utils/healthSuggestions.ts'))), '61bafddda74588f8823d2e955eed6282134c8c0528d680e0b0c8067c58abd8ed');
 
 async function listenerOpen() {
   return new Promise(resolve => {
@@ -53,7 +56,7 @@ const child = spawn(process.execPath, [cli, 'record', '--', 'npm', 'run', 'dev',
 let transcript = '', exited = false, closed = false, exitCode = null, manifest, stopped;
 const report = { schemaVersion: 1, generatedAt: new Date().toISOString(), sourceRevision: '5b32cf94ed51ab00c43a2d98ffb410270bbeebd4',
   source: { packageJsonSha256: sha256(await readFile(path.join(root, 'package.json'))), lockfileSha256: sha256(await readFile(path.join(root, 'package-lock.json'))) },
-  artifact: { tarballSha256: sha256(await readFile('/private/tmp/replaylock-0.1.0.tgz')) },
+  artifact: { tarballSha256: sha256(await readFile(tarball)), installedDevServerSha256: sha256(await readFile(path.join(root, 'node_modules/replaylock/dist/dev-server.js'))) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch },
   runnerSha256: sha256(await readFile(fileURLToPath(import.meta.url))), workflowRunnerSha256: sha256(await readFile(fileURLToPath(new URL('./pilot-bmi-browser.mjs', import.meta.url)))) };
 child.stdout.on('data', data => { transcript += data; });

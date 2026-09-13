@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-13T01:50:37.055Z",
+  "generatedAt": "2026-09-13T09:18:53.204Z",
   "pairs": 5,
   "sourceRevision": "8473afd804b66dba6a23f317908dc35d1535e90d",
   "measurement": "cold browser page, seeded search navigation, edit to visible HMR update",
@@ -21,10 +21,10 @@
       "pair": 0,
       "mode": "disabled",
       "status": "passed",
-      "port": 62114,
-      "coldPageMs": 4065.5260000000003,
-      "navigationMs": 178.22366599999987,
-      "visibleHmrMs": 430.2737499999994,
+      "port": 52053,
+      "coldPageMs": 4055.8097500000003,
+      "navigationMs": 207.93845899999997,
+      "visibleHmrMs": 879.3704580000003,
       "cleanup": {
         "ownedGroupExited": true
       }
@@ -33,10 +33,10 @@
       "pair": 0,
       "mode": "enabled",
       "status": "passed",
-      "port": 62154,
-      "coldPageMs": 6992.295332999998,
-      "navigationMs": 308.3223340000004,
-      "visibleHmrMs": 16356.324333000004,
+      "port": 52099,
+      "coldPageMs": 6763.533416999999,
+      "navigationMs": 299.46745799999917,
+      "visibleHmrMs": 16112.804874999998,
       "recordingBlocks": 4,
       "cleanup": {
         "ownedGroupExited": true
@@ -46,10 +46,10 @@
       "pair": 1,
       "mode": "enabled",
       "status": "passed",
-      "port": 62211,
-      "coldPageMs": 6900.573500000006,
-      "navigationMs": 301.1568330000009,
-      "visibleHmrMs": 16672.413124999992,
+      "port": 52167,
+      "coldPageMs": 8091.2384999999995,
+      "navigationMs": 288.66629100000137,
+      "visibleHmrMs": 15908.01225,
       "recordingBlocks": 4,
       "cleanup": {
         "ownedGroupExited": true
@@ -59,10 +59,10 @@
       "pair": 1,
       "mode": "disabled",
       "status": "passed",
-      "port": 62269,
-      "coldPageMs": 3968.1229170000006,
-      "navigationMs": 193.1245409999974,
-      "visibleHmrMs": 881.265167000005,
+      "port": 52227,
+      "coldPageMs": 3883.150874999992,
+      "navigationMs": 189.10499999999593,
+      "visibleHmrMs": 903.3208330000052,
       "cleanup": {
         "ownedGroupExited": true
       }
@@ -71,10 +71,10 @@
       "pair": 2,
       "mode": "disabled",
       "status": "passed",
-      "port": 62307,
-      "coldPageMs": 3978.483208000005,
-      "navigationMs": 199.98195800000394,
-      "visibleHmrMs": 415.94458300000406,
+      "port": 52267,
+      "coldPageMs": 3811.7605829999957,
+      "navigationMs": 190.8536669999885,
+      "visibleHmrMs": 866.2560830000002,
       "cleanup": {
         "ownedGroupExited": true
       }
@@ -83,10 +83,10 @@
       "pair": 2,
       "mode": "enabled",
       "status": "passed",
-      "port": 62342,
-      "coldPageMs": 7167.7333329999965,
-      "navigationMs": 304.85975000000326,
-      "visibleHmrMs": 16811.18058300001,
+      "port": 52303,
+      "coldPageMs": 6994.216874999998,
+      "navigationMs": 289.57458299999416,
+      "visibleHmrMs": 16274.393083000003,
       "recordingBlocks": 4,
       "cleanup": {
         "ownedGroupExited": true
@@ -96,10 +96,10 @@
       "pair": 3,
       "mode": "enabled",
       "status": "passed",
-      "port": 62398,
-      "coldPageMs": 8588.126916999987,
-      "navigationMs": 289.40625,
-      "visibleHmrMs": 16509.451708999986,
+      "port": 52370,
+      "coldPageMs": 6749.774916999973,
+      "navigationMs": 313.8579580000078,
+      "visibleHmrMs": 16345.93849999999,
       "recordingBlocks": 4,
       "cleanup": {
         "ownedGroupExited": true
@@ -109,10 +109,10 @@
       "pair": 3,
       "mode": "disabled",
       "status": "passed",
-      "port": 62450,
-      "coldPageMs": 3947.666958000016,
-      "navigationMs": 199.53270899999188,
-      "visibleHmrMs": 885.2432909999916,
+      "port": 52455,
+      "coldPageMs": 4069.7974169999943,
+      "navigationMs": 202.4369580000057,
+      "visibleHmrMs": 880.2297919999983,
       "cleanup": {
         "ownedGroupExited": true
       }
@@ -121,10 +121,10 @@
       "pair": 4,
       "mode": "disabled",
       "status": "passed",
-      "port": 62492,
-      "coldPageMs": 3880.1617079999996,
-      "navigationMs": 196.17183300000033,
-      "visibleHmrMs": 879.3867920000048,
+      "port": 52492,
+      "coldPageMs": 3957.433208000002,
+      "navigationMs": 200.80520800000522,
+      "visibleHmrMs": 885.5400829999999,
       "cleanup": {
         "ownedGroupExited": true
       }
@@ -133,10 +133,10 @@
       "pair": 4,
       "mode": "enabled",
       "status": "passed",
-      "port": 62529,
-      "coldPageMs": 7108.420707999991,
-      "navigationMs": 306.44108300001244,
-      "visibleHmrMs": 16874.80395900001,
+      "port": 52533,
+      "coldPageMs": 7137.686917000014,
+      "navigationMs": 299.9379590000026,
+      "visibleHmrMs": 15921.047625000007,
       "recordingBlocks": 4,
       "cleanup": {
         "ownedGroupExited": true
@@ -145,22 +145,22 @@
   ],
   "comparison": {
     "coldPageMs": {
-      "disabledMedianMs": 3968.1229170000006,
-      "enabledMedianMs": 7108.420707999991,
-      "overheadMs": 3140.29779099999,
-      "ratio": 1.7913811786289455
+      "disabledMedianMs": 3957.433208000002,
+      "enabledMedianMs": 6994.216874999998,
+      "overheadMs": 3036.783666999996,
+      "ratio": 1.76736195088804
     },
     "navigationMs": {
-      "disabledMedianMs": 196.17183300000033,
-      "enabledMedianMs": 304.85975000000326,
-      "overheadMs": 108.68791700000293,
-      "ratio": 1.5540444585640525
+      "disabledMedianMs": 200.80520800000522,
+      "enabledMedianMs": 299.46745799999917,
+      "overheadMs": 98.66224999999395,
+      "ratio": 1.4913331231926583
     },
     "visibleHmrMs": {
-      "disabledMedianMs": 879.3867920000048,
-      "enabledMedianMs": 16672.413124999992,
-      "overheadMs": 15793.026332999987,
-      "ratio": 18.95913524818997
+      "disabledMedianMs": 880.2297919999983,
+      "enabledMedianMs": 16112.804874999998,
+      "overheadMs": 15232.575083,
+      "ratio": 18.305225546149238
     }
   }
 }

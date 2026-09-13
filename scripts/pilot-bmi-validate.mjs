@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = await realpath(process.argv[2]);
 const output = path.resolve(process.argv[3]);
-assert.ok(root.startsWith('/private/tmp/replaylock70-app'), 'use the isolated pilot checkout');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
+assert.equal(sha256(await readFile(path.join(root, 'package.json'))), 'c7c895e812ffa46c06d65766e01e82397fbcac48bc35f28f1f4230804b397198');
+assert.equal(sha256(await readFile(path.join(root, 'package-lock.json'))), '88da2115c10d3147f76e603ab25660382103543b24d5a68201d92721570488b5');
 const cli = path.join(root, 'node_modules/replaylock/dist/cli.js');
 const guard = fileURLToPath(new URL('./pilot-offline-guard.mjs', import.meta.url));
 const source = path.join(root, 'src/utils/bmiCalculator.ts');
