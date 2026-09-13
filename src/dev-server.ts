@@ -437,7 +437,7 @@ export async function recordDevelopment(root: string, args: string[]): Promise<n
   } finally {
     try {
       if (child) await finishOwnedCommand(child);
-      if (child && manifest) await removeLaunchManifest(root, launch, manifest.pid);
+      if (child) await removeLaunchManifest(root, launch, manifest?.pid);
     } finally {
       process.off("SIGINT", stopSignal); process.off("SIGTERM", stopSignal);
     }
@@ -465,14 +465,14 @@ async function finishOwnedCommand(child: ChildProcess): Promise<void> {
   while (active() && Date.now() < forcedDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   if (active()) throw new Error("PROCESS_CLEANUP_FAILED: launched development command did not exit");
 }
-async function removeLaunchManifest(root: string, launch: string, pid: number): Promise<void> {
+async function removeLaunchManifest(root: string, launch: string, pid?: number): Promise<void> {
   const directory = path.join(root, ".replaylock", "dev");
   let names: string[]; try { names = await readdir(directory); } catch { return; }
   for (const name of names.filter(name => /^server-\d+-[a-f0-9-]+\.json$/.test(name))) {
     const file = path.join(directory, name);
     try {
       const value = JSON.parse(await readFile(file, "utf8")) as Partial<Manifest>;
-      if (value.launch === launch && value.pid === pid && value.root === realpathSync(root)) await rm(file, { force: true });
+      if (value.launch === launch && (pid === undefined || value.pid === pid) && value.root === realpathSync(root)) await rm(file, { force: true });
     } catch { /* The server may have removed its own manifest. */ }
   }
 }

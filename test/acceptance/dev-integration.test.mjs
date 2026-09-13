@@ -373,7 +373,7 @@ test('interrupted startup escalates only its unresponsive launched command', {ti
   try{
     const childFile=path.join(directory,'stubborn.mjs');
     await writeFile(path.join(directory,'vite.config.mjs'),`import {replaylock} from 'replaylock/vite'; export default {plugins:[replaylock({dev:true})],server:{fs:{allow:${JSON.stringify([directory,root])}}}};`);
-    await writeFile(childFile,`import {writeFileSync} from 'node:fs';process.on('SIGTERM',()=>{});writeFileSync('stubborn.pid',String(process.pid));setInterval(()=>{},1000);`);
+    await writeFile(childFile,`import {mkdirSync,writeFileSync,realpathSync} from 'node:fs';process.on('SIGTERM',()=>{});mkdirSync('.replaylock/dev',{recursive:true});writeFileSync('.replaylock/dev/server-'+process.pid+'-'+process.env.REPLAYLOCK_DEV_START+'.json',JSON.stringify({root:realpathSync(process.cwd()),launch:process.env.REPLAYLOCK_DEV_START,pid:process.pid,url:'http://127.0.0.1:65534/',token:'not-ready'}));writeFileSync('stubborn.pid',String(process.pid));setInterval(()=>{},1000);`);
     recorder=running(directory,[cli,'record','--',process.execPath,childFile]);
     pid=Number(await until(async()=>{try{return await readFile(path.join(directory,'stubborn.pid'),'utf8');}catch{return null;}}).catch(error=>{throw Error(`${error.message}: ${recorder.output()}`);}));
     recorder.child.kill('SIGTERM');recorder.child.kill('SIGTERM');
@@ -381,6 +381,7 @@ test('interrupted startup escalates only its unresponsive launched command', {ti
     assert.equal(finished.status,2,finished.output);
     assert.match(finished.output,/SESSION_INTERRUPTED/);
     await until(()=>{try{process.kill(pid,0);return false;}catch{return true;}},5000);
+    assert.deepEqual(await manifests(directory),[], 'interrupted startup left its own discovery metadata');
     const response=await fetch(`http://127.0.0.1:${unrelated.address().port}/`);assert.equal(await response.text(),'unrelated');
   }finally{
     recorder?.child.kill('SIGKILL');

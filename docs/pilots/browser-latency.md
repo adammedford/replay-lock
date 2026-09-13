@@ -1,12 +1,12 @@
 # Browser development latency pilot
 
-The paired [raw report](browser-latency.json) measures the pinned Epic Stack checkout (`8473afd804b66dba6a23f317908dc35d1535e90d`) on an Apple M4 Pro with Node 22.19.0. Five alternating enabled/disabled pairs used a fresh application process and browser for each run, removed Vite's dependency cache before launch, and exercised the existing users search route. Page load ended when the body appeared, navigation when its heading appeared, and HMR when an edit to that heading became visible. The edit and Vite config were restored after each trial. The runner's SHA-256, source and lockfile SHA-256, raw samples, and process-group cleanup results are in the report. The ReplayLock build used by the linked Epic plugin had `dist/vite-plugin.js` SHA-256 `5ff0cf2fdcbce6505439cb7d7fe624274d8a5e6fc517d4b2a7e6cead11046d3d` and `dist/dev-server.js` SHA-256 `3708c3bbbae5f73e770c653655984294167f3dd31a1b71b003c6b98930da8877`.
+The paired [raw report](browser-latency.json) measures the pinned Epic Stack checkout (`8473afd804b66dba6a23f317908dc35d1535e90d`) on an Apple M4 Pro with Node 22.19.0. The prepared checkout includes the documented middleware-host integration from the earlier Epic pilot; its `server/index.ts` SHA-256 is `f23699ed680106b0dd5fbefd41490cbd21479fb25ebd0c4b38a46d6f993eb29f`, and the preserved original Vite config SHA-256 is `678efe0d588b484560001dc97c0024454d12420462f1fd849b7e35da8d8b70cf`. Five alternating enabled/disabled pairs used a fresh application process and browser for each run, removed Vite's dependency cache before launch, and exercised the existing users search route. Page load ended when the body appeared, navigation when its heading appeared, and HMR when an edit to that heading became visible. The edit and Vite config were restored after each trial. The runner's SHA-256, source and lockfile SHA-256, raw samples, and process-group cleanup results are in the report. The ReplayLock build used by the linked Epic plugin had `dist/vite-plugin.js` SHA-256 `5ff0cf2fdcbce6505439cb7d7fe624274d8a5e6fc517d4b2a7e6cead11046d3d` and `dist/dev-server.js` SHA-256 `3708c3bbbae5f73e770c653655984294167f3dd31a1b71b003c6b98930da8877`.
 
 | Browser-visible milestone | Disabled median | Enabled median | Added median | Ratio |
 | --- | ---: | ---: | ---: | ---: |
-| Cold page | 3,978 ms | 7,276 ms | 3,299 ms | 1.83x |
-| Search navigation | 195 ms | 308 ms | 113 ms | 1.58x |
-| Visible HMR | 887 ms | 16,706 ms | 15,819 ms | 18.83x |
+| Cold page | 3,968 ms | 7,108 ms | 3,140 ms | 1.79x |
+| Search navigation | 196 ms | 305 ms | 109 ms | 1.55x |
+| Visible HMR | 879 ms | 16,672 ms | 15,793 ms | 18.96x |
 
 All ten trials completed and each owned application process group exited. No timeout was entered as a successful latency. This benchmark records development responsiveness; the earlier synthetic transform benchmark did not measure browser-visible latency.
 
