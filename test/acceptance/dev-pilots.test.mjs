@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { validatePilotReport, parseScan } from '../../scripts/pilot-dev-manifest.mjs';
 import { seedReturnRegression, attachEpicMiddlewareHost } from '../../scripts/pilot-dev-edit.mjs';
 import { checkBudget } from '../../scripts/bench-dev.mjs';
+import { compareBrowserLatency } from '../../scripts/bench-dev-browser.mjs';
 const report=async phase=>JSON.parse(await readFile(new URL(`../../docs/pilots/${phase}.json`,import.meta.url),'utf8'));
 test('pilot host integration preserves application logic and rejects changed source',()=>{
   const source="const app = express()\nconst vite = createServer({server: { middlewareMode: true }})\nconst server = app.listen(portToUse, () => { console.log('ready') })";
@@ -39,4 +40,15 @@ test('timing budget oracle requires complete pairs and fails a known slow contro
   const incomplete=structuredClone(fixture);incomplete.runs.pop();assert.throws(()=>checkBudget(incomplete));
   const slow=structuredClone(fixture);for(const row of slow.runs)if(row.phase==='final'&&row.kind==='load'&&row.size===1000)row.coldLoadMs=80;assert.throws(()=>checkBudget(slow),/below 50%/);
   const small=structuredClone(fixture);for(const row of small.runs)if(row.phase==='final'&&row.kind==='load'&&row.size===10)row.coldLoadMs=130;assert.throws(()=>checkBudget(small),/regression exceeded/);
+});
+test('browser latency comparison requires complete successful pairs and rejects a known over-budget control',()=>{
+  const report={schemaVersion:1,pairs:5,runs:[]};
+  for(let pair=0;pair<5;pair++)for(const mode of ['disabled','enabled'])report.runs.push({pair,mode,status:'passed',coldPageMs:mode==='enabled'?120:100,navigationMs:mode==='enabled'?60:50,visibleHmrMs:mode==='enabled'?220:200,cleanup:{ownedGroupExited:true}});
+  const limits={coldPageMs:30,navigationMs:20,visibleHmrMs:30};
+  assert.equal(compareBrowserLatency(report,limits).coldPageMs.overheadMs,20);
+  const missing=structuredClone(report);missing.runs.pop();assert.throws(()=>compareBrowserLatency(missing,limits),/missing paired browser runs/);
+  const timeout=structuredClone(report);timeout.runs[0].status='failed';assert.throws(()=>compareBrowserLatency(timeout,limits),/did not complete/);
+  const leaking=structuredClone(report);leaking.runs[0].cleanup.ownedGroupExited=false;assert.throws(()=>compareBrowserLatency(leaking,limits),/leaked/);
+  const slow=structuredClone(report);for(const row of slow.runs)if(row.mode==='enabled')row.visibleHmrMs=300;
+  assert.throws(()=>compareBrowserLatency(slow,limits),/overhead exceeded budget/);
 });

@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-12T18:53:58.381Z",
+  "pairs": 5,
+  "sourceRevision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+  "measurement": "cold browser page, seeded search navigation, edit to visible HMR update",
+  "cachePolicy": "remove Vite dependency cache before each fresh server and browser",
+  "environment": {
+    "node": "22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M4 Pro"
+  },
+  "runnerSha256": "17c8ecc90cdf2317d65298270d6e414f502b0466c6e41b61d1e6d0357a561b71",
+  "source": {
+    "packageJsonSha256": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+    "lockfileSha256": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51"
+  },
+  "runs": [
+    {
+      "pair": 0,
+      "mode": "disabled",
+      "status": "passed",
+      "port": 55496,
+      "coldPageMs": 3977.5860410000005,
+      "navigationMs": 186.03262499999983,
+      "visibleHmrMs": 913.5469160000002,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 0,
+      "mode": "enabled",
+      "status": "passed",
+      "port": 55537,
+      "coldPageMs": 7153.5224579999995,
+      "navigationMs": 310.9953330000026,
+      "visibleHmrMs": 16677.652459,
+      "recordingBlocks": 4,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "enabled",
+      "status": "passed",
+      "port": 55607,
+      "coldPageMs": 11177.941083000005,
+      "navigationMs": 307.67804099999194,
+      "visibleHmrMs": 16337.947249999997,
+      "recordingBlocks": 4,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 1,
+      "mode": "disabled",
+      "status": "passed",
+      "port": 55674,
+      "coldPageMs": 3933.4960830000055,
+      "navigationMs": 195.62637499999255,
+      "visibleHmrMs": 411.3431249999994,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 2,
+      "mode": "disabled",
+      "status": "passed",
+      "port": 55713,
+      "coldPageMs": 4005.269874999998,
+      "navigationMs": 204.39599999999336,
+      "visibleHmrMs": 916.3255409999983,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 2,
+      "mode": "enabled",
+      "status": "passed",
+      "port": 55749,
+      "coldPageMs": 7276.332999999999,
+      "navigationMs": 310.8861250000191,
+      "visibleHmrMs": 16706.3125,
+      "recordingBlocks": 4,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 3,
+      "mode": "enabled",
+      "status": "passed",
+      "port": 55852,
+      "coldPageMs": 11228.003333,
+      "navigationMs": 295.3658749999886,
+      "visibleHmrMs": 16735.969374999986,
+      "recordingBlocks": 4,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 3,
+      "mode": "disabled",
+      "status": "passed",
+      "port": 55956,
+      "coldPageMs": 4017.4651669999876,
+      "navigationMs": 193.38320899999235,
+      "visibleHmrMs": 406.9545420000213,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 4,
+      "mode": "disabled",
+      "status": "passed",
+      "port": 55996,
+      "coldPageMs": 3919.730749999988,
+      "navigationMs": 195.17679200001294,
+      "visibleHmrMs": 887.3557080000173,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    },
+    {
+      "pair": 4,
+      "mode": "enabled",
+      "status": "passed",
+      "port": 56031,
+      "coldPageMs": 7109.390916000004,
+      "navigationMs": 298.1832080000022,
+      "visibleHmrMs": 16944.460667000007,
+      "recordingBlocks": 4,
+      "cleanup": {
+        "ownedGroupExited": true
+      }
+    }
+  ],
+  "comparison": {
+    "coldPageMs": {
+      "disabledMedianMs": 3977.5860410000005,
+      "enabledMedianMs": 7276.332999999999,
+      "overheadMs": 3298.7469589999982,
+      "ratio": 1.8293339037791534
+    },
+    "navigationMs": {
+      "disabledMedianMs": 195.17679200001294,
+      "enabledMedianMs": 307.67804099999194,
+      "overheadMs": 112.501248999979,
+      "ratio": 1.5764068967788525
+    },
+    "visibleHmrMs": {
+      "disabledMedianMs": 887.3557080000173,
+      "enabledMedianMs": 16706.3125,
+      "overheadMs": 15818.956791999983,
+      "ratio": 18.827075038096982
+    }
+  }
+}
