@@ -107,19 +107,80 @@ export interface CaseProvenance {
 }
 
 /**
- * An opt-in review-time decision, never a recording-time one: `createCandidate`
- * always produces `"exact"`. A reviewer may explicitly accept a candidate with
- * a numeric tolerance instead (see `acceptReviewedCandidate` in review.ts).
- * Additive to the existing literal `"exact"` shape (a string vs. an object is
- * structurally distinguishable), so this does not require a CASE_SCHEMA_VERSION
- * bump: every existing accepted case remains a valid `"exact"`-comparison case.
+ * One number leaf a reviewer has explicitly allowed to drift, addressed by its
+ * position inside the completion value. A step is a record key (string) or an
+ * array index (number); an empty path is the completion value itself.
+ *
+ * Adapted payloads are deliberately unreachable: an adapted value's equality is
+ * defined by its adapter, whose own round-trip contract is byte-identical, and
+ * numeric fuzz inside that payload would undermine it.
  */
-export interface ToleranceComparison {
-  kind: "tolerance";
+export interface ToleranceLeaf {
+  path: (string | number)[];
   epsilon: number;
 }
 
+/**
+ * An opt-in review-time decision, never a recording-time one: `createCandidate`
+ * always produces `"exact"`.
+ *
+ * Each tolerated leaf is named individually and carries its own epsilon. A
+ * single epsilon shared across a whole completion is unsound in both
+ * directions: an absolute epsilon sized for a large leaf swallows real changes
+ * in small siblings, and one sized for a small leaf is meaningless for large
+ * ones. Naming the leaf is the only form that cannot leak tolerance sideways.
+ *
+ * Still additive to the literal `"exact"` shape, so no CASE_SCHEMA_VERSION bump
+ * is needed. The superseded `{ kind: "tolerance", epsilon }` form is accepted
+ * and migrated when the completion has exactly one number leaf, because there
+ * the two are provably the same comparator; with more than one leaf the
+ * reviewer's intent is unrecoverable and the case is rejected.
+ */
+export interface ToleranceComparison {
+  kind: "tolerance";
+  leaves: ToleranceLeaf[];
+}
+
 export type CaseComparison = "exact" | ToleranceComparison;
+
+/** Every number leaf inside a canonical value, in deterministic order. */
+export function numberLeafPaths(node: unknown): (string | number)[][] {
+  const paths: (string | number)[][] = [];
+  const walk = (current: unknown, path: (string | number)[]): void => {
+    if (!isObject(current)) return;
+    if (current.kind === "number") { paths.push([...path]); return; }
+    if (current.kind === "array" && Array.isArray(current.items)) {
+      current.items.forEach((item, index) => walk(item, [...path, index]));
+      return;
+    }
+    if (current.kind === "record" && Array.isArray(current.entries)) {
+      for (const entry of current.entries) {
+        if (isObject(entry) && typeof entry.key === "string") walk(entry.value, [...path, entry.key]);
+      }
+    }
+    // "adapted" is intentionally not traversed; see ToleranceLeaf.
+  };
+  walk(node, []);
+  return paths;
+}
+
+/** The completion value a tolerance path is resolved against, if there is one. */
+export function comparableCompletionValue(completion: CanonicalCompletion): unknown {
+  return "value" in completion ? completion.value : undefined;
+}
+
+/** Render a stored path the way review output and diagnostics show it. */
+export function formatLeafPath(path: readonly (string | number)[]): string {
+  return path.reduce<string>(
+    (rendered, step) =>
+      typeof step === "number"
+        ? `${rendered}[${step}]`
+        : /^[A-Za-z_$][\w$]*$/.test(step)
+          ? `${rendered}.${step}`
+          : `${rendered}[${JSON.stringify(step)}]`,
+    "$",
+  );
+}
 
 export interface CaseArtifact {
   schemaVersion: typeof CASE_SCHEMA_VERSION;
@@ -400,18 +461,18 @@ function parseCaseShape(value: unknown): CaseArtifact {
   const completion = value.completion;
   const eligibility = value.eligibility;
   const provenance = value.provenance;
-  const comparison = parseCaseComparison(value.comparison);
   if (
     typeof value.caseId !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.caseId) ||
     !isObject(completion) ||
-    comparison === undefined ||
     !isEligibilityEvidence(eligibility) ||
     !isCaseProvenance(provenance)
   ) {
     throw new Error("Malformed case artifact");
   }
   const canonicalCompletion = normalizeCanonicalCompletion(completion);
+  const comparison = parseCaseComparison(value.comparison, canonicalCompletion);
+  if (comparison === undefined) throw new Error("Malformed case artifact");
 
   const expectedCaseId = createCaseId(locator, canonicalArguments);
   if (value.caseId !== expectedCaseId) {
@@ -550,19 +611,56 @@ function normalizeReplayNode(value: unknown): CanonicalReplayValueNode {
   return encodeCanonicalValue(decodeCanonicalValue(value)) as CanonicalReplayValueNode;
 }
 
-function parseCaseComparison(value: unknown): CaseComparison | undefined {
+function isEpsilon(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Validated against the case's own completion, so a stored path can never fail
+ * to resolve at comparison time: an unresolvable or non-numeric path is a
+ * malformed artifact and is rejected here.
+ */
+function parseCaseComparison(value: unknown, completion: CanonicalCompletion): CaseComparison | undefined {
   if (value === "exact") return "exact";
-  if (
-    isObject(value) &&
-    value.kind === "tolerance" &&
-    typeof value.epsilon === "number" &&
-    Number.isFinite(value.epsilon) &&
-    value.epsilon > 0 &&
-    Object.keys(value).sort().join(",") === "epsilon,kind"
-  ) {
-    return { kind: "tolerance", epsilon: value.epsilon };
+  if (!isObject(value) || value.kind !== "tolerance") return undefined;
+  const available = numberLeafPaths(comparableCompletionValue(completion)).map((path) => JSON.stringify(path));
+
+  if (Object.keys(value).sort().join(",") === "epsilon,kind") {
+    // Superseded whole-completion form. Equivalent to naming the leaf only when
+    // there is exactly one; otherwise the reviewer's intent cannot be recovered.
+    if (!isEpsilon(value.epsilon)) return undefined;
+    if (available.length !== 1) {
+      throw new Error(
+        available.length === 0
+          ? "Tolerance comparison requires a number leaf in the completion"
+          : `Whole-completion tolerance is no longer supported: this case has ${available.length} number leaves, so the tolerated leaf must be named explicitly. Re-review the case to choose it.`,
+      );
+    }
+    return { kind: "tolerance", leaves: [{ path: JSON.parse(available[0]!) as (string | number)[], epsilon: value.epsilon }] };
   }
-  return undefined;
+
+  if (Object.keys(value).sort().join(",") !== "kind,leaves" || !Array.isArray(value.leaves) || value.leaves.length === 0) {
+    return undefined;
+  }
+  const seen = new Set<string>();
+  const leaves: ToleranceLeaf[] = [];
+  for (const entry of value.leaves) {
+    if (
+      !isObject(entry) ||
+      Object.keys(entry).sort().join(",") !== "epsilon,path" ||
+      !isEpsilon(entry.epsilon) ||
+      !Array.isArray(entry.path) ||
+      !entry.path.every((step) => typeof step === "string" || (Number.isSafeInteger(step) && Number(step) >= 0))
+    ) return undefined;
+    const key = JSON.stringify(entry.path);
+    if (seen.has(key)) throw new Error(`Tolerance names ${formatLeafPath(entry.path as (string | number)[])} more than once`);
+    if (!available.includes(key)) {
+      throw new Error(`Tolerance path ${formatLeafPath(entry.path as (string | number)[])} does not name a number leaf of this completion`);
+    }
+    seen.add(key);
+    leaves.push({ path: [...(entry.path as (string | number)[])], epsilon: entry.epsilon });
+  }
+  return { kind: "tolerance", leaves };
 }
 
 function isEligibilityEvidence(value: unknown): value is EligibilityEvidence {

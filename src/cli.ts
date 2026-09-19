@@ -24,6 +24,7 @@ import {
   createCandidate,
   isObject,
   parseCandidate,
+  formatLeafPath,
   parseCase,
   validateSourceDiagnostic,
   type CandidateArtifact,
@@ -39,7 +40,9 @@ import {
   formatCandidateReview,
   parseReviewDecision,
   parseToleranceEpsilon,
+  parseToleranceSelection,
   retainAssumptionRefreshCandidates,
+  toleranceChoices,
 } from "./review.js";
 import {
   describePackageCatalogFailure,
@@ -452,14 +455,16 @@ async function review(): Promise<number> {
         continue;
       }
       if (answer === "accept-tolerance") {
-        stdout.write("Epsilon (finite positive number, e.g. 1e-9): ");
-        const epsilonDecision = await decisions.next();
-        const epsilon = parseToleranceEpsilon(epsilonDecision.done ? "" : epsilonDecision.value);
-        if (epsilon === undefined) {
-          console.error(`Invalid or missing epsilon; retained ${current.candidate.caseId}`);
+        const comparison = await chooseTolerance(root, current, async (prompt) => {
+          stdout.write(prompt);
+          const answer = await decisions.next();
+          return answer.done ? "" : answer.value;
+        });
+        if (comparison === undefined) {
+          console.error(`Tolerance not recorded; retained ${current.candidate.caseId}`);
           return 2;
         }
-        await acceptPendingCandidate(root, pendingDirectory, current, { kind: "tolerance", epsilon });
+        await acceptPendingCandidate(root, pendingDirectory, current, comparison);
         index += 1;
         continue;
       }
@@ -512,7 +517,62 @@ async function acceptPendingCandidate(
     throw new Error(`STORE_WRITE_FAILED CASE_WRITE_FAILED: ${errorMessage(error)}`);
   }
   await unlink(path.join(pendingDirectory, entry.filename));
-  console.log(`Accepted ${artifact.caseId}${comparison ? ` (tolerance epsilon ${comparison.epsilon})` : ""}`);
+  console.log(`Accepted ${artifact.caseId}${comparison ? ` (tolerance ${describeTolerance(comparison)})` : ""}`);
+}
+
+function describeTolerance(comparison: ToleranceComparison): string {
+  return comparison.leaves.map((leaf) => `${formatLeafPath(leaf.path)} +/-${leaf.epsilon}`).join(", ");
+}
+
+/**
+ * Tolerance is chosen one named leaf at a time. The leaves that actually
+ * changed are pre-selected, so the shortest answer loosens only what drifted;
+ * widening anything else takes a deliberate selection.
+ */
+async function chooseTolerance(
+  root: string,
+  entry: PendingReviewEntry,
+  ask: (prompt: string) => Promise<string>,
+): Promise<ToleranceComparison | undefined> {
+  const existingText = await readTextIfPresent(
+    path.join(root, ".replaylock", "cases", `${entry.candidate.caseId}.json`),
+  );
+  const existing = existingText === undefined ? undefined : parseCase(existingText);
+  const choices = toleranceChoices(entry.candidate, existing);
+  if (choices.length === 0) {
+    console.error("This completion has no number leaf; tolerance does not apply");
+    return undefined;
+  }
+
+  let selected = choices;
+  if (choices.length > 1) {
+    for (const [index, choice] of choices.entries()) {
+      console.log(`  [${index}] ${choice.display} = ${choice.value}${choice.differs ? "  (changed)" : ""}`);
+    }
+    const preselected = choices.filter((choice) => choice.differs);
+    const hint = preselected.length > 0
+      ? `blank = the changed leaf(s) ${preselected.map((choice) => choice.display).join(", ")}`
+      : "no leaf changed, so a selection is required";
+    const chosen = parseToleranceSelection(await ask(`Which leaf may drift? (comma-separated indexes; ${hint}) `), choices);
+    if (!chosen) {
+      console.error("No tolerance leaf selected");
+      return undefined;
+    }
+    selected = chosen;
+  }
+
+  const leaves = [];
+  for (const choice of selected) {
+    const epsilon = parseToleranceEpsilon(
+      await ask(`Epsilon for ${choice.display} (recorded ${choice.value}, finite positive, e.g. 1e-9): `),
+    );
+    if (epsilon === undefined) {
+      console.error(`Invalid or missing epsilon for ${choice.display}`);
+      return undefined;
+    }
+    leaves.push({ path: choice.path, epsilon });
+  }
+  return { kind: "tolerance", leaves };
 }
 
 /**

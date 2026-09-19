@@ -40,13 +40,14 @@ test("review accepts a candidate with an explicit tolerance and the choice is vi
     const candidate = makeCandidate("average", [1, 2], 1);
     await writePending(project, [candidate]);
 
+    // One number leaf, so there is nothing to select: straight to the epsilon.
     const reviewed = runReview(project, "t\n0.001\n");
     assert.equal(reviewed.status, 0, output(reviewed));
-    assert.match(output(reviewed), /Accepted [a-f0-9]{64} \(tolerance epsilon 0\.001\)/);
+    assert.match(output(reviewed), /Accepted [a-f0-9]{64} \(tolerance \$ \+\/-0\.001\)/);
 
     const cases = await caseArtifacts(project);
     assert.equal(cases.length, 1);
-    assert.deepEqual(cases[0].comparison, { kind: "tolerance", epsilon: 0.001 });
+    assert.deepEqual(cases[0].comparison, { kind: "tolerance", leaves: [{ path: [], epsilon: 0.001 }] });
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -72,14 +73,48 @@ test("parseCase round-trips both exact and tolerance comparison shapes", () => {
   assert.equal(exact.comparison, "exact");
 
   const tolerant = toArtifact(makeCandidate("plain", [1], 2));
-  tolerant.comparison = { kind: "tolerance", epsilon: 0.5 };
+  tolerant.comparison = { kind: "tolerance", leaves: [{ path: [], epsilon: 0.5 }] };
   const reparsed = parseCase(artifactJson(tolerant));
-  assert.deepEqual(reparsed.comparison, { kind: "tolerance", epsilon: 0.5 });
+  assert.deepEqual(reparsed.comparison, { kind: "tolerance", leaves: [{ path: [], epsilon: 0.5 }] });
 
-  assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", epsilon: -1 } })));
-  assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", epsilon: 0 } })));
+  assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", leaves: [{ path: [], epsilon: -1 }] } })));
+  assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", leaves: [{ path: [], epsilon: 0 }] } })));
+  assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", leaves: [] } })));
   assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance" } })));
   assert.throws(() => parseCase(artifactJson({ ...tolerant, comparison: "not-exact" })));
+
+  // A path must name a real number leaf of this case's own completion, so a
+  // stored path can never fail to resolve during comparison.
+  assert.throws(
+    () => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", leaves: [{ path: ["nope"], epsilon: 0.5 }] } })),
+    /does not name a number leaf/,
+  );
+  assert.throws(
+    () => parseCase(artifactJson({ ...tolerant, comparison: { kind: "tolerance", leaves: [{ path: [], epsilon: 1 }, { path: [], epsilon: 2 }] } })),
+    /more than once/,
+  );
+});
+
+test("the superseded whole-completion epsilon migrates only when one leaf makes it unambiguous", () => {
+  const single = toArtifact(makeCandidate("plain", [1], 2));
+  single.comparison = { kind: "tolerance", epsilon: 0.5 };
+  assert.deepEqual(
+    parseCase(artifactJson(single)).comparison,
+    { kind: "tolerance", leaves: [{ path: [], epsilon: 0.5 }] },
+    "one number leaf makes the old and new forms the same comparator",
+  );
+
+  const many = toArtifact(makeCandidate("pair", [1], { a: 1, b: 2 }));
+  many.comparison = { kind: "tolerance", epsilon: 0.5 };
+  assert.throws(
+    () => parseCase(artifactJson(many)),
+    /2 number leaves, so the tolerated leaf must be named explicitly/,
+    "the reviewer's intent is unrecoverable, so the case must be re-reviewed",
+  );
+
+  const none = toArtifact(makeCandidate("text", [1], "no numbers here"));
+  none.comparison = { kind: "tolerance", epsilon: 0.5 };
+  assert.throws(() => parseCase(artifactJson(none)), /requires a number leaf/);
 });
 
 test("verify passes a tolerant case within epsilon, fails one outside it, and still requires exact equality for non-numeric parts", async () => {
@@ -105,7 +140,7 @@ export function summarize(value) {
       runtimeProfile,
     }, digestB);
     const artifact = toArtifact(candidate);
-    artifact.comparison = { kind: "tolerance", epsilon: 0.01 };
+    artifact.comparison = { kind: "tolerance", leaves: [{ path: ["total"], epsilon: 0.01 }] };
     await writeFile(path.join(project, ".replaylock", "cases", `${candidate.caseId}.json`), artifactJson(artifact));
 
     await writeFile(path.join(project, "src", "calculation.ts"), sourceFor(0.005));
@@ -153,6 +188,77 @@ test("an existing exact-comparison case is completely unaffected and needs no mi
     );
     const regressed = runVerify(project);
     assert.equal(regressed.status, 1, output(regressed), "an exact case must not silently tolerate any drift");
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+// Regression: a single epsilon once applied to every number leaf in the
+// completion, so an epsilon sized for a large-magnitude field silently admitted
+// changes in small siblings. `verify` reported a real regression as verified.
+test("an epsilon pinned to one leaf never widens a sibling", async () => {
+  const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-tolerance-scope-"));
+  try {
+    await mkdir(path.join(project, "src"));
+    await mkdir(path.join(project, ".replaylock", "cases"), { recursive: true });
+    await writeFile(path.join(project, "package.json"), `${JSON.stringify({ name: "scope-fixture", private: true, type: "module" })}\n`);
+    await writeFile(path.join(project, "package-lock.json"), `${JSON.stringify({ lockfileVersion: 3 })}\n`);
+    const source = (totalCents, itemCount) => `/** @replaylock capture */
+export function invoice() {
+  return { totalCents: ${totalCents}, itemCount: ${itemCount} };
+}
+`;
+    await writeFile(path.join(project, "src", "calculation.ts"), source(1000000, 3));
+
+    const candidate = createCandidate({
+      token: "t".repeat(64),
+      locator: { module: "src/calculation.ts", exportName: "invoice" },
+      arguments: [],
+      completion: { kind: "return", value: { totalCents: 1000000, itemCount: 3 } },
+      sourceGraphDigest: digestA,
+      runtimeProfile,
+    }, digestB);
+    const artifact = toArtifact(candidate);
+    // An epsilon a reviewer would plausibly pick to absorb cent-level drift on
+    // a 1,000,000-cent total -- far larger than the item count itself.
+    artifact.comparison = { kind: "tolerance", leaves: [{ path: ["totalCents"], epsilon: 100 }] };
+    const casePath = path.join(project, ".replaylock", "cases", `${candidate.caseId}.json`);
+    await writeFile(casePath, artifactJson(artifact));
+
+    // Drift at the named leaf is admitted.
+    await writeFile(path.join(project, "src", "calculation.ts"), source(1000050, 3));
+    assert.equal(runVerify(project).status, 0, "drift at the tolerated leaf must pass");
+
+    // The same magnitude of change at an unnamed sibling is a regression.
+    await writeFile(path.join(project, "src", "calculation.ts"), source(1000000, 4));
+    const sibling = runVerify(project);
+    assert.equal(sibling.status, 1, output(sibling), "a sibling change must not inherit the epsilon");
+    assert.match(output(sibling), /OUTPUT_MISMATCH/);
+    assert.match(output(sibling), /itemCount/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("review names the drifting leaf and pre-selects the one that actually changed", async () => {
+  const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-tolerance-select-"));
+  try {
+    const candidate = makeCandidate("pair", [1], { alpha: 10, beta: 20 });
+    await writePending(project, [candidate]);
+
+    // Two leaves and no accepted case to diff against, so a blank selection is
+    // refused and an explicit index is required.
+    const blank = runReview(project, "t\n\n");
+    assert.equal(blank.status, 2, output(blank));
+    assert.match(output(blank), /No tolerance leaf selected/);
+    assert.equal((await pendingFiles(project)).length, 1, "nothing may be accepted without a named leaf");
+
+    const chosen = runReview(project, "t\n1\n0.5\n");
+    assert.equal(chosen.status, 0, output(chosen));
+    assert.match(output(chosen), /\[0\] \$\.alpha = 10/);
+    assert.match(output(chosen), /\[1\] \$\.beta = 20/);
+    const cases = await caseArtifacts(project);
+    assert.deepEqual(cases[0].comparison, { kind: "tolerance", leaves: [{ path: ["beta"], epsilon: 0.5 }] });
   } finally {
     await rm(project, { recursive: true, force: true });
   }

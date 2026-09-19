@@ -92,7 +92,13 @@ replaylock verify
 
 ### Comparison modes
 
-Every case compares with exact equality by default. During `review`, a fifth answer, `t` (accept with numeric tolerance), prompts for a finite positive epsilon and persists `comparison: { kind: "tolerance", epsilon }` on that case instead of the default `comparison: "exact"` — an explicit, per-case, review-time decision; `record` never produces a tolerant case on its own. Within a tolerant case's completion, only number leaves compare within epsilon; every string, boolean, null, array length, record key, error name/message, and adapted-value identity still requires exact equality. This is additive to the existing schema (a string vs. an object is structurally distinguishable), so every previously accepted `"exact"` case remains valid and needs no migration.
+Every case compares with exact equality by default. During `review`, a fifth answer, `t` (accept with numeric tolerance), lets a reviewer name **individual number leaves** of the completion that may drift and give each one its own epsilon. It persists `comparison: { kind: "tolerance", leaves: [{ path, epsilon }] }` instead of the default `comparison: "exact"` — an explicit, per-case, review-time decision; `record` never produces a tolerant case on its own.
+
+A `path` addresses one number leaf inside the completion value: each step is a record key (string) or an array index (number), and an empty path is the completion value itself. Review lists the available leaves and pre-selects the ones that actually changed, so the shortest answer loosens only what drifted.
+
+Tolerance never applies to anything the reviewer did not name. Every other number leaf, and every string, boolean, null, array length, record key, error name/message, and adapted-value identity, still requires exact equality. Adapted payloads are always exact: an adapted value's equality is defined by its adapter, whose round trip is already byte-identical.
+
+Naming the leaf is what makes this sound. A single epsilon shared across a whole completion is unsafe in both directions — one sized for a large field silently admits real changes in small siblings, and one sized for a small field is meaningless for large ones. The superseded `{ kind: "tolerance", epsilon }` form is still accepted and migrated automatically when the completion has exactly one number leaf, because there the two are provably the same comparator; with more than one leaf the reviewer's intent cannot be recovered and the case is rejected with `CASE_SCHEMA_UNSUPPORTED` so it can be re-reviewed. Accepted `"exact"` cases are untouched and need no migration.
 
 ## Scan
 

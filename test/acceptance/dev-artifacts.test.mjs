@@ -171,7 +171,7 @@ test("human review supports exact, tolerance, per-file batches and a shared iter
   assert.match(output(result), /UNCONSUMED next-reader/);
   const accepted = (await acceptedFiles(project)).map(item => parseDevCase(item.text));
   assert.equal(accepted.length, 3);
-  assert.deepEqual(accepted.find(item => item.caseId === c.caseId).comparison, { kind: "tolerance", epsilon: 0.01 });
+  assert.deepEqual(accepted.find(item => item.caseId === c.caseId).comparison, { kind: "tolerance", leaves: [{ path: [], epsilon: 0.01 }] });
   assert.equal(accepted.find(item => item.caseId === a.caseId).comparison, "exact");
   assert.deepEqual(await pendingFiles(project), []);
 });
@@ -255,7 +255,7 @@ test("isolated replay respects tolerance and throw completions, and invokes priv
 export function owner() { function nested(value) { if (value < 0) throw new RangeError('negative'); return value + 1; } throw new Error('owner must not run'); }
 `);
   const local = toDevCase(candidate({ locator: { module: "src/target.mjs", kind: "local", namePath: ["privateTarget"] }, trace: [], completion: { kind: "return", value: encodeDevValue(2) } }));
-  local.comparison = { kind: "tolerance", epsilon: 0.01 };
+  local.comparison = { kind: "tolerance", leaves: [{ path: [], epsilon: 0.01 }] };
   const nested = toDevCase(candidate({ locator: { module: "src/target.mjs", kind: "nested", namePath: ["owner", "nested"] }, trace: [], arguments: encodeDevValue([-1]), completion: { kind: "throw", value: encodeDevValue(new RangeError("negative")) } }));
   const verified = runVerify(project, [local, nested]);
   assert.equal(verified.status, 0, output(verified));

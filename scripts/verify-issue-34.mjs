@@ -24,8 +24,13 @@ if (scenario === "all") {
 async function verifyDocs() {
   const readme = await readFile(path.join(root, "README.md"), "utf8");
   assert.match(readme, /Comparison modes/, "README must document comparison modes");
-  assert.match(readme, /kind: "tolerance", epsilon/, "README must show the tolerance shape");
-  assert.match(readme, /needs no migration/, "README must state the no-migration decision");
+  // The whole-completion epsilon this issue shipped was superseded: one epsilon
+  // applied to every number leaf, so an epsilon sized for a large field silently
+  // admitted real changes in small siblings. Tolerance now names each leaf.
+  assert.match(readme, /kind: "tolerance", leaves: \[\{ path, epsilon \}\]/, "README must show the per-leaf tolerance shape");
+  assert.match(readme, /never applies to anything the reviewer did not name/, "README must state that tolerance cannot leak to an unnamed leaf");
+  assert.match(readme, /need no migration/, "README must state the no-migration decision for exact cases");
+  assert.match(readme, /migrated automatically when the completion has exactly one number leaf/, "README must state when the superseded form still migrates");
 }
 
 function run(command, arguments_) {
