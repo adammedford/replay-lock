@@ -102,6 +102,21 @@ replaylock scan
 
 `scan` reports capture eligibility for every directly exported function across the project, whether or not it already carries a `@replaylock` directive, using the same source-policy and call-graph analysis `record`'s preflight runs. It launches no Vitest process, requires no Vite configuration, writes nothing under `.replaylock/`, and always exits `0`: it is a report, not a gate. Each line names the export's status — `SCAN_ELIGIBLE`, `SCAN_NEEDS_REVIEW` (unknown effects, no retained assumption), `SCAN_INELIGIBLE` (refuted, with the leading reason code), `SCAN_UNSUPPORTED_SHAPE`, or `SCAN_EXCLUDED` — followed by a project-wide summary count. Use it before wiring the Vite plugin into Vitest at all, to see how much of a codebase is worth annotating.
 
+### Supported captured values
+
+Arguments and completions must fit ReplayLock's built-in canonical model: `null`,
+booleans, finite numbers, strings, dense arrays, and ordinary plain records, plus any
+class covered by a registered [Value Adapter](docs/value-adapters.md). Everything else
+is blocked as `UNSUPPORTED_VALUE` rather than approximated, including `undefined`
+(so a `void` return is never captured), `NaN`, negative zero, cyclic or repeated
+references, proxies, and sparse arrays.
+
+A thrown value may additionally be one of the standard error types, compared by exact
+name and message. An `AggregateError` is supported only when its `errors` list is
+empty: nested error content is never encoded, so accepting a populated aggregate would
+make two aggregates with entirely different causes compare equal and hide a real change
+from `verify`.
+
 ## Artifacts and privacy
 
 Pending candidates live under `.replaylock/observations/pending/`; blocked reports and session data remain under `.replaylock/observations/`. They are ignored by Git, written with owner-only permissions where supported, and may be incomplete after interrupted recording. Accepted cases are deterministic, versioned JSON under `.replaylock/cases/*.json`; they contain the locator, canonical arguments and completion, exact comparison contract, eligibility evidence, source and lockfile provenance, and runtime profile, but not timestamps, commands, environment variables, worker IDs, or occurrence counts. Verification and adapter-validation scratch data under `.replaylock/verify/`, `.replaylock/validate/`, and `.replaylock/catalog/` is ephemeral and ignored.
@@ -128,7 +143,7 @@ Stable uppercase diagnostic codes are the machine-routable part of terminal repo
 - Accepted-case replay: `CASE_SCHEMA_UNSUPPORTED`, `ORPHANED_CALLABLE`, `COMPLETION_KIND_MISMATCH`, `OUTPUT_MISMATCH`.
 - Public replay and storage routing: `REPLAY_SAFETY_REGRESSION` identifies an accepted case that is no longer safe to invoke and retains reasons such as `CAPTURE_POLICY_CHANGED`, `UNSUPPORTED_CALLABLE`, `EFFECT_REFUTED`, `MISSING_ASSUMPTION`, or `STALE_ASSERTION`; `STORE_WRITE_FAILED` identifies an atomic pending-session or accepted-case write that could not be completed and retains the failed write stage.
 - Public Value Adapter routing: `VALUE_ADAPTER_INVALID`, `VALUE_ADAPTER_ID_CONFLICT`, `VALUE_ADAPTER_PROTOTYPE_CONFLICT`, `VALUE_ADAPTER_SERIALIZE_FAILED`, `VALUE_ADAPTER_PAYLOAD_UNSUPPORTED`, `VALUE_ADAPTER_MISSING`, `VALUE_ADAPTER_DESERIALIZE_FAILED`, `VALUE_ADAPTER_DESERIALIZE_TYPE_MISMATCH`, `VALUE_ADAPTER_VERSION_MISMATCH`, `VALUE_ADAPTER_VALIDATION_TIMEOUT`, and `VALUE_ADAPTER_ROUNDTRIP_MISMATCH`.
-- Public Trusted Package routing: `TRUSTED_PACKAGE_INVALID` retains `TRUSTED_PACKAGE_CONFIG_LOAD_FAILED` or `TRUSTED_PACKAGE_REGISTRY_FAILED`, and a registry failure retains the granular cause: `TRUSTED_PACKAGE_DEFINITION_INVALID`, `TRUSTED_PACKAGE_ID_DUPLICATE`, or `TRUSTED_PACKAGE_VERSION_RANGE_INVALID`. `TRUSTED_PACKAGE_CALL` is the evidence code a catalogued call contributes; it is never an error.
+- Public Trusted Package routing: `TRUSTED_PACKAGE_INVALID` retains `TRUSTED_PACKAGE_CONFIG_LOAD_FAILED`, `TRUSTED_PACKAGE_REGISTRY_FAILED`, or `TRUSTED_PACKAGE_VALIDATION_TIMEOUT`, and a registry failure retains the granular cause: `TRUSTED_PACKAGE_DEFINITION_INVALID`, `TRUSTED_PACKAGE_ID_DUPLICATE`, or `TRUSTED_PACKAGE_VERSION_RANGE_INVALID`. `TRUSTED_PACKAGE_CALL` is the evidence code a catalogued call contributes; it is never an error.
 
 Adapter diagnostics likewise retain the existing granular cause. For example, invalid definitions may retain `VALUE_ADAPTER_DEFINITION_INVALID`, `VALUE_ADAPTER_ID_INVALID`, `VALUE_ADAPTER_VERSION_INVALID`, `VALUE_ADAPTER_TOKEN_INVALID`, or `VALUE_ADAPTER_BUILTIN_PROTOTYPE`; conflicts retain `VALUE_ADAPTER_ID_DUPLICATE` or `VALUE_ADAPTER_PROTOTYPE_DUPLICATE`; and reconstruction type failures retain `VALUE_ADAPTER_PROTOTYPE_MISMATCH`. A serializer payload outside the built-in canonical model reports `VALUE_ADAPTER_PAYLOAD_UNSUPPORTED`; an unadapted runtime class remains the ordinary `UNSUPPORTED_VALUE`. A persisted adapted node distinguishes an absent registered ID (`VALUE_ADAPTER_MISSING`) from the same ID at the wrong version (`VALUE_ADAPTER_VERSION_MISMATCH`).
 

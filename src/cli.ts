@@ -42,11 +42,11 @@ import {
   retainAssumptionRefreshCandidates,
 } from "./review.js";
 import {
+  describePackageCatalogFailure,
   replayAcceptedCases,
   resolveProjectPackageCatalog,
   validateProjectAdapters,
   type AdapterValidation,
-  type PackageCatalogResolution,
 } from "./project-execution.js";
 import {
   preflightAcceptedCases,
@@ -113,7 +113,7 @@ async function record(arguments_: string[]): Promise<number> {
 
   const catalogResolution = await resolveProjectPackageCatalog(root, "recording");
   if (!catalogResolution.ok) {
-    console.error(`${formatPackageCatalogFailure(catalogResolution)}: project trusted-package catalog is invalid`);
+    console.error(describePackageCatalogFailure(catalogResolution));
     return 2;
   }
   const packageCatalog = catalogResolution.catalog ?? emptyPackageCatalog;
@@ -268,7 +268,7 @@ async function record(arguments_: string[]): Promise<number> {
         .map((state) => state.block);
       for (const candidate of candidates) {
         const candidatePath = path.join(pendingDirectory, `${candidate.caseId}.json`);
-        await atomicWrite(candidatePath, artifactJson(candidate));
+        await atomicWrite(candidatePath, artifactJson(candidate), { durable: true });
       }
       for (const block of blocks) {
         if (block.code === "OBSERVED_NONDETERMINISM" && block.caseId) {
@@ -280,6 +280,7 @@ async function record(arguments_: string[]): Promise<number> {
         await atomicWrite(
           path.join(root, ".replaylock", "observations", "blocked", `${identity}.json`),
           `${JSON.stringify({ state: "blocked", block }, null, 2)}\n`,
+          { durable: true },
         );
         console.log(`${block.code} ${block.locator.module}#${block.locator.exportName}`);
       }
@@ -398,12 +399,6 @@ function formatAdapterValidation(validation: AdapterValidation): string {
     return `VALUE_ADAPTER_INVALID ${code}`;
   }
   return code;
-}
-
-function formatPackageCatalogFailure(resolution: PackageCatalogResolution): string {
-  const code = resolution.code ?? "TRUSTED_PACKAGE_REGISTRY_FAILED";
-  if (resolution.detailCode) return `TRUSTED_PACKAGE_INVALID ${code} ${resolution.detailCode}`;
-  return `TRUSTED_PACKAGE_INVALID ${code}`;
 }
 
 function formatUnhandledDiagnostic(error: unknown): string {

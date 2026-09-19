@@ -119,7 +119,9 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
       });
       status = Math.max(status, result);
     }
-  } finally { await rm(temporary, { recursive: true, force: true }); }
+    // Cleanup runs in a `finally` and must not throw: `force` ignores a missing
+    // directory but not EBUSY/EPERM, routine on Windows while child handles drain.
+  } finally { try { await rm(temporary, { recursive: true, force: true }); } catch { /* ephemeral scratch */ } }
   return status;
 }
 

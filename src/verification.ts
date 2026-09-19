@@ -1,14 +1,14 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { createAssumptionFingerprint, hasRefutingEvidence } from "./assumptions.js";
+import { checkAssumptionFreshness, hasRefutingEvidence } from "./assumptions.js";
 import { analyzeProjectCallGraph, type CallGraphAnalysis } from "./call-graph.js";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
 import { INTRINSIC_CATALOG_VERSION } from "./effect-analyzer.js";
 import { parseCase, type CaseArtifact } from "./model.js";
 import { emptyPackageCatalog, type PackageCatalog } from "./package-catalog.js";
 import { readProjectLockfile, type ProjectLockfile } from "./project-lockfile.js";
-import { resolveProjectPackageCatalog } from "./project-execution.js";
+import { describePackageCatalogFailure, resolveProjectPackageCatalog } from "./project-execution.js";
 import { typescriptScriptKind } from "./typescript-script-kind.js";
 
 export type VerificationPreflightCode =
@@ -47,10 +47,7 @@ export async function preflightAcceptedCases(
 ): Promise<CaseArtifact[]> {
   const parsed = inputs.map(({ filename, text }) => parseAcceptedCase(filename, text));
   const catalogResolution = await resolveProjectPackageCatalog(projectRoot, "replay");
-  if (!catalogResolution.ok) {
-    const detail = catalogResolution.detailCode ? ` ${catalogResolution.detailCode}` : "";
-    throw new Error(`TRUSTED_PACKAGE_INVALID ${catalogResolution.code}${detail}: project trusted-package catalog is invalid`);
-  }
+  if (!catalogResolution.ok) throw new Error(describePackageCatalogFailure(catalogResolution));
   const packageCatalog = catalogResolution.catalog ?? emptyPackageCatalog;
   let lockfile: ProjectLockfile | undefined;
   try {
@@ -195,9 +192,9 @@ function validateEligibility(projectRoot: string, target: PreparedTarget): void 
       "the reviewed source assumption was removed",
     );
   }
-  let fingerprint: string;
+  let freshness: ReturnType<typeof checkAssumptionFreshness>;
   try {
-    fingerprint = createAssumptionFingerprint({
+    freshness = checkAssumptionFreshness(assumption, {
       modules,
       analysis,
       projectRoot,
@@ -211,8 +208,12 @@ function validateEligibility(projectRoot: string, target: PreparedTarget): void 
       "current fingerprint inputs are missing or ambiguous",
     );
   }
+  // The fingerprint alone is not sufficient. It is recomputed from the *current*
+  // analyzer and catalog versions, so a stored artifact whose recorded versions
+  // disagree with the evidence it claims -- a hand-edited or corrupted case --
+  // would still fingerprint clean. Both are checked.
   if (
-    fingerprint !== assumption.fingerprint ||
+    !freshness.fresh ||
     assumption.analyzerVersion !== analysis.analyzerVersion ||
     assumption.intrinsicCatalogVersion !== INTRINSIC_CATALOG_VERSION
   ) {

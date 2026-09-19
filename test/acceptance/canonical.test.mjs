@@ -186,7 +186,7 @@ test("canonical completions distinguish returns, thrown values, and standard err
     new SyntaxError("syntax"),
     new TypeError("type"),
     new URIError("uri"),
-    new AggregateError([new Error("nested")], "aggregate"),
+    new AggregateError([], "aggregate"),
   ];
   for (const error of errors) {
     const encoded = encodeCanonicalCompletion({ kind: "throw", value: error });
@@ -202,6 +202,14 @@ test("canonical completions distinguish returns, thrown values, and standard err
     assert.equal(Object.getPrototypeOf(decoded.value), Object.getPrototypeOf(error));
     assert.equal(decoded.value.message, error.message);
   }
+
+  // `errors` is never encoded, so an aggregate that carries causes must fail
+  // closed. Dropping it silently made two AggregateErrors with entirely
+  // different causes compare equal, hiding a real change from verification.
+  assert.throws(
+    () => encodeCanonicalCompletion({ kind: "throw", value: new AggregateError([new Error("nested")], "aggregate") }),
+    /AggregateError aggregated errors are unsupported/,
+  );
 });
 
 test("completion input accessors are rejected before they execute", () => {

@@ -131,7 +131,7 @@ export async function acceptReviewedCandidate(
 ): Promise<CaseArtifact> {
   const artifact = toCaseArtifact(candidate);
   const withComparison = comparison ? { ...artifact, comparison } : artifact;
-  await atomicWrite(casePath, artifactJson(withComparison));
+  await atomicWrite(casePath, artifactJson(withComparison), { durable: true });
   return withComparison;
 }
 

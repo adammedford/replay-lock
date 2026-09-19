@@ -248,8 +248,14 @@ export function evaluateAssumption(
   });
 }
 
+/**
+ * Only the recorded fingerprint is compared; the analyzer and intrinsic-catalog
+ * versions are already hashed into it. Takes the minimum shape so every gate --
+ * the reviewed-assumption API here and the accepted-case preflight in
+ * verification.ts -- decides freshness with this one definition.
+ */
 export function checkAssumptionFreshness(
-  assumption: ReviewedAssumption,
+  assumption: Pick<ReviewedAssumption, "fingerprint">,
   input: AssumptionFingerprintInput,
 ): AssumptionFreshness {
   const actualFingerprint = createAssumptionFingerprint(input);

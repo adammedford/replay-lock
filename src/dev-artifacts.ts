@@ -277,7 +277,7 @@ export async function persistDevObservations(root: string, observations: readonl
     result.candidates++;
   }
   for (const entry of remove) if (!pending.has(entry.caseId)) await unlink(path.join(pendingDirectory, `${entry.caseId}.json`));
-  for (const candidate of pending.values()) if (changedInputs.has(candidate.caseId)) await atomicWrite(path.join(pendingDirectory, `${candidate.caseId}.json`), devArtifactJson(candidate));
+  for (const candidate of pending.values()) if (changedInputs.has(candidate.caseId)) await atomicWrite(path.join(pendingDirectory, `${candidate.caseId}.json`), devArtifactJson(candidate), { durable: true });
   result.blocked = result.blocks.length;
   return result;
 }
@@ -336,7 +336,7 @@ export async function reviewDevCandidates(root: string, decisions?: AsyncIterato
         artifact = { ...artifact, comparison: { kind: "tolerance", epsilon } };
       }
       if (existing && (await next("Replace accepted case? Type replace: ")).trim().toLowerCase() !== "replace") { console.error(`Replacement not confirmed; retained ${candidate.caseId}`); return 2; }
-      await atomicWrite(casePath, devArtifactJson(artifact));
+      await atomicWrite(casePath, devArtifactJson(artifact), { durable: true });
       await unlink(pendingPath);
       console.log(`Accepted ${candidate.caseId}${artifact.comparison === "exact" ? "" : ` (tolerance epsilon ${artifact.comparison.epsilon})`}`);
       if (decision === "accept-remaining-in-file") batch.add(candidate.locator.module);

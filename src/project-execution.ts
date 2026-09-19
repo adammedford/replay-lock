@@ -88,7 +88,10 @@ export async function validateProjectAdapters(
       : { ok: false, code: "VALUE_ADAPTER_VALIDATOR_FAILED" }];
 }
 
-export type PackageCatalogFailureCode = "TRUSTED_PACKAGE_CONFIG_LOAD_FAILED" | "TRUSTED_PACKAGE_REGISTRY_FAILED";
+export type PackageCatalogFailureCode =
+  | "TRUSTED_PACKAGE_CONFIG_LOAD_FAILED"
+  | "TRUSTED_PACKAGE_REGISTRY_FAILED"
+  | "TRUSTED_PACKAGE_VALIDATION_TIMEOUT";
 
 export interface PackageCatalogResolution {
   ok: boolean;
@@ -144,11 +147,44 @@ export async function resolveProjectPackageCatalog(
 
   try {
     const outcome = await runValidatorProcess(runnerPath, directory, environment);
+    // A timeout is not an invalid catalog. Booting a Vite server and SSR-loading
+    // the project config can exceed the budget on a cold or large project, and
+    // reporting that as TRUSTED_PACKAGE_REGISTRY_FAILED blamed the user's config
+    // for what is a machine-speed problem. Raise it with
+    // REPLAYLOCK_VALIDATION_TIMEOUT_MS.
+    if (outcome === "timeout") return { ok: false, code: "TRUSTED_PACKAGE_VALIDATION_TIMEOUT" };
     if (outcome !== "success") return { ok: false, code: "TRUSTED_PACKAGE_REGISTRY_FAILED" };
     const parsed = JSON.parse(await readFile(outputPath, "utf8")) as unknown;
     return parsePackageCatalogResolution(parsed);
   } finally {
+    await discardScratchDirectory(directory);
+  }
+}
+
+/**
+ * One definition of how a catalog failure is reported, shared by `record` and
+ * by verification preflight. The public code stays TRUSTED_PACKAGE_INVALID so
+ * CI routing is unchanged; the granular reason follows it.
+ */
+export function describePackageCatalogFailure(resolution: PackageCatalogResolution): string {
+  const code = resolution.code ?? "TRUSTED_PACKAGE_REGISTRY_FAILED";
+  const detail = resolution.detailCode ? ` ${resolution.detailCode}` : "";
+  const reason = code === "TRUSTED_PACKAGE_VALIDATION_TIMEOUT"
+    ? "trusted-package catalog validation did not finish in time; raise REPLAYLOCK_VALIDATION_TIMEOUT_MS"
+    : "project trusted-package catalog is invalid";
+  return `TRUSTED_PACKAGE_INVALID ${code}${detail}: ${reason}`;
+}
+
+/**
+ * Scratch cleanup runs in a `finally`, so it must not throw: `force` ignores a
+ * missing directory but not EBUSY/EPERM, which are routine on Windows while a
+ * child process's handles drain. A throw there would replace the real result.
+ */
+async function discardScratchDirectory(directory: string): Promise<void> {
+  try {
     await rm(directory, { recursive: true, force: true });
+  } catch {
+    // The scratch tree is ephemeral and ignored by Git; leaking it is harmless.
   }
 }
 
@@ -165,6 +201,17 @@ function parsePackageCatalogResolution(value: unknown): PackageCatalogResolution
   }
   return { ok: false, code: "TRUSTED_PACKAGE_REGISTRY_FAILED" };
 }
+
+/**
+ * Replay deliberately runs in a pristine Vitest process so a project's own test
+ * setup cannot influence a recorded completion. That isolation also means the
+ * project's Vite configuration is not applied, which is the usual reason a
+ * target module fails to load here but loads fine under `vitest run`.
+ */
+const ISOLATED_REPLAY_DIAGNOSTIC =
+  "Replay ran in an isolated Vitest process. The project's own Vite/Vitest configuration " +
+  "(aliases, `define`, transform plugins, setup files) is intentionally not applied, so a " +
+  "target that depends on it can fail to load here. See docs/troubleshooting.md.";
 
 export async function replayAcceptedCases(options: {
   root: string;
@@ -211,13 +258,16 @@ export async function replayAcceptedCases(options: {
       };
     }
     if (outcome.code !== 0) {
+      // No marker means the harness never reached a comparison, so this is not a
+      // behavioral result. The most common cause is a module that will not load
+      // under the isolated config, which is easy to mistake for a ReplayLock bug.
       return (await readTextIfPresent(behavioralFailurePath)) === undefined
-        ? { status: "infrastructure-failure" }
+        ? { status: "infrastructure-failure", diagnostic: ISOLATED_REPLAY_DIAGNOSTIC }
         : { status: "behavioral-failure" };
     }
     return { status: "verified", count: options.cases.length };
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await discardScratchDirectory(directory);
   }
 }
 
@@ -291,7 +341,7 @@ async function validateAdapterDocuments(
     }
     return parsed.map(parseAdapterValidation);
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await discardScratchDirectory(directory);
   }
 }
 
@@ -316,6 +366,20 @@ function containsAdaptedNode(value: unknown): boolean {
   return Object.values(value).some(containsAdaptedNode);
 }
 
+const DEFAULT_VALIDATION_TIMEOUT_MS = 5_000;
+
+/**
+ * Isolated validation boots a Vite server, which is not reliably a sub-second
+ * operation on a cold cache or a large project. The budget is overridable so a
+ * slow machine can raise it rather than fail the whole command.
+ */
+function validationTimeoutMs(): number {
+  const configured = Number(process.env.REPLAYLOCK_VALIDATION_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0
+    ? Math.min(configured, 600_000)
+    : DEFAULT_VALIDATION_TIMEOUT_MS;
+}
+
 function runValidatorProcess(
   runnerPath: string,
   root: string,
@@ -332,7 +396,7 @@ function runValidatorProcess(
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
-    }, 5_000);
+    }, validationTimeoutMs());
     child.once("error", (error) => {
       clearTimeout(timer);
       reject(error);

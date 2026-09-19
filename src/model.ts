@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import {
   decodeCanonicalCompletion,
@@ -310,11 +310,66 @@ export function artifactJson(value: CandidateArtifact | CaseArtifact): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function atomicWrite(filePath: string, contents: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+export interface AtomicWriteOptions {
+  /**
+   * Flush the file and its directory before returning. A rename is atomic for
+   * *visibility* only: on a crash the new name can survive while the bytes
+   * behind it do not. Flushing costs a real disk round trip, so it is opt-in and
+   * reserved for source-controlled artifacts -- accepted cases and pending
+   * candidates -- rather than the per-observation session state a recording
+   * session writes, which is already treated as partial when interrupted.
+   */
+  durable?: boolean;
+}
+
+/**
+ * Replace one file in place. The scratch file is always cleaned up when the
+ * write or rename fails, so a failure cannot litter the directory it targeted.
+ */
+export async function atomicWrite(
+  filePath: string,
+  contents: string,
+  options: AtomicWriteOptions = {},
+): Promise<void> {
+  const directory = path.dirname(filePath);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
-  await writeFile(temporaryPath, contents, { encoding: "utf8", mode: 0o600 });
-  await rename(temporaryPath, filePath);
+  try {
+    const handle = await open(temporaryPath, "w", 0o600);
+    try {
+      await handle.writeFile(contents, "utf8");
+      if (options.durable) await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    await discardTemporary(temporaryPath);
+    throw error;
+  }
+  if (options.durable) await syncDirectory(directory);
+}
+
+async function discardTemporary(temporaryPath: string): Promise<void> {
+  try {
+    await rm(temporaryPath, { force: true });
+  } catch {
+    // A scratch file that cannot be removed must not mask the original failure.
+  }
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  try {
+    const handle = await open(directory, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Directory handles cannot be opened on every platform (notably Windows).
+    // The rename is still atomic there; only the extra durability is lost.
+  }
 }
 
 export function normalizeModuleLocator(modulePath: string): string {
