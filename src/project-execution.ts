@@ -451,8 +451,13 @@ function verificationHarness(
       completion,
     }, { valueAdapters: valueAdapterRegistry });
   } finally {
+    // "write" is inherited from the stream prototype, so the saved descriptor is
+    // normally undefined. Deleting the stub own property is what restores it;
+    // a bare "if (saved)" would leave stdout and stderr muted for good.
     if (stdoutWrite) Object.defineProperty(process.stdout, "write", stdoutWrite);
+    else delete process.stdout.write;
     if (stderrWrite) Object.defineProperty(process.stderr, "write", stderrWrite);
+    else delete process.stderr.write;
   }
   if (!classified.safe) {
     failBehavior(classified.code === "VALUE_ADAPTER_SERIALIZE_FAILED" ? classified.code : ${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)},
@@ -460,7 +465,7 @@ function verificationHarness(
   }
   const actual = classified.observation.completion;
   if (!completionsMatch(expected, actual, ${comparisonMode})) {
-    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, firstDifference(expected, actual));
+    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, () => firstDifference(expected, actual));
   }
 });`;
   });
@@ -479,9 +484,15 @@ function verificationHarness(
       ? `const valueAdapterRegistry = createValueAdapterRegistry(replaylockConfiguration);`
       : `const valueAdapterRegistry = emptyValueAdapterRegistry;`,
     `const behavioralFailurePath = ${JSON.stringify(behavioralFailurePath)};`,
+    // The marker is appended before the detail string is built. Detail
+    // formatting must never be able to downgrade a behavioral failure into an
+    // infrastructure failure, so a lazy detail is also evaluated defensively.
     `function failBehavior(code, locator, detail) {`,
     `  appendFileSync(behavioralFailurePath, code + "\\n", { encoding: "utf8", mode: 0o600 });`,
-    `  throw new Error(code + " " + locator + ": " + detail);`,
+    `  let text;`,
+    `  try { text = typeof detail === "function" ? detail() : detail; }`,
+    `  catch { text = "difference detail unavailable"; }`,
+    `  throw new Error(code + " " + locator + ": " + text);`,
     `}`,
     // An opt-in, review-time-only decision (see acceptReviewedCandidate in
     // review.ts): number leaves compare within epsilon, every other kind
@@ -526,10 +537,19 @@ function verificationHarness(
     `  if (value.kind === "record") return "{" + value.entries.map((entry) => JSON.stringify(entry.key) + ": " + displayValue(entry.value)).join(", ") + "}";`,
     `  return "[canonical " + String(value.kind) + "]";`,
     `}`,
+    // A throw completion carries either "error" (a standard error) or "value"
+    // (any other thrown value). A case recorded as one and replayed as the
+    // other is a real regression, so it must be described, not indexed into.
     `function firstDifference(expected, actual) {`,
-    `  if (expected.kind === "throw" && expected.error && actual.error) {`,
+    `  if (expected.error || actual.error) {`,
+    `    if (!expected.error || !actual.error) {`,
+    `      return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
+    `    }`,
     `    if (expected.error.name !== actual.error.name) return "$.error.name: expected " + JSON.stringify(expected.error.name) + "; received " + JSON.stringify(actual.error.name);`,
     `    return "$.error.message: expected " + JSON.stringify(expected.error.message) + "; received " + JSON.stringify(actual.error.message);`,
+    `  }`,
+    `  if (!expected.value || !actual.value) {`,
+    `    return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
     `  }`,
     `  return valueDifference(expected.value, actual.value, "$");`,
     `}`,

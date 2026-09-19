@@ -35,6 +35,22 @@ export type DirectEffectReasonCode =
   | "DYNAMIC_EVALUATION"
   | "EFFECTFUL_INITIALIZATION";
 
+/**
+ * Effect classes whose meaning does not depend on the analyzed callable's own
+ * parameter, alias, or receiver bindings. Only these may be reported from
+ * inside a nested function body, where shadowed parameters and a rebound
+ * `this` would make mutation and receiver findings unreliable.
+ */
+const SCOPE_INDEPENDENT_EFFECT_CODES: ReadonlySet<DirectEffectReasonCode> = new Set<DirectEffectReasonCode>([
+  "CLOCK_ACCESS",
+  "RANDOMNESS",
+  "IO",
+  "ENVIRONMENT_DEPENDENCE",
+  "LOCALE_DEPENDENCE",
+  "LOGGING",
+  "DYNAMIC_EVALUATION",
+]);
+
 export interface EffectSourceLocation {
   source: string;
   line: number;
@@ -86,7 +102,11 @@ export function analyzeDirectEffects({
   const knownEffectAliases = collectKnownEffectAliases(callable, sourceFile);
   const ambientReadAliases = collectAmbientReadAliases(callable, sourceFile);
 
+  let nestedFunctionDepth = 0;
   const report = (code: DirectEffectReasonCode, node: ts.Node, message: string): void => {
+    // Inside a nested function body the binding sets above describe the wrong
+    // scope, so only the scope-independent effect classes are trustworthy.
+    if (nestedFunctionDepth > 0 && !SCOPE_INDEPENDENT_EFFECT_CODES.has(code)) return;
     const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
     findings.push({ code, source, line: start.line + 1, column: start.character + 1, message });
   };
@@ -100,7 +120,21 @@ export function analyzeDirectEffects({
   }
 
   const visit = (node: ts.Node): void => {
-    if (node !== callable && isFunctionLike(node)) return;
+    if (node !== callable && isFunctionLike(node)) {
+      // A clock, randomness, IO, environment, locale, logging, or dynamic-eval
+      // call written inside a nested function is lexically certain whenever that
+      // function runs. Stopping here let such an effect be reported only as the
+      // enclosing higher-order call being unresolvable -- an UNKNOWN_CALL, which
+      // `@replaylock assume-pure` is allowed to discharge. Descend so the effect
+      // refutes instead.
+      nestedFunctionDepth += 1;
+      try {
+        ts.forEachChild(node, visit);
+      } finally {
+        nestedFunctionDepth -= 1;
+      }
+      return;
+    }
     if (node !== callable && (ts.isClassDeclaration(node) || ts.isClassExpression(node))) {
       visitClassRuntime(node, visit);
       return;

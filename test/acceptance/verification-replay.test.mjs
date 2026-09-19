@@ -148,6 +148,76 @@ export function target(value: number): number { return increment(value); }
   });
 });
 
+// Regression: a throw completion carries either `error` (a standard error) or
+// `value` (any other thrown value). Detail formatting used to index `.value`
+// unconditionally and threw a TypeError while building `failBehavior`'s
+// arguments, so the behavioral-failure marker was never written and a real
+// regression surfaced as an infrastructure failure (exit 2 instead of 1).
+test("a standard-error case replayed as a non-Error throw is a behavioral failure", async () => {
+  await withProject(
+    capture(`export function target(value: number): boolean {
+  throw "plain string, not an Error";
+}`),
+    async (project) => {
+      await writeCase(project, [7], { kind: "throw", value: new RangeError("nope") });
+      const result = runVerify(project);
+      assert.equal(result.status, 1, output(result));
+      assert.match(output(result), /OUTPUT_MISMATCH/);
+      assert.doesNotMatch(output(result), /TypeError/);
+    },
+  );
+});
+
+test("a non-Error throw case replayed as a standard error is a behavioral failure", async () => {
+  // `new RangeError(...)` is itself an unresolvable constructor call, so this
+  // direction needs the reviewed-assumption path to reach replay at all.
+  await withProject(
+    assumedCapture(`export function target(value: number): boolean {
+  throw new RangeError("now a real error");
+}`),
+    async (project) => {
+      await writeAssumedCase(project, [7], { kind: "throw", value: "was a string" });
+      const result = runVerify(project);
+      assert.equal(result.status, 1, output(result));
+      assert.match(output(result), /OUTPUT_MISMATCH/);
+      assert.doesNotMatch(output(result), /TypeError/);
+    },
+  );
+});
+
+// Regression: the harness stubs process.stdout.write around classifyObservation
+// and restored only a saved own descriptor. `write` is inherited, so no own
+// descriptor exists and the stub survived, muting every case after the first.
+test("replay restores stdout so later cases keep their output", async () => {
+  await withProject(
+    assumedCapture(`export function target(value: number): number {
+  emit("REPLAY_STDOUT_MARKER_" + value);
+  return value;
+}`).replace(
+      'import { isFreshProcess } from "fresh-process-proof";',
+      'import { emit } from "stdout-probe";',
+    ),
+    async (project) => {
+      await mkdir(path.join(project, "node_modules", "stdout-probe"), { recursive: true });
+      await writeFile(
+        path.join(project, "node_modules", "stdout-probe", "package.json"),
+        `${JSON.stringify({ type: "module", exports: "./index.js" })}\n`,
+      );
+      await writeFile(
+        path.join(project, "node_modules", "stdout-probe", "index.js"),
+        "export function emit(marker) { process.stdout.write(marker + \"\\n\"); }\n",
+      );
+      await writeAssumedCase(project, [1], { kind: "return", value: 1 });
+      await writeAssumedCase(project, [2], { kind: "return", value: 2 });
+      const result = runVerify(project);
+      assert.equal(result.status, 0, output(result));
+      // Both cases must reach stdout; before the fix only the first one did.
+      assert.match(output(result), /REPLAY_STDOUT_MARKER_1/);
+      assert.match(output(result), /REPLAY_STDOUT_MARKER_2/);
+    },
+  );
+});
+
 async function withProject(source, body) {
   const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-replay-"));
   await mkdir(path.join(project, "src"), { recursive: true });

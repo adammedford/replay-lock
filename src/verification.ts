@@ -1,7 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { createAssumptionFingerprint } from "./assumptions.js";
+import { createAssumptionFingerprint, hasRefutingEvidence } from "./assumptions.js";
 import { analyzeProjectCallGraph, type CallGraphAnalysis } from "./call-graph.js";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
 import { INTRINSIC_CATALOG_VERSION } from "./effect-analyzer.js";
@@ -170,7 +170,7 @@ async function prepareTarget(
 function validateEligibility(projectRoot: string, target: PreparedTarget): void {
   const { artifact, modules, analysis, policy } = target;
   const locator = `${artifact.locator.module}#${artifact.locator.exportName}`;
-  if (analysis.verdict === "refuted") {
+  if (hasRefutingEvidence(analysis)) {
     throw new VerificationPreflightError(
       "EFFECT_REFUTED",
       locator,

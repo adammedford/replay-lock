@@ -8,8 +8,8 @@ import ts from "typescript";
 import type { Plugin, ResolvedConfig } from "vite";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
 import { analyzeProjectCallGraph } from "./call-graph.js";
-import { createAssumptionFingerprint, unknownEvidence } from "./assumptions.js";
-import { INTRINSIC_CATALOG_VERSION } from "./effect-analyzer.js";
+import { createAssumptionFingerprint, REFUTING_CODES, unknownEvidence } from "./assumptions.js";
+import { INTRINSIC_CATALOG_VERSION, type DirectEffectReasonCode } from "./effect-analyzer.js";
 import type { AssumptionCaptureEvidence, TrustedPackageCaptureEvidence } from "./model.js";
 import type { SourceDiagnostic, SourceDiagnosticCode } from "./model.js";
 import { emptyPackageCatalog, type PackageCatalog } from "./package-catalog.js";
@@ -272,7 +272,13 @@ function scanSourceFile(
       findings.push(scanFinding(sourceFile, locatorResolution.source, target.callable, target.exportName, "eligible"));
       continue;
     }
-    const leading = eligibility.findings[0];
+    // Report the reason the reader must act on. A refuted callable often also
+    // carries unknown evidence, and `findings[0]` can be that unknown finding,
+    // which would name a discharge-able reason for a non-discharge-able status.
+    const refuting = eligibility.verdict === "refuted"
+      ? eligibility.findings.find((finding) => REFUTING_CODES.has(finding.code as DirectEffectReasonCode))
+      : undefined;
+    const leading = refuting ?? eligibility.findings[0];
     findings.push({
       source: locatorResolution.source,
       ...positionOf(sourceFile, target.callable),
