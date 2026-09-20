@@ -33,7 +33,11 @@ async function manifests(directory) {
   try { return await Promise.all((await readdir(path.join(directory, ".replaylock/dev"))).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(path.join(directory, ".replaylock/dev", name), "utf8")))); }
   catch { return []; }
 }
-async function until(predicate, timeout = 15000) {
+// The default poll budget is generous because several waits here depend on a
+// headless browser delivering a target number of observations, which is slow
+// under a loaded CI runner sharing the box at test concurrency. Waits that
+// intentionally expect something to stop quickly pass their own short timeout.
+async function until(predicate, timeout = 60000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) { const value = await predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 50)); }
   throw new Error("condition timed out");

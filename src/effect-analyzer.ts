@@ -78,6 +78,23 @@ export interface AnalyzeDirectEffectsOptions {
   source: string;
   sourceFile: ts.SourceFile;
   callable: ts.FunctionLikeDeclaration;
+  /**
+   * Whether scope-independent effects (randomness, clock, IO, environment,
+   * locale, logging, dynamic eval) written inside a nested function body are
+   * reported against this callable.
+   *
+   * "descend" (default) is what the V1 static-safety path needs: a nested effect
+   * is lexically certain when that function runs, so it must refute the callable
+   * rather than surface only as an unresolvable call that `@replaylock
+   * assume-pure` could discharge.
+   *
+   * "skip" preserves the pre-nested-descent behavior for the V2 development
+   * analyzer, which records nested callables as their own targets and projects
+   * their effects onto every active ancestor at runtime. There a nested effect
+   * is already captured, so reporting it here would wrongly exclude a callable
+   * V2 can record and replay faithfully.
+   */
+  nestedFunctions?: "descend" | "skip";
 }
 
 /**
@@ -89,6 +106,7 @@ export function analyzeDirectEffects({
   source,
   sourceFile,
   callable,
+  nestedFunctions = "descend",
 }: AnalyzeDirectEffectsOptions): DirectEffectAnalysis {
   const findings: DirectEffectFinding[] = [];
   const parameters = collectBindingNames(callable.parameters.map((parameter) => parameter.name));
@@ -123,10 +141,12 @@ export function analyzeDirectEffects({
     if (node !== callable && isFunctionLike(node)) {
       // A clock, randomness, IO, environment, locale, logging, or dynamic-eval
       // call written inside a nested function is lexically certain whenever that
-      // function runs. Stopping here let such an effect be reported only as the
-      // enclosing higher-order call being unresolvable -- an UNKNOWN_CALL, which
-      // `@replaylock assume-pure` is allowed to discharge. Descend so the effect
-      // refutes instead.
+      // function runs. For the V1 path, stopping here let such an effect be
+      // reported only as the enclosing higher-order call being unresolvable --
+      // an UNKNOWN_CALL, which `@replaylock assume-pure` is allowed to discharge.
+      // Descend so the effect refutes instead. The V2 development analyzer opts
+      // out (see nestedFunctions) because it captures nested effects another way.
+      if (nestedFunctions === "skip") return;
       nestedFunctionDepth += 1;
       try {
         ts.forEachChild(node, visit);

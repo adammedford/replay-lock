@@ -83,17 +83,39 @@ function assertAcceptanceManifest() {
   );
 }
 
+// Files that launch a real headless browser. Two browsers plus two Vite dev
+// servers sharing a CI runner starve each other and flake intermittently, so
+// these run one at a time while everything else keeps the requested concurrency.
+const browserFiles = new Set([
+  "test/acceptance/dev-artifacts.test.mjs",
+  "test/acceptance/dev-conformance.test.mjs",
+  "test/acceptance/dev-integration.test.mjs",
+  "test/acceptance/dev-reporting.test.mjs",
+]);
+
 function runAcceptanceSuite() {
+  const parallel = acceptanceFiles.filter((file) => !browserFiles.has(file));
+  const serial = acceptanceFiles.filter((file) => browserFiles.has(file));
+  // Both passes write the same JUnit file. The non-browser pass runs first and
+  // asserts, so on any failure the process stops before the next pass and the
+  // artifact holds exactly the failing pass's report; on full success the file
+  // is overwritten but never uploaded (ci.yml uploads it only on failure).
+  runAcceptancePass(parallel, options.concurrency, options.junit);
+  runAcceptancePass(serial, "1", options.junit);
+}
+
+function runAcceptancePass(files, concurrency, junit) {
+  if (files.length === 0) return;
   const reporters = [`--test-reporter=${options.reporter}`];
-  if (options.junit !== undefined) {
-    mkdirSync(path.dirname(options.junit), { recursive: true });
-    reporters.push("--test-reporter-destination=stdout", "--test-reporter=junit", `--test-reporter-destination=${options.junit}`);
+  if (junit !== undefined) {
+    mkdirSync(path.dirname(junit), { recursive: true });
+    reporters.push("--test-reporter-destination=stdout", "--test-reporter=junit", `--test-reporter-destination=${junit}`);
   }
   const result = spawnSync(process.execPath, [
     "--test",
     ...reporters,
-    `--test-concurrency=${options.concurrency}`,
-    ...acceptanceFiles,
+    `--test-concurrency=${concurrency}`,
+    ...files,
   ], {
     cwd: root,
     encoding: "utf8",
