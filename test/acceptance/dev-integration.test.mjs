@@ -43,8 +43,18 @@ async function until(predicate, timeout = 60000) {
   throw new Error("condition timed out");
 }
 async function control(manifest, operation, headers = {}) {
-  const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: "POST", headers: { "Content-Type": "application/json", "X-ReplayLock-Token": manifest.token, ...headers }, body: "{}" });
-  return { status: response.status, body: await response.json() };
+  // Retry only a thrown transport error (a loopback socket occasionally resets
+  // as the dev server tears down under load), never an HTTP status, so a real
+  // error response is still surfaced unchanged.
+  for (let attempt = 5; ; attempt -= 1) {
+    try {
+      const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: "POST", headers: { "Content-Type": "application/json", "X-ReplayLock-Token": manifest.token, ...headers }, body: "{}" });
+      return { status: response.status, body: await response.json() };
+    } catch (error) {
+      if (attempt <= 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
 }
 async function command(directory, args, input = "") {
   return new Promise((resolve, reject) => {
