@@ -7,8 +7,11 @@ const identity={locator:{module:'src/math.js',kind:'export',namePath:['calculate
 const value=encodeDevValue;
 test('completion explanations share exact and tolerance comparisons at the first differing nested path',()=>{
   assert.deepEqual(diffDevValues(value({items:[1,{total:2}]}),value({items:[1,{total:3}]})),{path:'$.items[1].total',expected:'2',actual:'3'});
-  assert.equal(diffDevValues(value([1,2]),value([1,2.01]),{kind:'tolerance',epsilon:0.02}),undefined);
-  assert.ok(diffDevValues(value([1,2]),value([1,2.03]),{kind:'tolerance',epsilon:0.02}));
+  const atIndexOne={kind:'tolerance',leaves:[{path:[1],epsilon:0.02}]};
+  assert.equal(diffDevValues(value([1,2]),value([1,2.01]),atIndexOne),undefined);
+  assert.ok(diffDevValues(value([1,2]),value([1,2.03]),atIndexOne));
+  // The epsilon belongs to $[1] alone and must never widen its sibling $[0].
+  assert.ok(diffDevValues(value([1,2]),value([1.01,2]),atIndexOne));
   assert.equal(diffDevCompletions({kind:'return',value:value(1)},{kind:'throw',value:value(1)}).path,'$.kind');
   const artifact={...identity,comparison:'exact',completion:{kind:'return',value:value({items:[4]})}};
   assert.match(describeDevCompletionDifference(artifact,{kind:'return',value:{items:[5]}}),/OUTPUT_MISMATCH.*math.js#calculate.*realm=node.*path \$\.value.items\[0\]; expected 4; actual 5/);

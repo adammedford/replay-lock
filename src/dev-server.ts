@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { realpathSync } from "node:fs";
@@ -174,7 +174,7 @@ export function devRecordingPlugin(): Plugin {
       if (request.headers.origin && new URL(request.headers.origin).host !== request.headers.host) throw new Error("INVALID_ORIGIN");
       const ingestion = requestedPath === `${endpoint()}/observations`;
       const expectedToken = ingestion ? sessionToken : controlToken;
-      if (!expectedToken || request.headers["x-replaylock-token"] !== expectedToken) throw new Error("UNAUTHORIZED");
+      if (!expectedToken || !tokensEqual(request.headers["x-replaylock-token"], expectedToken)) throw new Error("UNAUTHORIZED");
       if (request.method !== "POST") throw new Error("METHOD_NOT_ALLOWED");
       const payload = await readBody(request);
       if (ingestion) {
@@ -328,6 +328,18 @@ export function devRecordingPlugin(): Plugin {
 }
 
 function isLoopback(address: string): boolean { return ["::1", "127.0.0.1", "::ffff:127.0.0.1"].includes(address); }
+/**
+ * Constant-time token comparison. The control surface is loopback-only and the
+ * token is 256 bits, so the practical risk is low, but a length-independent
+ * timing side channel is trivially avoidable in a project that ships a security
+ * policy.
+ */
+function tokensEqual(presented: string | string[] | undefined, expected: string): boolean {
+  if (typeof presented !== "string") return false;
+  const a = Buffer.from(presented, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 function isLocalHost(host: string): boolean {
   try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(`http://${host}`).hostname); } catch { return false; }
 }

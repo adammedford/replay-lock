@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -243,11 +244,26 @@ function ensurePrivateDirectory(directory: string): void {
   if (process.platform !== "win32") chmodSync(directory, 0o700);
 }
 
+/**
+ * Session writes are deliberately not fsynced: this runs once per observed call
+ * on the recording hot path, and an interrupted recording is already reported
+ * as a partial session rather than trusted. A failed write still cleans up its
+ * scratch file so a crashed worker cannot litter the session directory.
+ */
 function atomicWriteSync(filePath: string, contents: string): void {
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
-  writeFileSync(temporaryPath, `${contents}\n`, { encoding: "utf8", mode: 0o600 });
-  if (process.platform !== "win32") chmodSync(temporaryPath, 0o600);
-  renameSync(temporaryPath, filePath);
+  try {
+    writeFileSync(temporaryPath, `${contents}\n`, { encoding: "utf8", mode: 0o600 });
+    if (process.platform !== "win32") chmodSync(temporaryPath, 0o600);
+    renameSync(temporaryPath, filePath);
+  } catch (error) {
+    try {
+      unlinkSync(temporaryPath);
+    } catch {
+      // A scratch file that cannot be removed must not mask the real failure.
+    }
+    throw error;
+  }
 }
 
 function assertSessionCapability(sessionDirectory: string, token: string): void {

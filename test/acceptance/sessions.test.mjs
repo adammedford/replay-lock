@@ -20,6 +20,7 @@ import {
   replaceArtifactAtomic,
 } from "../../dist/session.js";
 import { observeCall } from "../../dist/runtime.js";
+import { atomicWrite } from "../../dist/model.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cliPath = path.join(root, "dist", "cli.js");
@@ -334,6 +335,38 @@ async function candidateFiles(project) {
     throw error;
   }
 }
+
+// M3 regression: a rename is atomic for visibility only, and a failed write used
+// to leave its scratch file behind next to the artifact it failed to replace.
+test("artifact writes are durable and leave no scratch file behind", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "replaylock-atomic-"));
+  try {
+    const target = path.join(directory, "cases", "artifact.json");
+    await atomicWrite(target, '{"generation":1}\n');
+    assert.equal(await readFile(target, "utf8"), '{"generation":1}\n');
+    await atomicWrite(target, '{"generation":2}\n');
+    assert.equal(await readFile(target, "utf8"), '{"generation":2}\n');
+    assert.deepEqual(
+      (await readdir(path.join(directory, "cases"))).filter((name) => name.endsWith(".tmp")),
+      [],
+      "a successful write must leave no scratch file",
+    );
+
+    // A directory in place of the destination makes rename fail after the
+    // scratch file already exists, which is exactly the leak path.
+    const blocked = path.join(directory, "cases", "blocked.json");
+    await mkdir(blocked, { recursive: true });
+    await mkdir(path.join(blocked, "occupied"), { recursive: true });
+    await assert.rejects(() => atomicWrite(blocked, '{"generation":1}\n'));
+    assert.deepEqual(
+      (await readdir(path.join(directory, "cases"))).filter((name) => name.endsWith(".tmp")),
+      [],
+      "a failed write must clean up its scratch file",
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 async function recursiveFiles(directory) {
   const files = [];

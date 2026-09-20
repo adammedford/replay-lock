@@ -359,11 +359,33 @@ export function decodeCanonicalCompletion(value: unknown, adapters?: ValueAdapte
   throw malformedCanonical("completion");
 }
 
+/**
+ * Built-in nodes only. Normalization decodes without an adapter registry, so an
+ * adapted node cannot round-trip here; saying so plainly beats the
+ * "malformed adapted adapter" message that used to blame the caller's data.
+ * Adapted values are compared by the replay harness, which has the registry.
+ */
 export function canonicalValueJson(value: CanonicalReplayValueNode): string {
+  assertNoAdaptedNode(value);
   return JSON.stringify(normalizeCanonicalValue(value));
 }
 
+function assertNoAdaptedNode(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const kind = (value as { kind?: unknown }).kind;
+  if (kind === "adapted") {
+    throw new UnsupportedValueError(
+      "Adapted nodes require a value adapter registry and cannot be compared as built-in canonical values",
+    );
+  }
+  if (kind === "array") for (const item of (value as { items?: unknown[] }).items ?? []) assertNoAdaptedNode(item);
+  else if (kind === "record") {
+    for (const entry of (value as { entries?: { value?: unknown }[] }).entries ?? []) assertNoAdaptedNode(entry?.value);
+  } else if (kind === "return" || kind === "throw") assertNoAdaptedNode((value as { value?: unknown }).value);
+}
+
 export function canonicalCompletionJson(value: CanonicalCompletion): string {
+  assertNoAdaptedNode(value);
   return JSON.stringify(normalizeCanonicalCompletion(value));
 }
 
@@ -648,7 +670,19 @@ function encodeStandardError(value: unknown): CanonicalStandardErrorNode | undef
       }
       continue;
     }
-    if (key === "message" || (name === "AggregateError" && key === "errors")) continue;
+    if (name === "AggregateError" && key === "errors") {
+      // `errors` is deliberately never encoded: nested error content is captured
+      // data that would have to pass the full safety scan, and the canonical
+      // model has no node for it. Silently dropping it made two AggregateErrors
+      // with entirely different aggregated causes compare equal, so a real
+      // change inside `errors` was invisible to verification. Fail closed
+      // instead; an empty aggregate loses nothing and stays supported.
+      if (!isEmptyAggregateErrorsList(descriptor)) {
+        throw new UnsupportedValueError("AggregateError aggregated errors are unsupported");
+      }
+      continue;
+    }
+    if (key === "message") continue;
     throw new UnsupportedValueError("Standard error properties are unsupported");
   }
   const descriptor = Object.getOwnPropertyDescriptor(value, "message");
@@ -657,6 +691,17 @@ function encodeStandardError(value: unknown): CanonicalStandardErrorNode | undef
     throw new UnsupportedValueError("A standard error message must be a string data property");
   }
   return { kind: "standard-error", name, message: descriptor.value };
+}
+
+function isEmptyAggregateErrorsList(descriptor: PropertyDescriptor): boolean {
+  if (!("value" in descriptor)) return false;
+  const errors: unknown = descriptor.value;
+  return (
+    !utilTypes.isProxy(errors) &&
+    Array.isArray(errors) &&
+    errors.length === 0 &&
+    Object.getPrototypeOf(errors) === Array.prototype
+  );
 }
 
 function isCompletionInput(value: unknown): value is ObservedCompletion {

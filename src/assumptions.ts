@@ -88,7 +88,8 @@ const UNKNOWN_CODES: ReadonlySet<CallGraphReasonCode> = new Set<CallGraphReasonC
   "PACKAGE_CALL",
 ]);
 
-const REFUTING_CODES: ReadonlySet<DirectEffectReasonCode> = new Set<DirectEffectReasonCode>([
+/** The single definition of which effect classes refute eligibility outright. */
+export const REFUTING_CODES: ReadonlySet<DirectEffectReasonCode> = new Set<DirectEffectReasonCode>([
   "ARGUMENT_MUTATION",
   "RECEIVER_DEPENDENCE",
   "AMBIENT_MUTATION",
@@ -247,8 +248,14 @@ export function evaluateAssumption(
   });
 }
 
+/**
+ * Only the recorded fingerprint is compared; the analyzer and intrinsic-catalog
+ * versions are already hashed into it. Takes the minimum shape so every gate --
+ * the reviewed-assumption API here and the accepted-case preflight in
+ * verification.ts -- decides freshness with this one definition.
+ */
 export function checkAssumptionFreshness(
-  assumption: ReviewedAssumption,
+  assumption: Pick<ReviewedAssumption, "fingerprint">,
   input: AssumptionFingerprintInput,
 ): AssumptionFreshness {
   const actualFingerprint = createAssumptionFingerprint(input);
@@ -288,7 +295,12 @@ export function refreshAssumption(options: {
   );
 }
 
-function hasRefutingEvidence(analysis: Pick<CallGraphAnalysis, "verdict" | "findings">): boolean {
+/**
+ * Refuting evidence is either a refuted verdict or any refuting finding. A
+ * caller that checks only the joined verdict can miss a refuting finding that
+ * the join did not promote, so every gate uses this one definition.
+ */
+export function hasRefutingEvidence(analysis: Pick<CallGraphAnalysis, "verdict" | "findings">): boolean {
   return analysis.verdict === "refuted" || analysis.findings.some((finding) => REFUTING_CODES.has(finding.code as DirectEffectReasonCode));
 }
 

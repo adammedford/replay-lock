@@ -63,7 +63,7 @@ export interface DevCase {
   arguments: DevValue;
   trace: TraceEvent[];
   completion: DevCompletion;
-  comparison: "exact" | { kind: "tolerance"; epsilon: number };
+  comparison: "exact" | { kind: "tolerance"; leaves: { path: (string | number)[]; epsilon: number }[] };
   eligibility: { verdict: "replayable"; reasonCodes: string[] };
   provenance: {
     sourceGraphDigest: string;

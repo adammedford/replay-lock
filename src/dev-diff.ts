@@ -31,28 +31,38 @@ function different(path: string, expected: DevValue | undefined, actual: DevValu
 function scalar(path: string, expected: unknown, actual: unknown): DevDifference | undefined {
   return expected === actual ? undefined : { path: bounded(printable(path), 256), expected: quoted(expected), actual: quoted(actual) };
 }
-function fields(expected: { key: string; value: DevValue }[], actual: { key: string; value: DevValue }[], path: string, epsilon: number | undefined): DevDifference | undefined {
+/** Epsilon for one exact leaf path, or undefined when that leaf must be exact. */
+type Tolerance = (leaf: readonly (string | number)[]) => number | undefined;
+const exactly: Tolerance = () => undefined;
+
+function fields(expected: { key: string; value: DevValue }[], actual: { key: string; value: DevValue }[], path: string, leaf: readonly (string | number)[], tolerate: Tolerance): DevDifference | undefined {
   const left = new Map(expected.map(entry => [entry.key, entry.value]));
   const right = new Map(actual.map(entry => [entry.key, entry.value]));
   for (const key of [...new Set([...left.keys(), ...right.keys()])].sort()) {
-    const difference = first(left.get(key), right.get(key), property(path, key), epsilon);
+    const difference = first(left.get(key), right.get(key), property(path, key), [...leaf, key], tolerate);
     if (difference) return difference;
   }
 }
-function first(expected: DevValue | undefined, actual: DevValue | undefined, path: string, epsilon: number | undefined): DevDifference | undefined {
+function first(expected: DevValue | undefined, actual: DevValue | undefined, path: string, leaf: readonly (string | number)[], tolerate: Tolerance): DevDifference | undefined {
   if (!expected || !actual || expected.kind !== actual.kind) return different(path, expected, actual);
-  // Every numeric decision, including adapted payloads, uses this same comparison.
-  if (expected.kind === "number" && actual.kind === "number") return expected.value === actual.value || (epsilon !== undefined && Math.abs(expected.value - actual.value) <= epsilon) ? undefined : different(path, expected, actual);
+  // Tolerance is looked up by this leaf's exact path, so an epsilon can never
+  // widen a sibling. Adapted payloads are always exact: their adapter defines
+  // equality and already guarantees a byte-identical round trip.
+  if (expected.kind === "number" && actual.kind === "number") {
+    if (expected.value === actual.value) return undefined;
+    const epsilon = tolerate(leaf);
+    return epsilon !== undefined && Math.abs(expected.value - actual.value) <= epsilon ? undefined : different(path, expected, actual);
+  }
   if (expected.kind === "array" && actual.kind === "array") {
     for (let index = 0; index < Math.max(expected.items.length, actual.items.length); index++) {
-      const difference = first(expected.items[index], actual.items[index], `${path}[${index}]`, epsilon);
+      const difference = first(expected.items[index], actual.items[index], `${path}[${index}]`, [...leaf, index], tolerate);
       if (difference) return difference;
     }
     return;
   }
-  if (expected.kind === "record" && actual.kind === "record") return fields(expected.entries, actual.entries, path, epsilon);
-  if (expected.kind === "error" && actual.kind === "error") return scalar(`${path}.name`, expected.name, actual.name) ?? scalar(`${path}.message`, expected.message, actual.message) ?? fields(expected.fields, actual.fields, path, epsilon);
-  if (expected.kind === "adapted" && actual.kind === "adapted") return scalar(`${path}.adapterId`, expected.adapterId, actual.adapterId) ?? scalar(`${path}.version`, expected.version, actual.version) ?? first(expected.payload, actual.payload, `${path}.payload`, epsilon);
+  if (expected.kind === "record" && actual.kind === "record") return fields(expected.entries, actual.entries, path, leaf, tolerate);
+  if (expected.kind === "error" && actual.kind === "error") return scalar(`${path}.name`, expected.name, actual.name) ?? scalar(`${path}.message`, expected.message, actual.message) ?? fields(expected.fields, actual.fields, path, leaf, tolerate);
+  if (expected.kind === "adapted" && actual.kind === "adapted") return scalar(`${path}.adapterId`, expected.adapterId, actual.adapterId) ?? scalar(`${path}.version`, expected.version, actual.version) ?? first(expected.payload, actual.payload, `${path}.payload`, leaf, exactly);
   if (expected.kind === "bytes" && actual.kind === "bytes" && expected.type !== actual.type) return scalar(`${path}.type`, expected.type, actual.type);
   if (JSON.stringify(expected) !== JSON.stringify(actual)) return different(path, expected, actual);
 }
@@ -60,9 +70,18 @@ function first(expected: DevValue | undefined, actual: DevValue | undefined, pat
 /** Both sides are validated completely before even a short excerpt can be rendered. */
 export function diffDevValues(expected: unknown, actual: unknown, comparison: Comparison = "exact", path = "$"): DevDifference | undefined {
   const left = validateDevValue(expected), right = validateDevValue(actual);
-  const epsilon = comparison === "exact" ? undefined : comparison.epsilon;
-  if (epsilon !== undefined && (!Number.isFinite(epsilon) || epsilon < 0)) throw new Error("INVALID_COMPARISON");
-  return first(left, right, path, epsilon);
+  if (comparison !== "exact") {
+    for (const entry of comparison.leaves) {
+      if (!Number.isFinite(entry.epsilon) || entry.epsilon <= 0) throw new Error("INVALID_COMPARISON");
+    }
+  }
+  const tolerate: Tolerance = comparison === "exact"
+    ? exactly
+    : (leaf) => {
+        const key = JSON.stringify(leaf);
+        return comparison.leaves.find((entry) => JSON.stringify(entry.path) === key)?.epsilon;
+      };
+  return first(left, right, path, [], tolerate);
 }
 
 export function diffDevCompletions(expected: DevCompletion, actual: DevCompletion, comparison: Comparison = "exact"): DevDifference | undefined {

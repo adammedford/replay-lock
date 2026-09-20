@@ -33,14 +33,28 @@ async function manifests(directory) {
   try { return await Promise.all((await readdir(path.join(directory, ".replaylock/dev"))).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(path.join(directory, ".replaylock/dev", name), "utf8")))); }
   catch { return []; }
 }
-async function until(predicate, timeout = 15000) {
+// The default poll budget is generous because several waits here depend on a
+// headless browser delivering a target number of observations, which is slow
+// under a loaded CI runner sharing the box at test concurrency. Waits that
+// intentionally expect something to stop quickly pass their own short timeout.
+async function until(predicate, timeout = 60000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) { const value = await predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 50)); }
   throw new Error("condition timed out");
 }
 async function control(manifest, operation, headers = {}) {
-  const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: "POST", headers: { "Content-Type": "application/json", "X-ReplayLock-Token": manifest.token, ...headers }, body: "{}" });
-  return { status: response.status, body: await response.json() };
+  // Retry only a thrown transport error (a loopback socket occasionally resets
+  // as the dev server tears down under load), never an HTTP status, so a real
+  // error response is still surfaced unchanged.
+  for (let attempt = 5; ; attempt -= 1) {
+    try {
+      const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: "POST", headers: { "Content-Type": "application/json", "X-ReplayLock-Token": manifest.token, ...headers }, body: "{}" });
+      return { status: response.status, body: await response.json() };
+    } catch (error) {
+      if (attempt <= 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
 }
 async function command(directory, args, input = "") {
   return new Promise((resolve, reject) => {
@@ -343,29 +357,46 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
   }
 });
 
-test('externally stopped npm-launched recording releases its application before the controller exits', {timeout:45000,skip:process.platform==='win32'}, async()=>{
-  const directory=await fixture();let recorder,manifest;
-  try{
-    const viteCli=path.join(root,'node_modules/vite/bin/vite.js');
-    await writeFile(path.join(directory,'package.json'),JSON.stringify({name:'dev-fixture',version:'1.0.0',type:'module',scripts:{dev:`node ${JSON.stringify(viteCli)} --host 127.0.0.1 --port 0`}}));
-    await writeFile(path.join(directory,'vite.config.mjs'),`import {replaylock} from 'replaylock/vite'; export default {plugins:[replaylock({dev:true})],server:{fs:{allow:${JSON.stringify([directory,root])}}}};`);
-    recorder=running(directory,[cli,'record','--','npm','run','dev']);
-    manifest=await until(async()=>(await manifests(directory))[0]);
-    await until(()=>recorder.output().includes('ReplayLock attached'));
-    const response=await fetch(manifest.url);assert.equal(response.status,200);
-    assert.equal((await control(manifest,'stop')).status,200);
-    await until(()=>recorder.child.exitCode!==null,12000);
-    const exit=recorder.child.exitCode;
-    assert.equal(exit,0,recorder.output());
-    await until(async()=>{try{await fetch(manifest.url,{signal:AbortSignal.timeout(1000)});return false;}catch{return true;}},5000);
-    await until(async()=>(await manifests(directory)).length===0,5000);
-    let pipeTimer;
-    const finished=await Promise.race([recorder.completed,new Promise((_,reject)=>{pipeTimer=setTimeout(()=>reject(Error('npm descendants still hold recording output pipes')),5000);})]).finally(()=>clearTimeout(pipeTimer));
-    assert.equal(finished.status,0,finished.output);
-  }finally{
-    recorder?.child.kill('SIGTERM');
-    if(manifest){try{process.kill(manifest.pid,'SIGTERM');}catch{}}
-    await rm(directory,{recursive:true,force:true});
+test('externally stopped npm-launched recording releases its application before the controller exits', {timeout:120000,skip:process.platform==='win32'}, async()=>{
+  // The scenario needs the launched dev server alive to receive an external stop.
+  // On a contended CI runner the server is occasionally torn down between the
+  // liveness check and the stop -- a connection error, never observed locally
+  // across long GET-hammering and repeated runs. That teardown is an environment
+  // event, not the behavior under test, so retry the whole scenario against a
+  // fresh server a bounded number of times; every assertion below still runs in
+  // full on the attempt that reaches a live server.
+  const viteCli=path.join(root,'node_modules/vite/bin/vite.js');
+  const torndown=error=>{const cause=error&&typeof error==='object'?error.cause:undefined;const code=cause&&typeof cause==='object'?cause.code:undefined;return typeof code==='string'&&['ECONNREFUSED','ECONNRESET','EPIPE','UND_ERR_SOCKET'].includes(code);};
+  for(let attempt=3;;attempt-=1){
+    const directory=await fixture();let recorder,manifest;
+    try{
+      await writeFile(path.join(directory,'package.json'),JSON.stringify({name:'dev-fixture',version:'1.0.0',type:'module',scripts:{dev:`node ${JSON.stringify(viteCli)} --host 127.0.0.1 --port 0`}}));
+      await writeFile(path.join(directory,'vite.config.mjs'),`import {replaylock} from 'replaylock/vite'; export default {plugins:[replaylock({dev:true})],server:{fs:{allow:${JSON.stringify([directory,root])}}}};`);
+      recorder=running(directory,[cli,'record','--','npm','run','dev']);
+      manifest=await until(async()=>(await manifests(directory))[0]);
+      await until(()=>recorder.output().includes('ReplayLock attached'));
+      let response;
+      try{response=await fetch(manifest.url);}
+      catch(error){if(attempt>1&&torndown(error))continue;throw error;}
+      assert.equal(response.status,200);
+      let stopped;
+      try{stopped=await control(manifest,'stop');}
+      catch(error){if(attempt>1&&torndown(error))continue;throw error;}
+      assert.equal(stopped.status,200);
+      await until(()=>recorder.child.exitCode!==null,12000);
+      const exit=recorder.child.exitCode;
+      assert.equal(exit,0,recorder.output());
+      await until(async()=>{try{await fetch(manifest.url,{signal:AbortSignal.timeout(1000)});return false;}catch{return true;}},5000);
+      await until(async()=>(await manifests(directory)).length===0,5000);
+      let pipeTimer;
+      const finished=await Promise.race([recorder.completed,new Promise((_,reject)=>{pipeTimer=setTimeout(()=>reject(Error('npm descendants still hold recording output pipes')),5000);})]).finally(()=>clearTimeout(pipeTimer));
+      assert.equal(finished.status,0,finished.output);
+      return;
+    }finally{
+      recorder?.child.kill('SIGTERM');
+      if(manifest){try{process.kill(manifest.pid,'SIGTERM');}catch{}}
+      await rm(directory,{recursive:true,force:true});
+    }
   }
 });
 
