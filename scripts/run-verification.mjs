@@ -28,6 +28,7 @@ const acceptanceFiles = [
   "test/acceptance/canonical.test.mjs",
   "test/acceptance/canonical-safety.test.mjs",
   "test/acceptance/observation-safety.test.mjs",
+  "test/acceptance/sensitive-parity.test.mjs",
   "test/acceptance/sessions.test.mjs",
   "test/acceptance/candidates.test.mjs",
   "test/acceptance/recording-integration.test.mjs",
