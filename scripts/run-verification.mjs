@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseVerificationOptions } from "./verification-options.mjs";
@@ -55,6 +55,17 @@ const acceptanceFiles = [
   "test/acceptance/ci-verify-example.test.mjs",
   "test/acceptance/tolerance-comparison.test.mjs",
 ];
+// Files that drive a real headless browser. Two browsers plus two Vite dev
+// servers sharing a CI runner starve each other and flake the browser-backed
+// development tests, so these run one at a time in a second pass while every
+// other file keeps the requested concurrency. The suite still runs every file
+// exactly once, fails if any file fails, and produces one complete JUnit report.
+const browserFiles = new Set([
+  "test/acceptance/dev-artifacts.test.mjs",
+  "test/acceptance/dev-conformance.test.mjs",
+  "test/acceptance/dev-integration.test.mjs",
+  "test/acceptance/dev-reporting.test.mjs",
+]);
 assertAcceptanceManifest();
 run("verify-package-contract.mjs");
 run("verify-packed-consumer.mjs", "--skip-build");
@@ -83,32 +94,29 @@ function assertAcceptanceManifest() {
   );
 }
 
-// Files that launch a real headless browser. Two browsers plus two Vite dev
-// servers sharing a CI runner starve each other and flake intermittently, so
-// these run one at a time while everything else keeps the requested concurrency.
-const browserFiles = new Set([
-  "test/acceptance/dev-artifacts.test.mjs",
-  "test/acceptance/dev-conformance.test.mjs",
-  "test/acceptance/dev-integration.test.mjs",
-  "test/acceptance/dev-reporting.test.mjs",
-]);
-
 function runAcceptanceSuite() {
   const parallel = acceptanceFiles.filter((file) => !browserFiles.has(file));
   const serial = acceptanceFiles.filter((file) => browserFiles.has(file));
-  // Both passes write the same JUnit file. The non-browser pass runs first and
-  // asserts, so on any failure the process stops before the next pass and the
-  // artifact holds exactly the failing pass's report; on full success the file
-  // is overwritten but never uploaded (ci.yml uploads it only on failure).
+  if (options.junit !== undefined) mkdirSync(path.dirname(options.junit), { recursive: true });
+
   runAcceptancePass(parallel, options.concurrency, options.junit);
-  runAcceptancePass(serial, "1", options.junit);
+  if (serial.length === 0) return;
+
+  // The browser pass writes to a sibling file that is merged into the primary
+  // report before its status is asserted, so the JUnit stays complete even when
+  // a browser file is the one that fails.
+  const serialJunit = options.junit === undefined ? undefined : `${options.junit}.serial`;
+  const serialResult = runAcceptancePass(serial, "1", serialJunit, false);
+  if (options.junit !== undefined && serialJunit !== undefined) {
+    mergeJunit(options.junit, serialJunit);
+    rmSync(serialJunit, { force: true });
+  }
+  assert.equal(serialResult.status, 0, "locked V1 black-box acceptance suite failed");
 }
 
-function runAcceptancePass(files, concurrency, junit) {
-  if (files.length === 0) return;
+function runAcceptancePass(files, concurrency, junit, assertPass = true) {
   const reporters = [`--test-reporter=${options.reporter}`];
   if (junit !== undefined) {
-    mkdirSync(path.dirname(junit), { recursive: true });
     reporters.push("--test-reporter-destination=stdout", "--test-reporter=junit", `--test-reporter-destination=${junit}`);
   }
   const result = spawnSync(process.execPath, [
@@ -123,5 +131,19 @@ function runAcceptancePass(files, concurrency, junit) {
     env: { ...process.env, REPLAYLOCK_VERIFICATION_BUILD_READY: "1" },
   });
   if (result.error) throw result.error;
-  assert.equal(result.status, 0, "locked V1 black-box acceptance suite failed");
+  if (assertPass) assert.equal(result.status, 0, "locked V1 black-box acceptance suite failed");
+  return result;
+}
+
+/** Fold one JUnit report's cases into another's single <testsuites> root. */
+function mergeJunit(primaryPath, extraPath) {
+  const extra = readFileSync(extraPath, "utf8");
+  const open = extra.indexOf("<testsuites>");
+  const close = extra.lastIndexOf("</testsuites>");
+  if (open === -1 || close === -1) return;
+  const cases = extra.slice(open + "<testsuites>".length, close);
+  const primary = readFileSync(primaryPath, "utf8");
+  const anchor = primary.lastIndexOf("</testsuites>");
+  if (anchor === -1) return;
+  writeFileSync(primaryPath, `${primary.slice(0, anchor)}${cases}${primary.slice(anchor)}`);
 }
