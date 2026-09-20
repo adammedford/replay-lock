@@ -17,17 +17,24 @@ function coded<T>(invoke: () => T): T {
     return fail();
   }
 }
-const secretKey = /(?:password|passwd|passphrase|secret|apikey|accesstoken|refreshtoken|authorization|cookie|privatekey|credential)/i;
+// These heuristics are kept byte-identical to ./sensitive.ts, which the Node
+// runtime scanner (observation-safety.ts) uses. This module cannot import that
+// one -- dev-values.js is a realm-portable leaf with no imports -- so a
+// cross-check test (sensitive-parity) fails if the two ever diverge.
+const secretKeyPattern = /(?:password|passwd|passphrase|secret|apikey|accesstoken|refreshtoken|authorization|cookie|privatekey|credential)/i;
+const secretValuePatterns = [
+  /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|gh[pousr]_|github_pat_|\bsk-|sk_live_|rk_live_|xox[bpars]-|\b(?:basic|bearer)\s+\S+/i,
+  /(?:password|passwd|passphrase|secret|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|cookie|private[_ -]?key)["']?\s*[:=]\s*["']?[^\s"'&,}]+/i,
+  /https?:\/\/[^/\s]+:[^/\s]+@/i,
+  /\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/,
+];
 function safeKey(key: string): void {
   safeString(key);
-  if (secretKey.test(key.replace(/[^a-z0-9]/gi, ""))) fail("SENSITIVE_VALUE");
+  if (secretKeyPattern.test(key.replace(/[^a-z0-9]/gi, "").toLocaleLowerCase("en-US"))) fail("SENSITIVE_VALUE");
 }
 function safeString(value: string): void {
   if (value.length > DEV_VALUE_LIMITS.bytes) fail("OVERSIZED_OBSERVATION");
-  if (/-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|gh[pousr]_|github_pat_|\bsk-|sk_live_|rk_live_|xox[bpars]-|\b(?:basic|bearer)\s+\S+/i.test(value) ||
-      /(?:password|passwd|passphrase|secret|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|cookie|private[_ -]?key)["']?\s*[:=]\s*["']?[^\s"'&,}]+/i.test(value) ||
-      /https?:\/\/[^/\s]+:[^/\s]+@/i.test(value) ||
-      /\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(value)) fail("SENSITIVE_VALUE");
+  if (secretValuePatterns.some((pattern) => pattern.test(value))) fail("SENSITIVE_VALUE");
 }
 
 const errorTypes = new Map<object, string>([

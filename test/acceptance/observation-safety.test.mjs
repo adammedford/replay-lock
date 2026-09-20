@@ -57,6 +57,29 @@ test("specified property names and credential-shaped strings produce SENSITIVE_V
   }
 });
 
+test("compound secret keys and inline credential values are blocked (V1 matches V2)", () => {
+  // Regression: the V1 scanner matched secret keys by exact name while the V2
+  // scanner matched by substring, so an ordinary key like `dbPassword` -- the
+  // shape a fixture or seeded dev database produces -- was blocked by one
+  // capture path and persisted verbatim into a committed case by the other.
+  const blocked = [
+    { dbPassword: "hunter2" }, { userPassword: "hunter2" }, { apiKeyValue: "abc" },
+    { sessionCookie: "s%3Aabc" }, { privateKeyPem: "MIIE" }, { credentials: "x" },
+    // Value shapes V1 previously missed entirely.
+    { note: "password: hunter2" },
+    { url: "https://user:pw@example.test" },
+    { token: "prefix eyJhbGciOiJ.eyJzdWIiOiIx.sig" },
+  ];
+  for (const value of blocked) {
+    const result = classifyObservation(invocation([value]));
+    assert.equal(result.safe, false, JSON.stringify(value));
+    assert.equal(result.code, "SENSITIVE_VALUE", JSON.stringify(value));
+    assert.equal(JSON.stringify(result).includes("hunter2"), false);
+  }
+  // Ordinary keys and values must still be persisted.
+  assert.equal(classifyObservation(invocation([{ count: 3, dbHost: "localhost" }])).safe, true);
+});
+
 test("safety classification precedes hashing, naming, logging, diagnostics, and persistence", () => {
   const unsafe = classifyObservation(invocation([{ authorization: "Bearer should-not-escape" }]));
   assert.equal(unsafe.safe, false);
