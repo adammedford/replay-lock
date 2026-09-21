@@ -1,5 +1,5 @@
 import path from "node:path";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import MagicString from "magic-string";
 import ts from "typescript";
 import { buildDevProject, type DevProject, type DevFunction, type DevOperation } from "./dev-analysis.js";
@@ -32,6 +32,17 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
     if (realpathSync(options.root) !== root) throw new Error("INVALID_PROJECT_ROOT: cache belongs to a different project");
     let file = path.resolve(root, options.id.split("?", 1)[0]!);
     try { file = realpathSync(file); } catch { /* unsaved overlay */ }
+    if (authoredOnly) {
+      const snapshot = snapshots.get(options.environment);
+      const authored = snapshot?.project.modules.get(file);
+      // This proof depends on authored syntax alone, not import resolution or
+      // dependency contents. Re-read the actual source before rejecting; every
+      // other admission decision still validates the complete input snapshot.
+      if (snapshot?.key === JSON.stringify(options.options) && authored?.hasDirectInitializationEffects) {
+        try { if (readFileSync(file, "utf8") === authored.sourceFile.text) return null; }
+        catch { /* Fall back to complete validation when the source is unavailable. */ }
+      }
+    }
     let project = projectFor(options.environment, options.options);
     const module = path.relative(root, file).split(path.sep).join("/");
     if (authoredOnly && !project.analysis.targets.some(target => target.locator.module === module)) return null;

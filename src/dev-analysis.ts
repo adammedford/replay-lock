@@ -29,6 +29,7 @@ export interface DevModule {
   file: string;
   sourceFile: ts.SourceFile;
   selected: boolean;
+  hasDirectInitializationEffects: boolean;
   dependencies: Set<string>;
   dependencyNodes: Map<string, ts.Node>;
   problems: DevProblems;
@@ -169,8 +170,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       if (!sources.has(dependency)) sources.set(dependency, read(dependency));
       reachable.add(dependency);
     }
-    for (const finding of analyzeModuleInitialization({ source: relative, sourceFile }).findings) problems.at("EFFECTFUL_INITIALIZATION", { module: relative, line: finding.line, column: finding.column });
-    modules.set(file, { file, sourceFile, selected, dependencies, dependencyNodes, problems });
+    const initializationFindings = analyzeModuleInitialization({ source: relative, sourceFile }).findings;
+    for (const finding of initializationFindings) problems.at("EFFECTFUL_INITIALIZATION", { module: relative, line: finding.line, column: finding.column });
+    modules.set(file, { file, sourceFile, selected, hasDirectInitializationEffects: initializationFindings.length > 0, dependencies, dependencyNodes, problems });
   }
   const compilerOptions: ts.CompilerOptions = { noLib: true, allowJs: true, checkJs: true, target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler };
   const host = ts.createCompilerHost(compilerOptions);

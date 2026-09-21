@@ -147,3 +147,25 @@ test('realm workers preserve fresh analysis, source maps, configuration and shut
   await settled;
   await assert.rejects(client.analyze('node'),/session is closed/);
 });
+
+
+test('authored initialization exclusion stays current across source and dependency edits', async t => {
+  const unsafe='const created=Date.now(); export function a(n){return n+1;}';
+  const safe="import {helper} from 'tiny'; export function a(n){return helper(n);}";
+  const root=await fixture(t,{'src/a.js':unsafe,'node_modules/tiny/package.json':'{"type":"module","exports":"./index.js"}','node_modules/tiny/index.js':'console.log("init");export function helper(n){return n+1;}'});
+  const options=resolveDevOptions(),cache=createDevProjectCache(root,options);
+  for(const environment of ['node','browser']) {
+    cache.analyze(environment);
+    const input={root,id:path.join(root,'src/a.js'),code:safe,environment,generation:'1',options};
+    assert.equal(cache.transformAuthored(input),null,'a safe overlay cannot override authored initialization');
+  }
+  await put(root,'src/a.js',safe);
+  for(const environment of ['node','browser'])assert.equal(cache.transformAuthored({root,id:path.join(root,'src/a.js'),code:safe,environment,generation:'2',options}),null);
+  await put(root,'node_modules/tiny/index.js','export function helper(n){return n+1;}');
+  for(const environment of ['node','browser']) {
+    const input={root,id:path.join(root,'src/a.js'),code:safe,environment,generation:'3',options};
+    assert.deepEqual(cache.transformAuthored(input),transformDevSource(input),'dependency exclusions cannot become permanent negative decisions');
+  }
+  const changed=resolveDevOptions({capture:{exclude:['src/**']}});
+  assert.equal(cache.transformAuthored({root,id:path.join(root,'src/a.js'),code:safe,environment:'node',generation:'4',options:changed}),null);
+});
