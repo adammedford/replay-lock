@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
   chmodSync,
   mkdirSync,
-  readdirSync,
-  readFileSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 export const SESSION_PARTIAL = "SESSION_PARTIAL" as const;
@@ -86,21 +85,24 @@ export function registerSessionWorker<T>(
 }
 
 /** Aggregate only atomically completed chunks from registered workers. */
-export function aggregateSession<T>(
+export async function aggregateSession<T>(
   sessionDirectory: string,
   token: string,
   validate: (value: unknown) => T,
-): SessionAggregation<T> {
+): Promise<SessionAggregation<T>> {
   assertSessionCapability(sessionDirectory, token);
   const records: T[] = [];
   const failures: SessionFailure[] = [];
   const reportedFailuresDirectory = path.join(sessionDirectory, "failures");
   try {
-    for (const filename of sortedEntries(reportedFailuresDirectory)) {
-      if (!filename.endsWith(".json")) continue;
-      const value = JSON.parse(
-        readFileSync(path.join(reportedFailuresDirectory, filename), "utf8"),
-      ) as Partial<SessionFailure>;
+    const failureEntries = (await sortedEntriesAsync(reportedFailuresDirectory)).filter((name) =>
+      name.endsWith(".json"),
+    );
+    const failureContents = await Promise.all(
+      failureEntries.map((filename) => readFile(path.join(reportedFailuresDirectory, filename), "utf8")),
+    );
+    for (const text of failureContents) {
+      const value = JSON.parse(text) as Partial<SessionFailure>;
       if (value.code !== SESSION_PARTIAL || value.reason !== "STORAGE_FAILURE") {
         throw new Error("Malformed session failure marker");
       }
@@ -114,7 +116,7 @@ export function aggregateSession<T>(
   const workersDirectory = path.join(sessionDirectory, "workers");
   let workerNames: string[];
   try {
-    workerNames = sortedEntries(workersDirectory);
+    workerNames = await sortedEntriesAsync(workersDirectory);
   } catch (error) {
     if (isMissingClose(error)) {
       return { records, failures, partial: failures.length > 0 };
@@ -122,45 +124,67 @@ export function aggregateSession<T>(
     return partial(records, { code: SESSION_PARTIAL, reason: "STORAGE_FAILURE" });
   }
 
-  for (const workerName of workerNames) {
-    const workerDirectory = path.join(workersDirectory, workerName);
-    try {
-      const registration = parseRegistration(
-        readFileSync(path.join(workerDirectory, "registered.json"), "utf8"),
-        token,
-        workerName,
-      );
-      const chunks = sortedEntries(path.join(workerDirectory, "chunks")).filter((name) =>
-        name.endsWith(".complete.json"),
-      );
-      for (let index = 0; index < chunks.length; index += 1) {
-        const filename = chunks[index];
-        if (!filename) continue;
-        const chunk = parseChunk(
-          readFileSync(path.join(workerDirectory, "chunks", filename), "utf8"),
-          token,
-          workerName,
-          index,
-        );
-        records.push(validate(chunk.record));
-      }
+  const workerResults = await Promise.all(
+    workerNames.map(async (workerName) => {
+      const workerDirectory = path.join(workersDirectory, workerName);
+      const workerRecords: T[] = [];
       try {
-        const closed = parseClose(
-          readFileSync(path.join(workerDirectory, "closed.json"), "utf8"),
-          token,
-          registration.workerId,
+        const registrationText = await readFile(path.join(workerDirectory, "registered.json"), "utf8");
+        const registration = parseRegistration(registrationText, token, workerName);
+
+        const chunks = (await sortedEntriesAsync(path.join(workerDirectory, "chunks"))).filter((name) =>
+          name.endsWith(".complete.json"),
         );
-        if (closed.completedChunks !== chunks.length) {
-          failures.push({ code: SESSION_PARTIAL, reason: "NON_CLOSING_WRITER", workerId: workerName });
+
+        const chunkContents = await Promise.all(
+          chunks.map((filename) => readFile(path.join(workerDirectory, "chunks", filename), "utf8")),
+        );
+
+        let chunkError: unknown;
+        for (let index = 0; index < chunks.length; index += 1) {
+          try {
+            const chunk = parseChunk(chunkContents[index]!, token, workerName, index);
+            workerRecords.push(validate(chunk.record));
+          } catch (err) {
+            chunkError = err;
+            break;
+          }
         }
+
+        if (chunkError) {
+          return {
+            records: workerRecords,
+            failure: { code: SESSION_PARTIAL as typeof SESSION_PARTIAL, reason: "MALFORMED_CHUNK" as const, workerId: workerName },
+          };
+        }
+
+        let workerFailure: SessionFailure | undefined;
+        try {
+          const closedText = await readFile(path.join(workerDirectory, "closed.json"), "utf8");
+          const closed = parseClose(closedText, token, registration.workerId);
+          if (closed.completedChunks !== chunks.length) {
+            workerFailure = { code: SESSION_PARTIAL, reason: "NON_CLOSING_WRITER", workerId: workerName };
+          }
+        } catch (error) {
+          if (!isMissingClose(error)) throw error;
+          workerFailure = { code: SESSION_PARTIAL, reason: "NON_CLOSING_WRITER", workerId: workerName };
+        }
+
+        return { records: workerRecords, failure: workerFailure };
       } catch (error) {
-        if (!isMissingClose(error)) throw error;
-        failures.push({ code: SESSION_PARTIAL, reason: "NON_CLOSING_WRITER", workerId: workerName });
+        return {
+          records: workerRecords,
+          failure: { code: SESSION_PARTIAL as typeof SESSION_PARTIAL, reason: "MALFORMED_CHUNK" as const, workerId: workerName },
+        };
       }
-    } catch (error) {
-      failures.push({ code: SESSION_PARTIAL, reason: "MALFORMED_CHUNK", workerId: workerName });
-    }
+    }),
+  );
+
+  for (const res of workerResults) {
+    records.push(...res.records);
+    if (res.failure) failures.push(res.failure);
   }
+
   return { records, failures, partial: failures.length > 0 };
 }
 
@@ -232,11 +256,8 @@ function parseChunk(
   return value as CompletedChunk<unknown>;
 }
 
-function sortedEntries(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() || entry.isFile())
-    .map((entry) => entry.name)
-    .sort();
+async function sortedEntriesAsync(directory: string): Promise<string[]> {
+  return (await readdir(directory)).sort();
 }
 
 function ensurePrivateDirectory(directory: string): void {

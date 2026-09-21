@@ -187,7 +187,7 @@ async function record(arguments_: string[]): Promise<number> {
       if (!isObject(handshake) || handshake.token !== sessionToken) {
         replayFailures.push("PLUGIN_NOT_ACTIVE: the configured Vite integration did not activate");
       } else {
-        const aggregation = aggregateSession(
+        const aggregation = await aggregateSession(
           sessionDirectory,
           sessionToken,
           validateCandidateSessionRecord,

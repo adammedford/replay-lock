@@ -246,7 +246,7 @@ test("identity and no assimilation", () => {
       assert.equal(accessorReads, 0);
       assert.equal(proxyTraps, 0);
 
-      const aggregated = aggregateSession(session, "a".repeat(64), validateCandidateSessionRecord);
+      const aggregated = await aggregateSession(session, "a".repeat(64), validateCandidateSessionRecord);
       assert.deepEqual(aggregated.failures, []);
       assert.equal(aggregated.records.filter((record) => record.state === "observation").length, 0);
       assert.deepEqual(
