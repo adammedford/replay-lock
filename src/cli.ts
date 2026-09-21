@@ -123,7 +123,7 @@ async function record(arguments_: string[]): Promise<number> {
 
   let recordingPreflight;
   try {
-    recordingPreflight = preflightRecordingProject(root, { packageCatalog, lockfile });
+    recordingPreflight = await preflightRecordingProject(root, { packageCatalog, lockfile });
   } catch (error) {
     console.error(`PROJECT_ANALYSIS_FAILED: ${errorMessage(error)}`);
     return 2;

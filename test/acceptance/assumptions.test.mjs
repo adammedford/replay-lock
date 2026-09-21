@@ -34,9 +34,9 @@ test("unknown targets without assumptions are blocked with UNKNOWN_EFFECT", () =
   console.log("unknown effect blocking verified");
 });
 
-test("nonempty assumptions resolve only unknown evidence and conflicts fail with ASSERTION_CONFLICT", () => {
+test("nonempty assumptions resolve only unknown evidence and conflicts fail with ASSERTION_CONFLICT", async () => {
   const current = analysis();
-  const assumption = reviewAssumption("opaque package is deterministic for numeric input", current, fingerprintInput());
+  const assumption = await reviewAssumption("opaque package is deterministic for numeric input", current, fingerprintInput());
   assert.equal(evaluateAssumption(current, assumption).verdict, "likely-safe");
 
   // A direct effect is a conflict even if unknown evidence remains. Keep this
@@ -51,9 +51,9 @@ test("nonempty assumptions resolve only unknown evidence and conflicts fail with
   console.log("assertion conflict handling verified");
 });
 
-test("assumptions cannot resolve unrelated unknown evidence", () => {
+test("assumptions cannot resolve unrelated unknown evidence", async () => {
   const sourceA = analysis();
-  const assumption = reviewAssumption("reviewed package boundary", sourceA, fingerprintInput());
+  const assumption = await reviewAssumption("reviewed package boundary", sourceA, fingerprintInput());
   const sourceB = analyzeProjectCallGraph({
     modules: { "entry.ts": 'import { missing } from "./missing"; export function root(value: number) { return missing(value); }' },
     entryModule: "entry.ts",
@@ -64,9 +64,9 @@ test("assumptions cannot resolve unrelated unknown evidence", () => {
   assert.equal(result.code, "UNKNOWN_EFFECT");
 });
 
-test("review and accepted provenance retain reason and original sorted evidence", () => {
+test("review and accepted provenance retain reason and original sorted evidence", async () => {
   const current = analysis();
-  const assumption = reviewAssumption("reviewed package boundary", current, fingerprintInput());
+  const assumption = await reviewAssumption("reviewed package boundary", current, fingerprintInput());
   assert.equal(assumption.reason, "reviewed package boundary");
   assert.deepEqual(assumption.evidence, assumption.provenance.originalEvidence);
   assert.deepEqual(assumption.evidence, [...assumption.evidence].sort((a, b) =>
@@ -75,19 +75,19 @@ test("review and accepted provenance retain reason and original sorted evidence"
   console.log("assumption provenance verified");
 });
 
-test("assumption fingerprints cover modules, one lockfile, evidence, analyzer, and intrinsic catalog", () => {
-  const base = createAssumptionFingerprint(fingerprintInput());
+test("assumption fingerprints cover modules, one lockfile, evidence, analyzer, and intrinsic catalog", async () => {
+  const base = await createAssumptionFingerprint(fingerprintInput());
   for (const extra of [
     { modules: { ...modules, "helper.ts": "export const value = 1;" }, reachableModules: ["entry.ts", "helper.ts"] },
     { lockfileBytes: '{"name":"fixture","lockfileVersion":4}' },
     { unknownEvidence: [...analysis().findings, { code: "UNKNOWN_CALL", source: "entry.ts", line: 2, column: 1, message: "other" }] },
     { analyzerVersion: "changed" },
     { intrinsicCatalogVersion: "changed" },
-  ]) assert.notEqual(createAssumptionFingerprint({ ...fingerprintInput(), ...extra }), base);
+  ]) assert.notEqual(await createAssumptionFingerprint({ ...fingerprintInput(), ...extra }), base);
   console.log("assumption fingerprint verified");
 });
 
-test("explicit lockfile paths require the project root and stay inside it", () => {
+test("explicit lockfile paths require the project root and stay inside it", async () => {
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "replaylock-assumption-"));
   const projectRoot = path.join(temporaryRoot, "project");
   const outsideRoot = path.join(temporaryRoot, "outside");
@@ -97,12 +97,12 @@ test("explicit lockfile paths require the project root and stay inside it", () =
   const outsideLockfile = path.join(outsideRoot, "package-lock.json");
   writeFileSync(projectLockfile, "project lockfile");
   writeFileSync(outsideLockfile, "outside lockfile");
-  assert.throws(
-    () => createAssumptionFingerprint({ ...fingerprintInput(), lockfileBytes: undefined, lockfilePath: projectLockfile }),
+  await assert.rejects(
+    createAssumptionFingerprint({ ...fingerprintInput(), lockfileBytes: undefined, lockfilePath: projectLockfile }),
     /projectRoot is required with lockfilePath/,
   );
-  assert.throws(
-    () => createAssumptionFingerprint({ ...fingerprintInput(), lockfileBytes: undefined, projectRoot, lockfilePath: outsideLockfile }),
+  await assert.rejects(
+    createAssumptionFingerprint({ ...fingerprintInput(), lockfileBytes: undefined, projectRoot, lockfilePath: outsideLockfile }),
     /lockfile must be at the project root/,
   );
 });
@@ -112,26 +112,26 @@ test("all provenance callers enforce the same exactly-one lockfile selection", a
   writeFileSync(path.join(projectRoot, "package-lock.json"), "npm");
   writeFileSync(path.join(projectRoot, "yarn.lock"), "yarn");
   const expected = /ReplayLock requires exactly one supported project lockfile \(package-lock\.json, yarn\.lock\)/;
-  assert.throws(() => selectProjectLockfile({ projectRoot }), expected);
+  await assert.rejects(selectProjectLockfile({ projectRoot }), expected);
   await assert.rejects(readProjectLockfile(projectRoot), expected);
 });
 
-test("fingerprint changes produce STALE_ASSERTION before invocation", () => {
+test("fingerprint changes produce STALE_ASSERTION before invocation", async () => {
   const current = analysis();
-  const assumption = reviewAssumption("reviewed package boundary", current, fingerprintInput());
+  const assumption = await reviewAssumption("reviewed package boundary", current, fingerprintInput());
   const changed = fingerprintInput({ modules: { "entry.ts": `${modules["entry.ts"]}\nexport const changed = 1;` } });
-  assert.equal(checkAssumptionFreshness(assumption, changed).code, "STALE_ASSERTION");
+  assert.equal((await checkAssumptionFreshness(assumption, changed)).code, "STALE_ASSERTION");
   let invoked = false;
-  assert.throws(() => invokeWithAssumption(assumption, changed, () => { invoked = true; }), /STALE_ASSERTION/);
+  await assert.rejects(invokeWithAssumption(assumption, changed, () => { invoked = true; }), /STALE_ASSERTION/);
   assert.equal(invoked, false);
   console.log("stale assertion preflight verified");
 });
 
-test("refresh requires a new recording and explicit review", () => {
+test("refresh requires a new recording and explicit review", async () => {
   const current = analysis();
-  const assumption = reviewAssumption("initial review", current, fingerprintInput());
-  assert.throws(() => refreshAssumption({ previous: assumption, recording: current, fingerprint: fingerprintInput(), reviewed: false }), /explicit review/);
-  const refreshed = refreshAssumption({
+  const assumption = await reviewAssumption("initial review", current, fingerprintInput());
+  await assert.rejects(refreshAssumption({ previous: assumption, recording: current, fingerprint: fingerprintInput(), reviewed: false }), /explicit review/);
+  const refreshed = await refreshAssumption({
     previous: assumption,
     recording: current,
     fingerprint: fingerprintInput({ lockfileBytes: '{"name":"fixture","lockfileVersion":4}' }),

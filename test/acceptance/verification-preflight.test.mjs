@@ -226,7 +226,7 @@ async function writeAssumedCase(project) {
   assert.equal(analysis.verdict, "unknown");
   const assumption = {
     reason: "reviewed package boundary",
-    fingerprint: createAssumptionFingerprint({ modules, analysis, projectRoot: project }),
+    fingerprint: await createAssumptionFingerprint({ modules, analysis, projectRoot: project }),
     originalEvidence: unknownEvidence(analysis.findings).map((finding) => ({ ...finding })),
     analyzerVersion: analysis.analyzerVersion,
     intrinsicCatalogVersion: INTRINSIC_CATALOG_VERSION,

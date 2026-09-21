@@ -23,7 +23,7 @@ export interface SelectProjectLockfileOptions {
   lockfileName?: string;
 }
 
-export function selectProjectLockfile(options: SelectProjectLockfileOptions): ProjectLockfile {
+export async function selectProjectLockfile(options: SelectProjectLockfileOptions): Promise<ProjectLockfile> {
   if (options.lockfileBytes !== undefined) {
     if (!options.lockfileName) throw new Error("lockfileName is required with lockfileBytes");
     const name = requireSupportedLockfileName(options.lockfileName);
@@ -36,15 +36,15 @@ export function selectProjectLockfile(options: SelectProjectLockfileOptions): Pr
     if (!root) throw new Error("projectRoot is required with lockfilePath");
     if (path.dirname(explicit) !== root) throw new Error("lockfile must be at the project root");
     const name = requireSupportedLockfileName(path.basename(explicit));
-    return { name, bytes: readFileSync(explicit) };
+    return { name, bytes: await readFile(explicit) };
   }
   if (!root) throw new Error("projectRoot or complete lockfile bytes are required");
 
-  const entries = readdirSync(root, { withFileTypes: true });
+  const entries = await readdir(root, { withFileTypes: true });
   const names = supportedNames(entries.filter((entry) => entry.isFile()).map((entry) => entry.name));
   requireExactlyOneLockfile(names);
   const name = names[0]!;
-  return { name, bytes: readFileSync(path.join(root, name)) };
+  return { name, bytes: await readFile(path.join(root, name)) };
 }
 
 export async function readProjectLockfile(projectRoot: string): Promise<ProjectLockfile> {

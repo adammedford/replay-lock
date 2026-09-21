@@ -26,7 +26,7 @@ function fingerprintInput(modules, analysis, overrides = {}) {
   };
 }
 
-test("direct known effects cannot be laundered through an assumption", () => {
+test("direct known effects cannot be laundered through an assumption", async () => {
   const modules = {
     "entry.ts": 'import { opaque } from "opaque-package"; export function root(value: number) { console.log(value); return opaque(value); }',
   };
@@ -35,8 +35,8 @@ test("direct known effects cannot be laundered through an assumption", () => {
   assert.equal(result.verdict, "refuted");
   assert.ok(result.findings.some(({ code }) => code === "LOGGING"));
   assert.ok(result.findings.some(({ code }) => code === "PACKAGE_CALL"));
-  assert.throws(
-    () => reviewAssumption("package call was reviewed", result, fingerprintInput(modules, result)),
+  await assert.rejects(
+    reviewAssumption("package call was reviewed", result, fingerprintInput(modules, result)),
     (error) => error?.code === "ASSERTION_CONFLICT",
   );
 
@@ -44,7 +44,7 @@ test("direct known effects cannot be laundered through an assumption", () => {
     "entry.ts": 'import { opaque } from "opaque-package"; export function root(value: number) { return opaque(value); }',
   };
   const unknown = analyze(unknownModules);
-  const assumption = reviewAssumption(
+  const assumption = await reviewAssumption(
     "opaque numeric operation was reviewed",
     unknown,
     fingerprintInput(unknownModules, unknown),
@@ -54,7 +54,7 @@ test("direct known effects cannot be laundered through an assumption", () => {
   assert.equal(evaluated.code, "ASSERTION_CONFLICT");
 });
 
-test("excluded callees and reachable module initialization still refute their callers", () => {
+test("excluded callees and reachable module initialization still refute their callers", async () => {
   const excluded = analyze({
     "entry.ts": `/** @replaylock exclude reviewed boundary */
 function hiddenEffect() { return Math.random(); }
@@ -71,18 +71,18 @@ export function root() { return hiddenEffect(); }`,
   const initialized = analyze(modules);
   assert.equal(initialized.verdict, "refuted");
   assert.ok(initialized.findings.some(({ code, source }) => code === "EFFECTFUL_INITIALIZATION" && source === "boot.ts"));
-  assert.throws(
-    () => reviewAssumption("package call was reviewed", initialized, fingerprintInput(modules, initialized)),
+  await assert.rejects(
+    reviewAssumption("package call was reviewed", initialized, fingerprintInput(modules, initialized)),
     (error) => error?.code === "ASSERTION_CONFLICT",
   );
 });
 
-test("only exact scope-bound reviewed unknown evidence resolves a package boundary", () => {
+test("only exact scope-bound reviewed unknown evidence resolves a package boundary", async () => {
   const modules = {
     "entry.ts": 'import { opaque } from "opaque-package"; export function root(value: number) { return opaque(value); }',
   };
   const result = analyze(modules);
-  const assumption = reviewAssumption(
+  const assumption = await reviewAssumption(
     "opaque numeric operation was reviewed",
     result,
     fingerprintInput(modules, result),
@@ -97,16 +97,16 @@ test("only exact scope-bound reviewed unknown evidence resolves a package bounda
   assert.equal(evaluated.code, "UNKNOWN_EFFECT");
 });
 
-test("every fingerprint dimension becomes stale before target invocation", () => {
+test("every fingerprint dimension becomes stale before target invocation", async () => {
   const modules = {
     "entry.ts": 'import { opaque } from "opaque-package"; export function root(value: number) { return opaque(value); }',
   };
   const result = analyze(modules);
   const input = fingerprintInput(modules, result);
-  const assumption = reviewAssumption("opaque numeric operation was reviewed", result, input);
+  const assumption = await reviewAssumption("opaque numeric operation was reviewed", result, input);
 
   let invocationCount = 0;
-  assert.equal(invokeWithAssumption(assumption, input, () => ++invocationCount), 1);
+  assert.equal(await invokeWithAssumption(assumption, input, () => ++invocationCount), 1);
 
   const changedEvidence = result.findings.map((finding, index) => index === 0
     ? { ...finding, message: `${finding.message} changed` }
@@ -120,8 +120,8 @@ test("every fingerprint dimension becomes stale before target invocation", () =>
   ];
 
   for (const staleInput of staleInputs) {
-    assert.throws(
-      () => invokeWithAssumption(assumption, staleInput, () => ++invocationCount),
+    await assert.rejects(
+      invokeWithAssumption(assumption, staleInput, () => ++invocationCount),
       /STALE_ASSERTION/,
     );
   }

@@ -62,7 +62,7 @@ export async function preflightAcceptedCases(
   // Evaluate only after every artifact and target has been prepared. This is
   // intentionally separate from execution: a valid earlier case can never run
   // before a later invalid case is discovered.
-  for (const target of prepared) validateEligibility(projectRoot, target);
+  for (const target of prepared) await validateEligibility(projectRoot, target);
   return parsed;
 }
 
@@ -164,7 +164,7 @@ async function prepareTarget(
   return { artifact, modules, analysis, policy };
 }
 
-function validateEligibility(projectRoot: string, target: PreparedTarget): void {
+async function validateEligibility(projectRoot: string, target: PreparedTarget): Promise<void> {
   const { artifact, modules, analysis, policy } = target;
   const locator = `${artifact.locator.module}#${artifact.locator.exportName}`;
   if (hasRefutingEvidence(analysis)) {
@@ -192,9 +192,9 @@ function validateEligibility(projectRoot: string, target: PreparedTarget): void 
       "the reviewed source assumption was removed",
     );
   }
-  let freshness: ReturnType<typeof checkAssumptionFreshness>;
+  let freshness: Awaited<ReturnType<typeof checkAssumptionFreshness>>;
   try {
-    freshness = checkAssumptionFreshness(assumption, {
+    freshness = await checkAssumptionFreshness(assumption, {
       modules,
       analysis,
       projectRoot,

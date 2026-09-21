@@ -125,7 +125,7 @@ export function unknownEvidence(findings: readonly CallGraphFinding[]): readonly
  * dependency lockfile, unknown evidence, and both analyzer version inputs.
  * Length-prefixing prevents path/content concatenation ambiguities.
  */
-export function createAssumptionFingerprint(input: AssumptionFingerprintInput): string {
+export async function createAssumptionFingerprint(input: AssumptionFingerprintInput): Promise<string> {
   const modules = moduleEntries(input);
   const reachable = new Set(input.analysis?.reachableModules ?? input.reachableModules ?? modules.map(([name]) => name));
   const selectedModules = modules
@@ -138,7 +138,7 @@ export function createAssumptionFingerprint(input: AssumptionFingerprintInput): 
   const evidence = unknownEvidence(input.analysis?.findings ?? input.unknownEvidence ?? []);
   const analyzerVersion = input.analyzerVersion ?? input.analysis?.analyzerVersion ?? EFFECT_ANALYZER_VERSION;
   const intrinsicCatalogVersion = input.intrinsicCatalogVersion ?? INTRINSIC_CATALOG_VERSION;
-  const lockfile = selectProjectLockfile(input);
+  const lockfile = await selectProjectLockfile(input);
   const fields: Uint8Array[] = [
     utf8("replaylock-assumption-fingerprint\0"),
     field("analyzer-version", utf8(analyzerVersion)),
@@ -165,21 +165,21 @@ export function createAssumptionFingerprint(input: AssumptionFingerprintInput): 
 }
 
 /** Create the review artifact. The caller is the explicit human-review seam. */
-export function reviewAssumption(
+export async function reviewAssumption(
   reason: string,
   analysis: CallGraphAnalysis,
   fingerprintInput: Omit<AssumptionFingerprintInput, "analysis" | "unknownEvidence">,
-): ReviewedAssumption;
-export function reviewAssumption(options: {
+): Promise<ReviewedAssumption>;
+export async function reviewAssumption(options: {
   reason: string;
   analysis: CallGraphAnalysis;
   fingerprint: AssumptionFingerprintInput;
-}): ReviewedAssumption;
-export function reviewAssumption(
+}): Promise<ReviewedAssumption>;
+export async function reviewAssumption(
   first: string | { reason: string; analysis: CallGraphAnalysis; fingerprint: AssumptionFingerprintInput },
   analysisArg?: CallGraphAnalysis,
   inputArg?: Omit<AssumptionFingerprintInput, "analysis" | "unknownEvidence">,
-): ReviewedAssumption {
+): Promise<ReviewedAssumption> {
   const options = typeof first === "string"
     ? { reason: first, analysis: analysisArg!, fingerprint: { ...inputArg!, analysis: analysisArg } }
     : first;
@@ -187,7 +187,7 @@ export function reviewAssumption(
   const evidence = unknownEvidence(options.analysis.findings);
   if (hasRefutingEvidence(options.analysis)) throw assertionConflict(options.analysis.findings);
   if (evidence.length === 0) throw new Error("assumption requires unknown evidence");
-  const fingerprint = createAssumptionFingerprint({
+  const fingerprint = await createAssumptionFingerprint({
     ...options.fingerprint,
     analysis: options.analysis,
     unknownEvidence: evidence,
@@ -254,11 +254,11 @@ export function evaluateAssumption(
  * the reviewed-assumption API here and the accepted-case preflight in
  * verification.ts -- decides freshness with this one definition.
  */
-export function checkAssumptionFreshness(
+export async function checkAssumptionFreshness(
   assumption: Pick<ReviewedAssumption, "fingerprint">,
   input: AssumptionFingerprintInput,
-): AssumptionFreshness {
-  const actualFingerprint = createAssumptionFingerprint(input);
+): Promise<AssumptionFreshness> {
+  const actualFingerprint = await createAssumptionFingerprint(input);
   const fresh = actualFingerprint === assumption.fingerprint;
   return Object.freeze({
     fresh,
@@ -269,24 +269,24 @@ export function checkAssumptionFreshness(
 }
 
 /** The freshness check is deliberately before invocation and cannot be bypassed by a callback. */
-export function invokeWithAssumption<T>(
+export async function invokeWithAssumption<T>(
   assumption: ReviewedAssumption,
   input: AssumptionFingerprintInput,
-  invoke: () => T,
-): T {
-  const freshness = checkAssumptionFreshness(assumption, input);
+  invoke: () => T | Promise<T>,
+): Promise<T> {
+  const freshness = await checkAssumptionFreshness(assumption, input);
   if (!freshness.fresh) throw new Error("STALE_ASSERTION");
   return invoke();
 }
 
 /** Refreshing is intentionally a two-key operation: a new recording and explicit review. */
-export function refreshAssumption(options: {
+export async function refreshAssumption(options: {
   previous: ReviewedAssumption;
   recording: CallGraphAnalysis;
   fingerprint: Omit<AssumptionFingerprintInput, "analysis" | "unknownEvidence">;
   reason?: string;
   reviewed: true;
-}): ReviewedAssumption {
+}): Promise<ReviewedAssumption> {
   if (options.reviewed !== true) throw new Error("assumption refresh requires explicit review");
   return reviewAssumption(
     options.reason ?? options.previous.reason,

@@ -54,7 +54,7 @@ export function replaylock(options: { dev?: boolean } = {}): Plugin {
         packageCatalog = emptyPackageCatalog;
       }
       try {
-        lockfile = selectProjectLockfile({ projectRoot: config.root });
+        lockfile = await selectProjectLockfile({ projectRoot: config.root });
       } catch {
         lockfile = undefined;
       }
@@ -78,7 +78,7 @@ export function replaylock(options: { dev?: boolean } = {}): Plugin {
       }
       return `import { appendFileSync } from "node:fs";\nimport path from "node:path";\nimport configuration from ${JSON.stringify(projectConfiguration)};\nimport { createValueAdapterRegistry, ValueAdapterConfigurationError } from ${JSON.stringify(adaptersModule)};\nlet valueAdapterRegistry;\ntry {\n  valueAdapterRegistry = createValueAdapterRegistry(configuration);\n} catch (error) {\n  if (error instanceof ValueAdapterConfigurationError) {\n    const directory = process.env.REPLAYLOCK_SESSION_DIR;\n    const token = process.env.REPLAYLOCK_SESSION_TOKEN;\n    if (directory && token) appendFileSync(path.join(directory, "adapter-diagnostics.jsonl"), JSON.stringify({ token, code: error.code, message: error.message }) + "\\n", { encoding: "utf8", mode: 0o600 });\n  }\n  throw error;\n}\nexport { valueAdapterRegistry };\n`;
     },
-    transform(code, rawId) {
+    async transform(code, rawId) {
       if (!activation || !resolvedConfig) return null;
 
       const id = rawId.split("?", 1)[0] ?? rawId;
@@ -96,7 +96,7 @@ export function replaylock(options: { dev?: boolean } = {}): Plugin {
         true,
         typescriptScriptKind(id),
       );
-      const evaluated = evaluateCaptureSource(resolvedConfig.root, id, code, sourceFile, {
+      const evaluated = await evaluateCaptureSource(resolvedConfig.root, id, code, sourceFile, {
         packageCatalog,
         ...(lockfile ? { lockfile } : {}),
       });
@@ -169,16 +169,16 @@ export interface RecordingPreflight {
  * deliberately backed by the same evaluator used by the Vite transform: the
  * preflight is an execution gate, never a second interpretation of policy.
  */
-export function preflightRecordingProject(
+export async function preflightRecordingProject(
   projectRoot: string,
   resolution: PackageResolution = {},
-): RecordingPreflight {
+): Promise<RecordingPreflight> {
   let captureTargets = 0;
   let eligibleTargets = 0;
   const diagnostics: SourceDiagnostic[] = [];
   for (const sourcePath of projectSourceFiles(projectRoot)) {
     const code = readFileSync(sourcePath, "utf8");
-    const evaluated = evaluateCaptureSource(projectRoot, sourcePath, code, undefined, resolution);
+    const evaluated = await evaluateCaptureSource(projectRoot, sourcePath, code, undefined, resolution);
     captureTargets += evaluated.captureTargets;
     eligibleTargets += evaluated.targets.length;
     diagnostics.push(...evaluated.diagnostics);
@@ -348,13 +348,13 @@ interface EvaluatedCaptureSource {
   }>;
 }
 
-function evaluateCaptureSource(
+async function evaluateCaptureSource(
   projectRoot: string,
   sourcePath: string,
   code: string,
   parsedSource?: ts.SourceFile,
   resolution: PackageResolution = {},
-): EvaluatedCaptureSource {
+): Promise<EvaluatedCaptureSource> {
   const sourceFile = parsedSource ?? ts.createSourceFile(
     sourcePath,
     code,
@@ -411,7 +411,7 @@ function evaluateCaptureSource(
           target: callable.target,
           assumption: {
             reason,
-            fingerprint: createAssumptionFingerprint({
+            fingerprint: await createAssumptionFingerprint({
               modules: projectModules,
               analysis: eligibility,
               projectRoot,
