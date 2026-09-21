@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import path from 'node:path';
-import { readFile, rename, rm, stat, utimes } from 'node:fs/promises';
+import { readFile, rename, rm, stat, utimes, symlink } from 'node:fs/promises';
 import { analyzeDevProject, createDevProjectCache, transformDevSource } from '../../dist/dev-transform.js';
 import { resolveDevOptions } from '../../dist/dev-options.js';
+import { createDevAnalysisClient } from '../../dist/dev-analysis-client.js';
+import { createDevInputTracker } from '../../dist/dev-project-cache.js';
 import { fixture, put } from '../helpers/dev-fixture.mjs';
 const names=a=>a.targets.map(t=>`${t.locator.module}#${t.locator.namePath.join('.')}`);
 test('authored module admission rechecks edits and does not admit nonexistent generated modules',async t=>{
@@ -76,4 +78,72 @@ test('selected callers retain transitive dependency effects and unconditional mo
     assert.ok(!names(unsafe).includes('src/main.js#main'));
     assert.ok(unsafe.diagnostics.some(d=>d.code==='EFFECTFUL_INITIALIZATION'));
   }
+});
+
+
+test('cached dependency edits match retained pre-optimization analysis, transforms and maps', async t => {
+  const baseline=JSON.parse(await readFile(new URL('../fixtures/responsiveness/project-baseline.json',import.meta.url),'utf8'));
+  const root=await fixture(t,baseline.files),options=resolveDevOptions(),cache=createDevProjectCache(root,options);
+  const normalize=value=>JSON.parse(JSON.stringify(value,(_key,item)=>typeof item==='string'?item.split(root).join('$root').split(root.split(path.sep).join('/')).join('$root'):item));
+  for(const stage of baseline.stages) {
+    await put(root,'node_modules/tiny/index.js',stage.dependency);
+    for(const environment of ['node','browser']) {
+      const input={root,id:path.join(root,'src/main.js'),code:baseline.files['src/main.js'],environment,generation:'1',options};
+      assert.deepEqual(normalize(cache.analyze(environment)),stage.realms[environment].analysis);
+      assert.deepEqual(normalize(cache.transform(input)),stage.realms[environment].transform);
+      assert.deepEqual(normalize(cache.transform({...input,code:'// shifted\n'+input.code})),stage.realms[environment].overlay);
+    }
+  }
+});
+
+
+test('missing probe validation detects additions, directory replacement and dangling link targets without watchers', async t => {
+  const root=await fixture(t,{'src/keep.js':'export const value=1;'});
+  const probe=path.join(root,'src/missing.js'),tracker=createDevInputTracker();
+  assert.equal(tracker.isFile(probe),false);
+  assert.equal(tracker.isCurrent(),true);
+  const before=await stat(path.dirname(probe));
+  await put(root,'src/missing.js','export const value=2;');
+  await utimes(path.dirname(probe),before.atime,before.mtime);
+  assert.equal(tracker.isCurrent(),false,'restored parent mtime must not hide a new file');
+  const replaced=createDevInputTracker();replaced.isFile(path.join(root,'src/another.js'));
+  await rename(path.join(root,'src'),path.join(root,'old'));
+  await put(root,'src/another.js','export const value=1;');
+  assert.equal(replaced.isCurrent(),false,'replacement directories invalidate missing probes');
+  const nested=createDevInputTracker();nested.isFile(path.join(root,'absent/deep/file.js'));
+  await put(root,'absent/deep/file.js','export const value=3;');
+  assert.equal(nested.isCurrent(),false,'missing parents retain direct validation');
+  if(process.platform==='win32')return;
+  const target=path.join(root,'elsewhere/target.js');
+  await put(root,'elsewhere/keep.js','');
+  await symlink(target,path.join(root,'src/link.js'));
+  const dangling=createDevInputTracker();assert.equal(dangling.isFile(path.join(root,'src/link.js')),false);
+  await put(root,'elsewhere/target.js','export const value=4;');
+  assert.equal(dangling.isCurrent(),false,'a target can appear without changing the link directory');
+});
+
+
+test('realm workers preserve fresh analysis, source maps, configuration and shutdown', async t => {
+  const root=await fixture(t,{'src/a.js':'export function a(n){return n+Math.random();}'}),options=resolveDevOptions();
+  const client=createDevAnalysisClient(root,options);
+  t.after(()=>client.close());
+  const realms=['node','browser'];
+  const analyses=await Promise.all(realms.map(realm=>client.analyze(realm)));
+  for(const [index,environment] of realms.entries()) {
+    assert.deepEqual(analyses[index],analyzeDevProject(root,options,environment));
+    const input={root,id:path.join(root,'src/a.js'),code:await readFile(path.join(root,'src/a.js'),'utf8'),environment,generation:'1',options};
+    assert.deepEqual(await client.transformAuthored(input),structuredClone(transformDevSource(input)));
+  }
+  await put(root,'src/a.js','export function a(n){console.log(n);return n;}');
+  assert.equal((await client.analyze('node')).targets.length,0,'freshness must not rely on a watcher message');
+  await put(root,'src/a.js','export function a(n){return n+Math.random();}');
+  client.configure(resolveDevOptions({effects:{randomness:false}}));
+  for(const result of await Promise.all(realms.map(realm=>client.analyze(realm))))assert.equal(result.targets.length,0);
+  client.configure(options);
+  for(const result of await Promise.all(realms.map(realm=>client.analyze(realm))))assert.equal(result.targets.length,1);
+  const pending=client.analyze('node');
+  const settled=Promise.allSettled([pending]);
+  await client.close();
+  await settled;
+  await assert.rejects(client.analyze('node'),/session is closed/);
 });

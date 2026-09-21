@@ -427,7 +427,10 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         module.problems.inherit(code, inherited, module.dependencyNodes.get(dependency)!); changed = true;
       }
     }
-    for (const candidate of functions) {
+    // Unreached dependency functions cannot contribute diagnostics to a selected
+    // callable. Keep module propagation unconditional, but avoid constructing
+    // unused per-callable cause chains for the rest of the dependency graph.
+    for (const candidate of reachableFunctions) {
       for (const code of candidate.module.problems) if (!candidate.problems.has(code)) {
         candidate.problems.inherit(code, candidate.module.problems, candidate.node); changed = true;
       }

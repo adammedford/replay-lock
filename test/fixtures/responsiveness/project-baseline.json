@@ -1,0 +1,1084 @@
+{
+  "base": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+  "files": {
+    "src/main.js": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+    "node_modules/tiny/package.json": "{\"type\":\"module\",\"exports\":\"./index.js\"}"
+  },
+  "stages": [
+    {
+      "dependency": "export function helper(n){return second(n);} function second(n){console.log(n);return n;} export function dormant(){return Date.now();}",
+      "realms": {
+        "node": {
+          "analysis": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "94f37ecd1da816aab9a2399c9ba11f81262708bfd2678ea9148b5893134cb08d"
+          },
+          "transform": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "94f37ecd1da816aab9a2399c9ba11f81262708bfd2678ea9148b5893134cb08d",
+            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          },
+          "overlay": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "630c07c867af4521394113deed96f47b61ef18f18c8e670a17ed53f50211b6e6",
+            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          }
+        },
+        "browser": {
+          "analysis": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "2ba973f96a9f5be674286f42d3e85ceb1b11546171e2149765d7785d95b318cd"
+          },
+          "transform": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "2ba973f96a9f5be674286f42d3e85ceb1b11546171e2149765d7785d95b318cd",
+            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          },
+          "overlay": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "LOGGING",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "LOGGING",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: LOGGING"
+              },
+              {
+                "code": "UNKNOWN_CALL",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_CALL",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_CALL"
+              },
+              {
+                "code": "UNKNOWN_REFERENCE",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 61
+                },
+                "causes": [
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 34
+                    }
+                  },
+                  {
+                    "code": "UNKNOWN_REFERENCE",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 65
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: UNKNOWN_REFERENCE"
+              }
+            ],
+            "sourceGraphDigest": "0132619b4dfd4da926bceafb91c7946f84c22fdd3f896ac43304912fa86540e3",
+            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          }
+        }
+      }
+    },
+    {
+      "dependency": "export function helper(n){return second(n);} function second(n){return n+1;} export function dormant(){return Date.now();}",
+      "realms": {
+        "node": {
+          "analysis": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "1f5fa0434ebd603605d238255305368d27d64b8bf58970162d8f4e0a7c35e1f5"
+          },
+          "transform": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "1f5fa0434ebd603605d238255305368d27d64b8bf58970162d8f4e0a7c35e1f5",
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"1f5fa0434ebd603605d238255305368d27d64b8bf58970162d8f4e0a7c35e1f5\",\"generation\":\"1\",\"environment\":\"node\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
+          },
+          "overlay": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "b62b6f7a21fd3cb3d314548a6471d12fc0825080bd84daae1e487eb4afe2d1cf",
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\n// shifted\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"b62b6f7a21fd3cb3d314548a6471d12fc0825080bd84daae1e487eb4afe2d1cf\",\"generation\":\"1\",\"environment\":\"node\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;AACT,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
+          }
+        },
+        "browser": {
+          "analysis": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "69fc3692a225f9ecc86dc1f59fcf3a71747449bf11ce63b0bb33d206585df8d6"
+          },
+          "transform": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "69fc3692a225f9ecc86dc1f59fcf3a71747449bf11ce63b0bb33d206585df8d6",
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"69fc3692a225f9ecc86dc1f59fcf3a71747449bf11ce63b0bb33d206585df8d6\",\"generation\":\"1\",\"environment\":\"browser\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
+          },
+          "overlay": {
+            "targets": [
+              {
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
+              }
+            ],
+            "diagnostics": [],
+            "sourceGraphDigest": "0064313e00432e9f550ef19c09579bc5c988b84016102c6bc641afb5939558fa",
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\n// shifted\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"0064313e00432e9f550ef19c09579bc5c988b84016102c6bc641afb5939558fa\",\"generation\":\"1\",\"environment\":\"browser\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;AACT,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
+          }
+        }
+      }
+    },
+    {
+      "dependency": "const initial=Date.now(); export function helper(n){return n+1;}",
+      "realms": {
+        "node": {
+          "analysis": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 1,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "a8aaf9d0fcb67499710b9c2d0ccc7850da66d7d42c5bd96c377f370ad0654544"
+          },
+          "transform": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 1,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "a8aaf9d0fcb67499710b9c2d0ccc7850da66d7d42c5bd96c377f370ad0654544",
+            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          },
+          "overlay": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 2,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "8044f4c79ab5101a962e859fb8ed07b234e11a7ae6a691989477dbb5e5d58ae1",
+            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          }
+        },
+        "browser": {
+          "analysis": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 1,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "03ddd5a1bf9ddd49988758aa99696015f13263b0bb790c3ba6e8514caf40cb7e"
+          },
+          "transform": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 1,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 1,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "03ddd5a1bf9ddd49988758aa99696015f13263b0bb790c3ba6e8514caf40cb7e",
+            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          },
+          "overlay": {
+            "targets": [],
+            "diagnostics": [
+              {
+                "code": "EFFECTFUL_INITIALIZATION",
+                "locator": {
+                  "module": "src/main.js",
+                  "kind": "export",
+                  "namePath": [
+                    "main"
+                  ]
+                },
+                "position": {
+                  "module": "src/main.js",
+                  "line": 2,
+                  "column": 30
+                },
+                "causes": [
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "src/main.js",
+                      "line": 2,
+                      "column": 22
+                    }
+                  },
+                  {
+                    "code": "EFFECTFUL_INITIALIZATION",
+                    "position": {
+                      "module": "node_modules/tiny/index.js",
+                      "line": 1,
+                      "column": 15
+                    }
+                  }
+                ],
+                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+              }
+            ],
+            "sourceGraphDigest": "efe96818008312f0c7124457436d3e258c66a8c4112f7c35ab3d68d1a72a3605",
+            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
+            "map": null
+          }
+        }
+      }
+    }
+  ]
+}

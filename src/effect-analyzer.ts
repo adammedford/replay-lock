@@ -74,9 +74,15 @@ interface ModuleEffectFacts {
 /** A build owns this context; source identity prevents facts crossing edits or overlays. */
 export function createEffectAnalyzer() {
   const modules = new WeakMap<ts.SourceFile, ModuleEffectFacts>();
+  const initializations = new WeakMap<ts.SourceFile, readonly ts.Node[]>();
+  function initializationNodes(sourceFile: ts.SourceFile): readonly ts.Node[] {
+    let nodes = initializations.get(sourceFile);
+    if (!nodes) { nodes = effectfulModuleInitializations(sourceFile); initializations.set(sourceFile, nodes); }
+    return nodes;
+  }
   function facts(sourceFile: ts.SourceFile): ModuleEffectFacts {
     let value = modules.get(sourceFile);
-    if (!value) { value = moduleEffectFacts(sourceFile); modules.set(sourceFile, value); }
+    if (!value) { value = moduleEffectFacts(sourceFile, initializationNodes(sourceFile)); modules.set(sourceFile, value); }
     return value;
   }
   return {
@@ -84,15 +90,15 @@ export function createEffectAnalyzer() {
       return analyzeCallableEffects(options, facts(options.sourceFile));
     },
     analyzeModuleInitialization(options: { source: string; sourceFile: ts.SourceFile }): DirectEffectAnalysis {
-      return analyzeInitialization(options, facts(options.sourceFile).initializations);
+      return analyzeInitialization(options, initializationNodes(options.sourceFile));
     },
   };
 }
 
-function moduleEffectFacts(sourceFile: ts.SourceFile): ModuleEffectFacts {
+function moduleEffectFacts(sourceFile: ts.SourceFile, initializations: readonly ts.Node[] = effectfulModuleInitializations(sourceFile)): ModuleEffectFacts {
   return {
     bindings: collectModuleBindings(sourceFile),
-    initializations: effectfulModuleInitializations(sourceFile),
+    initializations,
     aliasNodes: collectAliasNodes(sourceFile),
     importedEffects: collectImportedEffects(sourceFile),
   };

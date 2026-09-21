@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { createEffectAnalyzer, analyzeDirectEffects, analyzeModuleInitialization, parseAndAnalyzeDirectEffects } from "../../dist/effect-analyzer.js";
 
@@ -236,6 +237,23 @@ test("shared module analysis preserves per-callable aliases, initialization and 
     for (const callable of [...callables, ...callables.toReversed()]) {
       const options = {...input, callable};
       assert.deepEqual(analyzer.analyzeDirectEffects(options), analyzeDirectEffects(options));
+    }
+  }
+});
+
+
+test("shared effect analysis matches retained pre-optimization findings and order", async () => {
+  const baseline = JSON.parse(await readFile(new URL("../fixtures/responsiveness/effects-baseline.json", import.meta.url), "utf8"));
+  const analyzer = createEffectAnalyzer();
+  for (const entry of baseline.cases) {
+    const sourceFile = ts.createSourceFile("shared.ts", entry.sourceText, ts.ScriptTarget.Latest, true);
+    const callables = [];
+    const visit = node => { if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node)) callables.push(node); ts.forEachChild(node, visit); };
+    visit(sourceFile);
+    const input = {source: "shared.ts", sourceFile};
+    assert.deepEqual(analyzer.analyzeModuleInitialization(input), entry.initialization);
+    for (const index of [...callables.keys()].reverse()) {
+      assert.deepEqual(analyzer.analyzeDirectEffects({...input, callable: callables[index]}), entry.callables[index]);
     }
   }
 });
