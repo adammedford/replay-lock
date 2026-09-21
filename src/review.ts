@@ -1,6 +1,9 @@
 import {
   artifactJson,
   atomicWrite,
+  comparableCompletionValue,
+  formatLeafPath,
+  numberLeafPaths,
   toCaseArtifact,
   type CandidateArtifact,
   type CaseArtifact,
@@ -131,7 +134,7 @@ export async function acceptReviewedCandidate(
 ): Promise<CaseArtifact> {
   const artifact = toCaseArtifact(candidate);
   const withComparison = comparison ? { ...artifact, comparison } : artifact;
-  await atomicWrite(casePath, artifactJson(withComparison));
+  await atomicWrite(casePath, artifactJson(withComparison), { durable: true });
   return withComparison;
 }
 
@@ -157,6 +160,80 @@ export function parseReviewDecision(answer: string): ReviewDecision | undefined 
     default:
       return undefined;
   }
+}
+
+export interface ToleranceChoice {
+  path: (string | number)[];
+  display: string;
+  /** The recorded value at this leaf, shown so an epsilon can be sized sensibly. */
+  value: number;
+  /** True when this leaf is one of the ones that actually changed. */
+  differs: boolean;
+}
+
+/**
+ * The number leaves a reviewer may tolerate, with the ones that actually
+ * changed marked. Pre-selecting those makes the fewest-keystrokes answer the
+ * safe one: loosening a leaf that did not drift takes a deliberate extra step.
+ */
+export function toleranceChoices(
+  candidate: CandidateArtifact,
+  existing?: CaseArtifact,
+): ToleranceChoice[] {
+  const candidateValue = comparableCompletionValue(candidate.completion);
+  const existingValue = existing ? comparableCompletionValue(existing.completion) : undefined;
+  return numberLeafPaths(candidateValue).map((path) => {
+    const current = leafAt(candidateValue, path);
+    const previous = existingValue === undefined ? undefined : leafAt(existingValue, path);
+    return {
+      path,
+      display: formatLeafPath(path),
+      value: current ?? Number.NaN,
+      differs: previous !== undefined && current !== undefined && previous !== current,
+    };
+  });
+}
+
+function leafAt(node: unknown, path: readonly (string | number)[]): number | undefined {
+  let current: unknown = node;
+  for (const step of path) {
+    if (!current || typeof current !== "object") return undefined;
+    const value = current as { kind?: unknown; items?: unknown[]; entries?: { key: string; value: unknown }[] };
+    if (typeof step === "number") {
+      if (value.kind !== "array" || !Array.isArray(value.items)) return undefined;
+      current = value.items[step];
+    } else {
+      if (value.kind !== "record" || !Array.isArray(value.entries)) return undefined;
+      current = value.entries.find((entry) => entry.key === step)?.value;
+    }
+  }
+  if (!current || typeof current !== "object") return undefined;
+  const leaf = current as { kind?: unknown; value?: unknown };
+  return leaf.kind === "number" && typeof leaf.value === "number" ? leaf.value : undefined;
+}
+
+/**
+ * Parse a leaf selection such as `1,3` against the offered choices. An empty
+ * answer takes the pre-selected (changed) leaves, and is rejected when nothing
+ * changed, so tolerance is never applied to an unstated leaf.
+ */
+export function parseToleranceSelection(
+  answer: string,
+  choices: readonly ToleranceChoice[],
+): ToleranceChoice[] | undefined {
+  const trimmed = answer.trim();
+  if (trimmed.length === 0) {
+    const preselected = choices.filter((choice) => choice.differs);
+    return preselected.length > 0 ? preselected : undefined;
+  }
+  const selected: ToleranceChoice[] = [];
+  for (const part of trimmed.split(",")) {
+    const index = Number(part.trim());
+    const choice = choices[index];
+    if (!Number.isSafeInteger(index) || !choice || selected.includes(choice)) return undefined;
+    selected.push(choice);
+  }
+  return selected.length > 0 ? selected : undefined;
 }
 
 /** A tolerance epsilon must be a finite positive number; never guessed or defaulted. */

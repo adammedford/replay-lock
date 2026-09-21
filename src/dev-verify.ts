@@ -98,7 +98,10 @@ type WorkerPhase = "validate" | "replay";
 
 async function runIsolatedGroups(root: string, groups: readonly DevCase[][], options: ResolvedDevOptions, phase: WorkerPhase): Promise<number> {
   const directory = path.join(root, ".replaylock", "verify");
-  await mkdir(directory, { recursive: true });
+  // Owner-only, matching every other `.replaylock/` directory. The files inside
+  // are 0600, but a world-traversable scratch directory still leaks metadata
+  // (case filenames, counts, timing).
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   const temporary = await mkdtemp(path.join(directory, `dev-${phase}-`));
   let status = 0;
   try {
@@ -110,16 +113,32 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
       const runtime = group[0]!.provenance.runtimeProfile;
       const result = await new Promise<number>((resolve) => {
         const child = spawn(process.execPath, [runner], { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, TZ: runtime.timezone, LANG: `${runtime.locale.replaceAll("-", "_")}.UTF-8`, NO_COLOR: "1", FORCE_COLOR: "0" } });
-        let bytes = 0;
-        const output = (chunk: Buffer) => { bytes += chunk.length; if (bytes < 1024 * 1024) process.stdout.write(chunk); };
-        child.stdout.on("data", output); child.stderr.on("data", output);
-        const timeout = setTimeout(() => { child.kill("SIGKILL"); }, 90_000);
+        let bytes = 0, truncated = false;
+        // A worker's own stdout/stderr are forwarded to the matching parent
+        // stream, bounded so a runaway replay cannot flood the terminal. The
+        // boundary is announced once instead of dropping output silently.
+        const forward = (stream: NodeJS.WriteStream) => (chunk: Buffer) => {
+          bytes += chunk.length;
+          if (bytes < 1024 * 1024) stream.write(chunk);
+          else if (!truncated) { truncated = true; process.stderr.write("REPLAY_OUTPUT_TRUNCATED\n"); }
+        };
+        child.stdout.on("data", forward(process.stdout)); child.stderr.on("data", forward(process.stderr));
+        let timedOut = false;
+        const timeout = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, 90_000);
         child.once("error", () => { clearTimeout(timeout); console.error("REPLAY_INFRASTRUCTURE_FAILED"); resolve(2); });
-        child.once("close", (code) => { clearTimeout(timeout); resolve(code === 0 ? 0 : code === 1 ? 1 : 2); });
+        child.once("close", (code) => {
+          clearTimeout(timeout);
+          // A killed worker returns a null exit code; distinguish the timeout
+          // from an ordinary infrastructure failure so a hang is diagnosable.
+          if (timedOut) { console.error("REPLAY_INFRASTRUCTURE_FAILED: replay worker exceeded 90s and was terminated"); resolve(2); return; }
+          resolve(code === 0 ? 0 : code === 1 ? 1 : 2);
+        });
       });
       status = Math.max(status, result);
     }
-  } finally { await rm(temporary, { recursive: true, force: true }); }
+    // Cleanup runs in a `finally` and must not throw: `force` ignores a missing
+    // directory but not EBUSY/EPERM, routine on Windows while child handles drain.
+  } finally { try { await rm(temporary, { recursive: true, force: true }); } catch { /* ephemeral scratch */ } }
   return status;
 }
 

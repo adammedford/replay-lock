@@ -356,7 +356,14 @@ function makeTarget(info: ModuleInfo, name: string, callable: ts.FunctionLikeDec
 function collectEdges(target: Target, modules: Map<string, ModuleInfo>, resolution: PackageResolutionContext): Edge[] {
   const edges: Edge[] = [];
   const visit = (node: ts.Node): void => {
-    if (node !== target.callable && ts.isFunctionLike(node)) return;
+    // Calls written inside a nested function body are reachable whenever that
+    // function runs, so they are edges too. Stopping at the boundary let an
+    // impure local helper invoked only from a callback go unfollowed, which
+    // surfaced as discharge-able unknown evidence rather than refutation.
+    if (node !== target.callable && ts.isFunctionLike(node)) {
+      ts.forEachChild(node, visit);
+      return;
+    }
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
       const edge = resolveInvocation(target, node.expression, modules, resolution, ts.isNewExpression(node));
       if (edge) {

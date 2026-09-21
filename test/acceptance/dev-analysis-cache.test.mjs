@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { readFile, rename, rm, stat, utimes, symlink } from 'node:fs/promises';
 import { analyzeDevProject, createDevProjectCache, transformDevSource } from '../../dist/dev-transform.js';
@@ -168,4 +169,17 @@ test('authored initialization exclusion stays current across source and dependen
   }
   const changed=resolveDevOptions({capture:{exclude:['src/**']}});
   assert.equal(cache.transformAuthored({root,id:path.join(root,'src/a.js'),code:safe,environment:'node',generation:'4',options:changed}),null);
+});
+
+
+test('analysis workers can start from a module-eval host', async t => {
+  const root=await fixture(t,{'src/a.js':'export function a(n){return n+1;}'});
+  const script=`import {createDevAnalysisClient} from ${JSON.stringify(new URL('../../dist/dev-analysis-client.js',import.meta.url).href)};
+    import {resolveDevOptions} from ${JSON.stringify(new URL('../../dist/dev-options.js',import.meta.url).href)};
+    const client=createDevAnalysisClient(${JSON.stringify(root)},resolveDevOptions());
+    try { if((await client.analyze('node')).targets.length!==1)throw Error('missing target'); }
+    finally { await client.close(); }`;
+  for(const flags of [['--input-type=module'],['--input-type','module']]) {
+    execFileSync(process.execPath,[...flags,'--eval',script],{timeout:15000,stdio:'pipe'});
+  }
 });

@@ -97,6 +97,130 @@ export function createDevCaseId(input: Pick<DevCase, "locator" | "environment" |
   return createHash("sha256").update(devArtifactJson({ schemaVersion: 2, locator: input.locator, environment: input.environment, arguments: input.arguments, trace: input.trace })).digest("hex");
 }
 
+function devLeafPath(path: readonly (string | number)[]): string {
+  return path.reduce<string>((rendered, step) =>
+    typeof step === "number" ? `${rendered}[${step}]`
+      : /^[A-Za-z_$][\w$]*$/.test(step) ? `${rendered}.${step}`
+      : `${rendered}[${JSON.stringify(step)}]`, "$");
+}
+
+function devLeafValue(node: unknown, path: readonly (string | number)[]): number | undefined {
+  let current: unknown = node;
+  for (const step of path) {
+    if (!current || typeof current !== "object") return undefined;
+    const value = current as { kind?: unknown; items?: unknown[]; entries?: { key: string; value: unknown }[]; fields?: { key: string; value: unknown }[] };
+    if (typeof step === "number") current = Array.isArray(value.items) ? value.items[step] : undefined;
+    else {
+      const entries = value.kind === "record" ? value.entries : value.kind === "error" ? value.fields : undefined;
+      current = Array.isArray(entries) ? entries.find((entry) => entry.key === step)?.value : undefined;
+    }
+  }
+  const leaf = current as { kind?: unknown; value?: unknown } | undefined;
+  return leaf && leaf.kind === "number" && typeof leaf.value === "number" ? leaf.value : undefined;
+}
+
+/**
+ * Tolerance is chosen one named leaf at a time, with the leaves that actually
+ * changed pre-selected, so the shortest answer loosens only what drifted.
+ */
+async function chooseDevTolerance(
+  candidate: DevCandidate,
+  existing: DevCase | undefined,
+  next: (prompt: string) => Promise<string>,
+): Promise<{ path: (string | number)[]; epsilon: number }[] | undefined> {
+  const paths = devNumberLeafPaths(candidate.completion.value);
+  if (paths.length === 0) { console.error("This completion has no number leaf; tolerance does not apply"); return undefined; }
+  const choices = paths.map((path) => {
+    const value = devLeafValue(candidate.completion.value, path);
+    const previous = existing ? devLeafValue(existing.completion.value, path) : undefined;
+    return { path, display: devLeafPath(path), value, differs: previous !== undefined && previous !== value };
+  });
+
+  let selected = choices;
+  if (choices.length > 1) {
+    for (const [index, choice] of choices.entries()) {
+      console.log(`  [${index}] ${choice.display} = ${choice.value}${choice.differs ? "  (changed)" : ""}`);
+    }
+    const preselected = choices.filter((choice) => choice.differs);
+    const answer = (await next(`Which leaf may drift? (comma-separated indexes; ${preselected.length ? `blank = ${preselected.map((c) => c.display).join(", ")}` : "a selection is required"}) `)).trim();
+    if (answer.length === 0) {
+      if (preselected.length === 0) { console.error("No tolerance leaf selected"); return undefined; }
+      selected = preselected;
+    } else {
+      const picked: typeof choices = [];
+      for (const part of answer.split(",")) {
+        const index = Number(part.trim());
+        const choice = choices[index];
+        if (!Number.isSafeInteger(index) || !choice || picked.includes(choice)) { console.error("No tolerance leaf selected"); return undefined; }
+        picked.push(choice);
+      }
+      selected = picked;
+    }
+  }
+
+  const leaves = [];
+  for (const choice of selected) {
+    const epsilon = parseToleranceEpsilon(await next(`Epsilon for ${choice.display} (recorded ${choice.value}, finite positive): `));
+    if (epsilon === undefined) { console.error(`Invalid or missing epsilon for ${choice.display}`); return undefined; }
+    leaves.push({ path: choice.path, epsilon });
+  }
+  return leaves;
+}
+
+/** Every number leaf inside a DevValue, in deterministic order. */
+export function devNumberLeafPaths(node: unknown): (string | number)[][] {
+  const paths: (string | number)[][] = [];
+  const walk = (current: unknown, path: (string | number)[]): void => {
+    if (!current || typeof current !== "object") return;
+    const value = current as { kind?: unknown; items?: unknown[]; entries?: unknown[]; fields?: unknown[] };
+    if (value.kind === "number") { paths.push([...path]); return; }
+    if (value.kind === "array" && Array.isArray(value.items)) {
+      value.items.forEach((item, index) => walk(item, [...path, index]));
+      return;
+    }
+    const entries = value.kind === "record" ? value.entries : value.kind === "error" ? value.fields : undefined;
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        const field = entry as { key?: unknown; value?: unknown };
+        if (typeof field.key === "string") walk(field.value, [...path, field.key]);
+      }
+    }
+    // "adapted" is intentionally not traversed; its adapter defines equality.
+  };
+  walk(node, []);
+  return paths;
+}
+
+/**
+ * Validated against the case's own completion so a stored path can never fail
+ * to resolve at comparison time. The superseded whole-completion
+ * `{ kind: "tolerance", epsilon }` form migrates only when there is exactly one
+ * number leaf, where the two are provably the same comparator.
+ */
+function parseDevTolerance(input: unknown, completionValue: unknown): DevCase["comparison"] {
+  const available = devNumberLeafPaths(completionValue).map((path) => JSON.stringify(path));
+  const keys = input && typeof input === "object" ? Reflect.ownKeys(input).sort().join(",") : "";
+  if (keys === "epsilon,kind") {
+    const legacy = record(input, ["kind", "epsilon"]);
+    if (legacy.kind !== "tolerance" || typeof legacy.epsilon !== "number" || !Number.isFinite(legacy.epsilon) || legacy.epsilon <= 0) fail();
+    if (available.length !== 1) fail("TOLERANCE_LEAF_AMBIGUOUS");
+    return { kind: "tolerance", leaves: [{ path: JSON.parse(available[0]!) as (string | number)[], epsilon: legacy.epsilon as number }] };
+  }
+  const tolerance = record(input, ["kind", "leaves"]);
+  if (tolerance.kind !== "tolerance" || !Array.isArray(tolerance.leaves) || tolerance.leaves.length === 0) fail();
+  const seen = new Set<string>();
+  const leaves = (tolerance.leaves as unknown[]).map((entry) => {
+    const leaf = record(entry, ["path", "epsilon"]);
+    if (typeof leaf.epsilon !== "number" || !Number.isFinite(leaf.epsilon) || leaf.epsilon <= 0) fail();
+    if (!Array.isArray(leaf.path) || !leaf.path.every((step) => typeof step === "string" || (Number.isSafeInteger(step) && Number(step) >= 0))) fail();
+    const key = JSON.stringify(leaf.path);
+    if (seen.has(key) || !available.includes(key)) fail("TOLERANCE_LEAF_UNRESOLVED");
+    seen.add(key);
+    return { path: [...(leaf.path as (string | number)[])], epsilon: leaf.epsilon as number };
+  });
+  return { kind: "tolerance", leaves };
+}
+
 export function createDevCallableId(input: Pick<DevCase, "locator" | "environment">): string {
   return createHash("sha256").update(devArtifactJson({ locator: input.locator, environment: input.environment })).digest("hex");
 }
@@ -125,11 +249,7 @@ export function parseDevCase(text: string): DevCase {
   const completion = record(input.completion, ["kind", "value"]);
   if (completion.kind !== "return" && completion.kind !== "throw") fail();
   let comparison: DevCase["comparison"] = "exact";
-  if (input.comparison !== "exact") {
-    const tolerance = record(input.comparison, ["kind", "epsilon"]);
-    if (tolerance.kind !== "tolerance" || typeof tolerance.epsilon !== "number" || !Number.isFinite(tolerance.epsilon) || tolerance.epsilon <= 0) fail();
-    comparison = { kind: "tolerance", epsilon: tolerance.epsilon };
-  }
+  if (input.comparison !== "exact") comparison = parseDevTolerance(input.comparison, completion.value);
   const eligibility = record(input.eligibility, ["verdict", "reasonCodes"]);
   if (eligibility.verdict !== "replayable" || !Array.isArray(eligibility.reasonCodes) || !eligibility.reasonCodes.length || !eligibility.reasonCodes.every((code) => typeof code === "string" && /^[A-Z][A-Z0-9_]{0,127}$/.test(code)) || new Set(eligibility.reasonCodes).size !== eligibility.reasonCodes.length) fail();
   const provenance = record(input.provenance, ["sourceGraphDigest", "lockfileDigest", "runtimeProfile", "captureStatus"]);
@@ -277,7 +397,7 @@ export async function persistDevObservations(root: string, observations: readonl
     result.candidates++;
   }
   for (const entry of remove) if (!pending.has(entry.caseId)) await unlink(path.join(pendingDirectory, `${entry.caseId}.json`));
-  for (const candidate of pending.values()) if (changedInputs.has(candidate.caseId)) await atomicWrite(path.join(pendingDirectory, `${candidate.caseId}.json`), devArtifactJson(candidate));
+  for (const candidate of pending.values()) if (changedInputs.has(candidate.caseId)) await atomicWrite(path.join(pendingDirectory, `${candidate.caseId}.json`), devArtifactJson(candidate), { durable: true });
   result.blocked = result.blocks.length;
   return result;
 }
@@ -331,14 +451,14 @@ export async function reviewDevCandidates(root: string, decisions?: AsyncIterato
       if (decision === "reject") { await unlink(pendingPath); console.log(`Rejected ${candidate.caseId}`); continue; }
       let artifact = toDevCase(candidate);
       if (decision === "accept-tolerance") {
-        const epsilon = parseToleranceEpsilon(await next("Epsilon (finite positive number): "));
-        if (epsilon === undefined) { console.error("Invalid or missing epsilon; retained candidate"); return 2; }
-        artifact = { ...artifact, comparison: { kind: "tolerance", epsilon } };
+        const leaves = await chooseDevTolerance(candidate, existing, next);
+        if (!leaves) return 2;
+        artifact = { ...artifact, comparison: { kind: "tolerance", leaves } };
       }
       if (existing && (await next("Replace accepted case? Type replace: ")).trim().toLowerCase() !== "replace") { console.error(`Replacement not confirmed; retained ${candidate.caseId}`); return 2; }
-      await atomicWrite(casePath, devArtifactJson(artifact));
+      await atomicWrite(casePath, devArtifactJson(artifact), { durable: true });
       await unlink(pendingPath);
-      console.log(`Accepted ${candidate.caseId}${artifact.comparison === "exact" ? "" : ` (tolerance epsilon ${artifact.comparison.epsilon})`}`);
+      console.log(`Accepted ${candidate.caseId}${artifact.comparison === "exact" ? "" : ` (tolerance ${artifact.comparison.leaves.map((leaf) => `${devLeafPath(leaf.path)} +/-${leaf.epsilon}`).join(", ")})`}`);
       if (decision === "accept-remaining-in-file") batch.add(candidate.locator.module);
     }
   } finally { terminal?.close(); }

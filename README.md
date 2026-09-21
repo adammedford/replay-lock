@@ -92,7 +92,13 @@ replaylock verify
 
 ### Comparison modes
 
-Every case compares with exact equality by default. During `review`, a fifth answer, `t` (accept with numeric tolerance), prompts for a finite positive epsilon and persists `comparison: { kind: "tolerance", epsilon }` on that case instead of the default `comparison: "exact"` — an explicit, per-case, review-time decision; `record` never produces a tolerant case on its own. Within a tolerant case's completion, only number leaves compare within epsilon; every string, boolean, null, array length, record key, error name/message, and adapted-value identity still requires exact equality. This is additive to the existing schema (a string vs. an object is structurally distinguishable), so every previously accepted `"exact"` case remains valid and needs no migration.
+Every case compares with exact equality by default. During `review`, a fifth answer, `t` (accept with numeric tolerance), lets a reviewer name **individual number leaves** of the completion that may drift and give each one its own epsilon. It persists `comparison: { kind: "tolerance", leaves: [{ path, epsilon }] }` instead of the default `comparison: "exact"` — an explicit, per-case, review-time decision; `record` never produces a tolerant case on its own.
+
+A `path` addresses one number leaf inside the completion value: each step is a record key (string) or an array index (number), and an empty path is the completion value itself. Review lists the available leaves and pre-selects the ones that actually changed, so the shortest answer loosens only what drifted.
+
+Tolerance never applies to anything the reviewer did not name. Every other number leaf, and every string, boolean, null, array length, record key, error name/message, and adapted-value identity, still requires exact equality. Adapted payloads are always exact: an adapted value's equality is defined by its adapter, whose round trip is already byte-identical.
+
+Naming the leaf is what makes this sound. A single epsilon shared across a whole completion is unsafe in both directions — one sized for a large field silently admits real changes in small siblings, and one sized for a small field is meaningless for large ones. The superseded `{ kind: "tolerance", epsilon }` form is still accepted and migrated automatically when the completion has exactly one number leaf, because there the two are provably the same comparator; with more than one leaf the reviewer's intent cannot be recovered and the case is rejected with `CASE_SCHEMA_UNSUPPORTED` so it can be re-reviewed. Accepted `"exact"` cases are untouched and need no migration.
 
 ## Scan
 
@@ -101,6 +107,21 @@ replaylock scan
 ```
 
 `scan` reports capture eligibility for every directly exported function across the project, whether or not it already carries a `@replaylock` directive, using the same source-policy and call-graph analysis `record`'s preflight runs. It launches no Vitest process, requires no Vite configuration, writes nothing under `.replaylock/`, and always exits `0`: it is a report, not a gate. Each line names the export's status — `SCAN_ELIGIBLE`, `SCAN_NEEDS_REVIEW` (unknown effects, no retained assumption), `SCAN_INELIGIBLE` (refuted, with the leading reason code), `SCAN_UNSUPPORTED_SHAPE`, or `SCAN_EXCLUDED` — followed by a project-wide summary count. Use it before wiring the Vite plugin into Vitest at all, to see how much of a codebase is worth annotating.
+
+### Supported captured values
+
+Arguments and completions must fit ReplayLock's built-in canonical model: `null`,
+booleans, finite numbers, strings, dense arrays, and ordinary plain records, plus any
+class covered by a registered [Value Adapter](docs/value-adapters.md). Everything else
+is blocked as `UNSUPPORTED_VALUE` rather than approximated, including `undefined`
+(so a `void` return is never captured), `NaN`, negative zero, cyclic or repeated
+references, proxies, and sparse arrays.
+
+A thrown value may additionally be one of the standard error types, compared by exact
+name and message. An `AggregateError` is supported only when its `errors` list is
+empty: nested error content is never encoded, so accepting a populated aggregate would
+make two aggregates with entirely different causes compare equal and hide a real change
+from `verify`.
 
 ## Artifacts and privacy
 
@@ -128,7 +149,7 @@ Stable uppercase diagnostic codes are the machine-routable part of terminal repo
 - Accepted-case replay: `CASE_SCHEMA_UNSUPPORTED`, `ORPHANED_CALLABLE`, `COMPLETION_KIND_MISMATCH`, `OUTPUT_MISMATCH`.
 - Public replay and storage routing: `REPLAY_SAFETY_REGRESSION` identifies an accepted case that is no longer safe to invoke and retains reasons such as `CAPTURE_POLICY_CHANGED`, `UNSUPPORTED_CALLABLE`, `EFFECT_REFUTED`, `MISSING_ASSUMPTION`, or `STALE_ASSERTION`; `STORE_WRITE_FAILED` identifies an atomic pending-session or accepted-case write that could not be completed and retains the failed write stage.
 - Public Value Adapter routing: `VALUE_ADAPTER_INVALID`, `VALUE_ADAPTER_ID_CONFLICT`, `VALUE_ADAPTER_PROTOTYPE_CONFLICT`, `VALUE_ADAPTER_SERIALIZE_FAILED`, `VALUE_ADAPTER_PAYLOAD_UNSUPPORTED`, `VALUE_ADAPTER_MISSING`, `VALUE_ADAPTER_DESERIALIZE_FAILED`, `VALUE_ADAPTER_DESERIALIZE_TYPE_MISMATCH`, `VALUE_ADAPTER_VERSION_MISMATCH`, `VALUE_ADAPTER_VALIDATION_TIMEOUT`, and `VALUE_ADAPTER_ROUNDTRIP_MISMATCH`.
-- Public Trusted Package routing: `TRUSTED_PACKAGE_INVALID` retains `TRUSTED_PACKAGE_CONFIG_LOAD_FAILED` or `TRUSTED_PACKAGE_REGISTRY_FAILED`, and a registry failure retains the granular cause: `TRUSTED_PACKAGE_DEFINITION_INVALID`, `TRUSTED_PACKAGE_ID_DUPLICATE`, or `TRUSTED_PACKAGE_VERSION_RANGE_INVALID`. `TRUSTED_PACKAGE_CALL` is the evidence code a catalogued call contributes; it is never an error.
+- Public Trusted Package routing: `TRUSTED_PACKAGE_INVALID` retains `TRUSTED_PACKAGE_CONFIG_LOAD_FAILED`, `TRUSTED_PACKAGE_REGISTRY_FAILED`, or `TRUSTED_PACKAGE_VALIDATION_TIMEOUT`, and a registry failure retains the granular cause: `TRUSTED_PACKAGE_DEFINITION_INVALID`, `TRUSTED_PACKAGE_ID_DUPLICATE`, or `TRUSTED_PACKAGE_VERSION_RANGE_INVALID`. `TRUSTED_PACKAGE_CALL` is the evidence code a catalogued call contributes; it is never an error.
 
 Adapter diagnostics likewise retain the existing granular cause. For example, invalid definitions may retain `VALUE_ADAPTER_DEFINITION_INVALID`, `VALUE_ADAPTER_ID_INVALID`, `VALUE_ADAPTER_VERSION_INVALID`, `VALUE_ADAPTER_TOKEN_INVALID`, or `VALUE_ADAPTER_BUILTIN_PROTOTYPE`; conflicts retain `VALUE_ADAPTER_ID_DUPLICATE` or `VALUE_ADAPTER_PROTOTYPE_DUPLICATE`; and reconstruction type failures retain `VALUE_ADAPTER_PROTOTYPE_MISMATCH`. A serializer payload outside the built-in canonical model reports `VALUE_ADAPTER_PAYLOAD_UNSUPPORTED`; an unadapted runtime class remains the ordinary `UNSUPPORTED_VALUE`. A persisted adapted node distinguishes an absent registered ID (`VALUE_ADAPTER_MISSING`) from the same ID at the wrong version (`VALUE_ADAPTER_VERSION_MISMATCH`).
 

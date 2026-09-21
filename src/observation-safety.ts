@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { types as utilTypes } from "node:util";
 import type { ValueAdapterRegistry } from "./adapters.js";
+import { isSensitiveKey, isSensitiveString, normalizeSecretKey } from "./sensitive.js";
+
+// Re-exported so this module's public surface is unchanged; the definitions now
+// live in ./sensitive.js, shared with the V2 codec so the two cannot drift.
+export { isSensitiveKey, normalizeSecretKey };
 
 import {
   canonicalCompletionJson,
@@ -102,11 +107,6 @@ export interface ClassifyObservationOptions extends Partial<ObservationSafetyLim
   projectUnique?: number;
   valueAdapters?: ValueAdapterRegistry;
 }
-
-const BLOCKED_SECRET_KEYS = new Set([
-  "password", "passwd", "passphrase", "secret", "apikey", "accesstoken",
-  "refreshtoken", "authorization", "cookie", "setcookie", "privatekey", "clientsecret",
-]);
 
 /**
  * Take the pre-invocation snapshot without creating any content-derived hash,
@@ -314,14 +314,6 @@ export function collectSafeObservations(
   return { safe, blocked };
 }
 
-export function normalizeSecretKey(key: string): string {
-  return key.toLocaleLowerCase("en-US").replace(/[^a-z0-9]/g, "");
-}
-
-export function isSensitiveKey(key: string): boolean {
-  return BLOCKED_SECRET_KEYS.has(normalizeSecretKey(key));
-}
-
 function resolveLimits(options: ClassifyObservationOptions): ObservationSafetyLimits {
   const limits = {
     maxDepth: options.maxDepth ?? DEFAULT_OBSERVATION_LIMITS.maxDepth,
@@ -470,31 +462,6 @@ function isCompletion(value: unknown): value is ObservedCompletion {
   const valueDescriptor = Object.getOwnPropertyDescriptor(value, "value");
   return Boolean(descriptor && valueDescriptor && isDataDescriptor(descriptor) && isDataDescriptor(valueDescriptor) &&
     (descriptor.value === "return" || descriptor.value === "throw"));
-}
-
-function isSensitiveString(value: string): boolean {
-  if (/-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----/i.test(value)) return true;
-  if (/(?:^|\b)AKIA[0-9A-Z]{16}(?:\b|$)/.test(value)) return true;
-  if (/(?:ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)/.test(value)) return true;
-  if (/(?:^|\b)sk-/.test(value)) return true;
-  if (/(?:sk_live_|rk_live_)/.test(value)) return true;
-  if (/(?:xoxb-|xoxp-|xoxa-|xoxr-|xoxs-)/.test(value)) return true;
-  if (/^\s*(?:basic|bearer)\s+\S+/i.test(value)) return true;
-  return isValidatedJwt(value);
-}
-
-function isValidatedJwt(value: string): boolean {
-  const parts = value.split(".");
-  if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) return false;
-  const headerPart = parts[0];
-  const payloadPart = parts[1];
-  if (headerPart === undefined || payloadPart === undefined) return false;
-  try {
-    const decode = (part: string): unknown => JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
-    const header = decode(headerPart);
-    const payload = decode(payloadPart);
-    return Boolean(header && typeof header === "object" && !Array.isArray(header) && payload && typeof payload === "object" && !Array.isArray(payload));
-  } catch { return false; }
 }
 
 function isDataDescriptor(descriptor: PropertyDescriptor | undefined): descriptor is PropertyDescriptor & { value: unknown } {

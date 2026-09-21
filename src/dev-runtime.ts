@@ -384,7 +384,15 @@ function replayEffect(frame: Replay, operation: string, args: readonly unknown[]
     ...(call ? { expected: call } : {}), actual: { operation, arguments: encoded },
   });
   frame.cursor++;
-  if (operation.startsWith("Response.")) frame.responses.get(args[0] as object)!.used = true;
+  if (operation.startsWith("Response.")) {
+    // A Response method invoked on an object the replay did not hand out is a
+    // divergence, not an internal error: latch a clean mismatch rather than
+    // dereferencing undefined and escaping as a raw TypeError. The recording
+    // path (see devEffect above) already guards the same lookup.
+    const handle = frame.responses.get(args[0] as object);
+    if (!handle) throw latch(frame);
+    handle.used = true;
+  }
   if (asyncOperations.has(operation)) {
     const promise = new Promise((resolve, reject) => { frame.pending.set(call.id, { operation, resolve, reject }); });
     // A replay mismatch may reject an unawaited effect; suppress engine-owned noise.

@@ -88,7 +88,10 @@ export async function validateProjectAdapters(
       : { ok: false, code: "VALUE_ADAPTER_VALIDATOR_FAILED" }];
 }
 
-export type PackageCatalogFailureCode = "TRUSTED_PACKAGE_CONFIG_LOAD_FAILED" | "TRUSTED_PACKAGE_REGISTRY_FAILED";
+export type PackageCatalogFailureCode =
+  | "TRUSTED_PACKAGE_CONFIG_LOAD_FAILED"
+  | "TRUSTED_PACKAGE_REGISTRY_FAILED"
+  | "TRUSTED_PACKAGE_VALIDATION_TIMEOUT";
 
 export interface PackageCatalogResolution {
   ok: boolean;
@@ -144,11 +147,44 @@ export async function resolveProjectPackageCatalog(
 
   try {
     const outcome = await runValidatorProcess(runnerPath, directory, environment);
+    // A timeout is not an invalid catalog. Booting a Vite server and SSR-loading
+    // the project config can exceed the budget on a cold or large project, and
+    // reporting that as TRUSTED_PACKAGE_REGISTRY_FAILED blamed the user's config
+    // for what is a machine-speed problem. Raise it with
+    // REPLAYLOCK_VALIDATION_TIMEOUT_MS.
+    if (outcome === "timeout") return { ok: false, code: "TRUSTED_PACKAGE_VALIDATION_TIMEOUT" };
     if (outcome !== "success") return { ok: false, code: "TRUSTED_PACKAGE_REGISTRY_FAILED" };
     const parsed = JSON.parse(await readFile(outputPath, "utf8")) as unknown;
     return parsePackageCatalogResolution(parsed);
   } finally {
+    await discardScratchDirectory(directory);
+  }
+}
+
+/**
+ * One definition of how a catalog failure is reported, shared by `record` and
+ * by verification preflight. The public code stays TRUSTED_PACKAGE_INVALID so
+ * CI routing is unchanged; the granular reason follows it.
+ */
+export function describePackageCatalogFailure(resolution: PackageCatalogResolution): string {
+  const code = resolution.code ?? "TRUSTED_PACKAGE_REGISTRY_FAILED";
+  const detail = resolution.detailCode ? ` ${resolution.detailCode}` : "";
+  const reason = code === "TRUSTED_PACKAGE_VALIDATION_TIMEOUT"
+    ? "trusted-package catalog validation did not finish in time; raise REPLAYLOCK_VALIDATION_TIMEOUT_MS"
+    : "project trusted-package catalog is invalid";
+  return `TRUSTED_PACKAGE_INVALID ${code}${detail}: ${reason}`;
+}
+
+/**
+ * Scratch cleanup runs in a `finally`, so it must not throw: `force` ignores a
+ * missing directory but not EBUSY/EPERM, which are routine on Windows while a
+ * child process's handles drain. A throw there would replace the real result.
+ */
+async function discardScratchDirectory(directory: string): Promise<void> {
+  try {
     await rm(directory, { recursive: true, force: true });
+  } catch {
+    // The scratch tree is ephemeral and ignored by Git; leaking it is harmless.
   }
 }
 
@@ -165,6 +201,17 @@ function parsePackageCatalogResolution(value: unknown): PackageCatalogResolution
   }
   return { ok: false, code: "TRUSTED_PACKAGE_REGISTRY_FAILED" };
 }
+
+/**
+ * Replay deliberately runs in a pristine Vitest process so a project's own test
+ * setup cannot influence a recorded completion. That isolation also means the
+ * project's Vite configuration is not applied, which is the usual reason a
+ * target module fails to load here but loads fine under `vitest run`.
+ */
+const ISOLATED_REPLAY_DIAGNOSTIC =
+  "Replay ran in an isolated Vitest process. The project's own Vite/Vitest configuration " +
+  "(aliases, `define`, transform plugins, setup files) is intentionally not applied, so a " +
+  "target that depends on it can fail to load here. See docs/troubleshooting.md.";
 
 export async function replayAcceptedCases(options: {
   root: string;
@@ -211,13 +258,16 @@ export async function replayAcceptedCases(options: {
       };
     }
     if (outcome.code !== 0) {
+      // No marker means the harness never reached a comparison, so this is not a
+      // behavioral result. The most common cause is a module that will not load
+      // under the isolated config, which is easy to mistake for a ReplayLock bug.
       return (await readTextIfPresent(behavioralFailurePath)) === undefined
-        ? { status: "infrastructure-failure" }
+        ? { status: "infrastructure-failure", diagnostic: ISOLATED_REPLAY_DIAGNOSTIC }
         : { status: "behavioral-failure" };
     }
     return { status: "verified", count: options.cases.length };
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await discardScratchDirectory(directory);
   }
 }
 
@@ -291,7 +341,7 @@ async function validateAdapterDocuments(
     }
     return parsed.map(parseAdapterValidation);
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await discardScratchDirectory(directory);
   }
 }
 
@@ -316,6 +366,20 @@ function containsAdaptedNode(value: unknown): boolean {
   return Object.values(value).some(containsAdaptedNode);
 }
 
+const DEFAULT_VALIDATION_TIMEOUT_MS = 5_000;
+
+/**
+ * Isolated validation boots a Vite server, which is not reliably a sub-second
+ * operation on a cold cache or a large project. The budget is overridable so a
+ * slow machine can raise it rather than fail the whole command.
+ */
+function validationTimeoutMs(): number {
+  const configured = Number(process.env.REPLAYLOCK_VALIDATION_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0
+    ? Math.min(configured, 600_000)
+    : DEFAULT_VALIDATION_TIMEOUT_MS;
+}
+
 function runValidatorProcess(
   runnerPath: string,
   root: string,
@@ -332,7 +396,7 @@ function runValidatorProcess(
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
-    }, 5_000);
+    }, validationTimeoutMs());
     child.once("error", (error) => {
       clearTimeout(timer);
       reject(error);
@@ -451,8 +515,13 @@ function verificationHarness(
       completion,
     }, { valueAdapters: valueAdapterRegistry });
   } finally {
+    // "write" is inherited from the stream prototype, so the saved descriptor is
+    // normally undefined. Deleting the stub own property is what restores it;
+    // a bare "if (saved)" would leave stdout and stderr muted for good.
     if (stdoutWrite) Object.defineProperty(process.stdout, "write", stdoutWrite);
+    else delete process.stdout.write;
     if (stderrWrite) Object.defineProperty(process.stderr, "write", stderrWrite);
+    else delete process.stderr.write;
   }
   if (!classified.safe) {
     failBehavior(classified.code === "VALUE_ADAPTER_SERIALIZE_FAILED" ? classified.code : ${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)},
@@ -460,7 +529,7 @@ function verificationHarness(
   }
   const actual = classified.observation.completion;
   if (!completionsMatch(expected, actual, ${comparisonMode})) {
-    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, firstDifference(expected, actual));
+    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, () => firstDifference(expected, actual));
   }
 });`;
   });
@@ -479,9 +548,15 @@ function verificationHarness(
       ? `const valueAdapterRegistry = createValueAdapterRegistry(replaylockConfiguration);`
       : `const valueAdapterRegistry = emptyValueAdapterRegistry;`,
     `const behavioralFailurePath = ${JSON.stringify(behavioralFailurePath)};`,
+    // The marker is appended before the detail string is built. Detail
+    // formatting must never be able to downgrade a behavioral failure into an
+    // infrastructure failure, so a lazy detail is also evaluated defensively.
     `function failBehavior(code, locator, detail) {`,
     `  appendFileSync(behavioralFailurePath, code + "\\n", { encoding: "utf8", mode: 0o600 });`,
-    `  throw new Error(code + " " + locator + ": " + detail);`,
+    `  let text;`,
+    `  try { text = typeof detail === "function" ? detail() : detail; }`,
+    `  catch { text = "difference detail unavailable"; }`,
+    `  throw new Error(code + " " + locator + ": " + text);`,
     `}`,
     // An opt-in, review-time-only decision (see acceptReviewedCandidate in
     // review.ts): number leaves compare within epsilon, every other kind
@@ -494,22 +569,34 @@ function verificationHarness(
     `  if (expected.error || actual.error) {`,
     `    return !!expected.error && !!actual.error && expected.error.name === actual.error.name && expected.error.message === actual.error.message;`,
     `  }`,
-    `  return valuesMatch(expected.value, actual.value, comparisonMode);`,
+    `  return valuesMatch(expected.value, actual.value, comparisonMode, []);`,
     `}`,
-    `function valuesMatch(expected, actual, comparisonMode) {`,
-    `  const epsilon = comparisonMode && comparisonMode.kind === "tolerance" ? comparisonMode.epsilon : undefined;`,
+    // Tolerance is keyed by the exact path of each reviewed number leaf, so an
+    // epsilon can never widen a sibling. Everything not named stays exact, and
+    // adapted payloads are never tolerated (their adapter defines equality).
+    `function toleranceFor(comparisonMode, path) {`,
+    `  if (!comparisonMode || comparisonMode.kind !== "tolerance") return undefined;`,
+    `  const key = JSON.stringify(path);`,
+    `  const leaf = comparisonMode.leaves.find((entry) => JSON.stringify(entry.path) === key);`,
+    `  return leaf ? leaf.epsilon : undefined;`,
+    `}`,
+    `function valuesMatch(expected, actual, comparisonMode, path) {`,
     `  if (!expected || !actual || expected.kind !== actual.kind) return JSON.stringify(expected) === JSON.stringify(actual);`,
-    `  if (expected.kind === "number" && epsilon !== undefined) return Math.abs(expected.value - actual.value) <= epsilon;`,
+    `  if (expected.kind === "number") {`,
+    `    if (expected.value === actual.value) return true;`,
+    `    const epsilon = toleranceFor(comparisonMode, path);`,
+    `    return epsilon !== undefined && Math.abs(expected.value - actual.value) <= epsilon;`,
+    `  }`,
     `  if (expected.kind === "array") {`,
-    `    return expected.items.length === actual.items.length && expected.items.every((item, index) => valuesMatch(item, actual.items[index], comparisonMode));`,
+    `    return expected.items.length === actual.items.length && expected.items.every((item, index) => valuesMatch(item, actual.items[index], comparisonMode, path.concat(index)));`,
     `  }`,
     `  if (expected.kind === "record") {`,
     `    if (expected.entries.length !== actual.entries.length) return false;`,
     `    const actualByKey = new Map(actual.entries.map((entry) => [entry.key, entry.value]));`,
-    `    return expected.entries.every((entry) => actualByKey.has(entry.key) && valuesMatch(entry.value, actualByKey.get(entry.key), comparisonMode));`,
+    `    return expected.entries.every((entry) => actualByKey.has(entry.key) && valuesMatch(entry.value, actualByKey.get(entry.key), comparisonMode, path.concat(entry.key)));`,
     `  }`,
     `  if (expected.kind === "adapted") {`,
-    `    return expected.adapterId === actual.adapterId && expected.version === actual.version && valuesMatch(expected.payload, actual.payload, comparisonMode);`,
+    `    return expected.adapterId === actual.adapterId && expected.version === actual.version && JSON.stringify(expected.payload) === JSON.stringify(actual.payload);`,
     `  }`,
     `  return JSON.stringify(expected) === JSON.stringify(actual);`,
     `}`,
@@ -526,10 +613,19 @@ function verificationHarness(
     `  if (value.kind === "record") return "{" + value.entries.map((entry) => JSON.stringify(entry.key) + ": " + displayValue(entry.value)).join(", ") + "}";`,
     `  return "[canonical " + String(value.kind) + "]";`,
     `}`,
+    // A throw completion carries either "error" (a standard error) or "value"
+    // (any other thrown value). A case recorded as one and replayed as the
+    // other is a real regression, so it must be described, not indexed into.
     `function firstDifference(expected, actual) {`,
-    `  if (expected.kind === "throw" && expected.error && actual.error) {`,
+    `  if (expected.error || actual.error) {`,
+    `    if (!expected.error || !actual.error) {`,
+    `      return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
+    `    }`,
     `    if (expected.error.name !== actual.error.name) return "$.error.name: expected " + JSON.stringify(expected.error.name) + "; received " + JSON.stringify(actual.error.name);`,
     `    return "$.error.message: expected " + JSON.stringify(expected.error.message) + "; received " + JSON.stringify(actual.error.message);`,
+    `  }`,
+    `  if (!expected.value || !actual.value) {`,
+    `    return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
     `  }`,
     `  return valueDifference(expected.value, actual.value, "$");`,
     `}`,

@@ -40,6 +40,44 @@ During verification, safety failures are reported public-code first as `REPLAY_S
 
 `STORE_WRITE_FAILED` means ReplayLock could not atomically complete a pending-session or accepted-case write. The retained stage or storage reason identifies which write failed. Preserve the last known-good artifacts, correct permissions, available space, or filesystem support, and retry the ReplayLock operation; do not reconstruct or hand-edit a partially written artifact. A storage failure is infrastructure failure with exit `2` when no wrapped-command failure takes precedence.
 
+## Numeric tolerance names one leaf at a time
+
+`comparison.kind: "tolerance"` records the specific number leaves a reviewer allowed to
+drift, each with its own epsilon. Tolerance never reaches a leaf that was not named, so an
+epsilon chosen for one field cannot excuse a change in another.
+
+A case carrying the superseded whole-completion `{ kind: "tolerance", epsilon }` form is
+migrated automatically when its completion has exactly one number leaf. When it has more,
+`verify` reports `CASE_SCHEMA_UNSUPPORTED` naming the leaf count: that epsilon applied to
+every number in the completion, so which leaf was meant to drift cannot be recovered.
+Delete the accepted case, re-record, and accept it again with `t`, choosing the leaf.
+
+`Tolerance path $.x does not name a number leaf of this completion` means a stored path
+does not resolve against the case's own completion — a hand-edited or corrupted artifact.
+Paths are validated at parse time so this can never be silently ignored during comparison.
+
+## Trusted-package catalog validation
+
+`TRUSTED_PACKAGE_INVALID` retains `TRUSTED_PACKAGE_VALIDATION_TIMEOUT` when the isolated
+catalog validator did not finish in time. This is a machine-speed problem, not an invalid
+catalog: the validator boots a Vite server and SSR-loads `replaylock.config.*`, which can
+exceed the default five-second budget on a cold cache or a large project. Raise it with
+`REPLAYLOCK_VALIDATION_TIMEOUT_MS` (milliseconds, capped at ten minutes); the same budget
+applies to isolated adapter validation and its `VALUE_ADAPTER_VALIDATION_TIMEOUT`.
+
+## Replay runs without your Vite configuration
+
+`verify` replays every accepted case in a disposable Vitest process configured with only
+the project root and the generated harness. This isolation is deliberate -- your test
+setup must not be able to influence a recorded completion -- but it also means your
+project's Vite/Vitest configuration is not applied: `resolve.alias`, `define`, transform
+plugins, and setup files are all absent.
+
+A target that loads under `vitest run` but fails under `replaylock verify` with an
+infrastructure failure (exit `2`) and a module resolution or transform error is almost
+always hitting this. Import the dependency through a path Node can resolve on its own, or
+keep the captured callable free of alias-only imports.
+
 ## Adapter configuration and evolution
 
 Adapter reporting uses these public codes first while retaining the granular implementation cause:

@@ -97,6 +97,58 @@ test("scan exits 0 on a project with zero eligible functions and requires no Vit
   }
 });
 
+// Regression: effect analysis stopped at every nested function boundary, so an
+// effect written inside a callback surfaced only as the enclosing higher-order
+// call being unresolvable -- an UNKNOWN_CALL, which `@replaylock assume-pure`
+// is allowed to discharge. A refuting effect must refute wherever it is written,
+// otherwise moving it one closure deep silently defeats the assertion.
+test("an effect inside a nested callback refutes exactly like the same effect written directly", async () => {
+  const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-scan-nested-"));
+  try {
+    await mkdir(path.join(project, "src"));
+    await writeFile(path.join(project, "package.json"), `${JSON.stringify({ name: "nested-fixture", private: true, type: "module" })}\n`);
+    await writeFile(path.join(project, "package-lock.json"), `${JSON.stringify({ lockfileVersion: 3 })}\n`);
+    await writeFile(
+      path.join(project, "src", "calculation.ts"),
+      `/**
+ * @replaylock capture
+ * @replaylock assume-pure reviewed: asserted pure
+ */
+export function directRandom(value: number): number {
+  return value + Math.random();
+}
+
+/**
+ * @replaylock capture
+ * @replaylock assume-pure reviewed: asserted pure
+ */
+export function nestedRandom(values: number[]): number[] {
+  return values.map((value) => value + Math.random());
+}
+`,
+    );
+
+    const text = output(runScan(project));
+    assert.match(text, /SCAN_INELIGIBLE src\/calculation\.ts:\d+:\d+: directRandom \(RANDOMNESS\)/, text);
+    assert.match(text, /SCAN_INELIGIBLE src\/calculation\.ts:\d+:\d+: nestedRandom \(RANDOMNESS\)/, text);
+    assert.match(text, /Scanned 2 exported function\(s\): 0 eligible, 0 needs-review, 2 ineligible/, text);
+
+    // `assume-pure` must not be able to discharge either one.
+    const record = spawnSync(process.execPath, [cliPath, "record", "--", process.execPath, "-e", ""], {
+      cwd: project,
+      encoding: "utf8",
+      env: { ...process.env, REPLAYLOCK_SESSION_DIR: undefined, REPLAYLOCK_SESSION_TOKEN: undefined },
+      timeout: 60_000,
+    });
+    const recordText = output(record);
+    assert.equal(record.status, 2, recordText);
+    assert.match(recordText, /ASSERTION_CONFLICT src\/calculation\.ts:\d+:\d+: known effects conflict with the assume-pure assertion[\s\S]*ASSERTION_CONFLICT/, recordText);
+    assert.match(recordText, /NO_ELIGIBLE_TARGET/, recordText);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("scan branch integration marker", () => {
   console.log("scan branch integration verified");
 });

@@ -405,7 +405,11 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     inspect(node);
     // V1 evidence is retained verbatim except a specific intercepted operation's
     // source location. Writes, receiver dependence, and initialization never clear.
-    const direct = analyzeDirectEffects({ source: candidate.locator.module, sourceFile: module.sourceFile, callable: node });
+    // The development analyzer records nested callables as their own targets and
+    // projects their effects onto every active ancestor at runtime, so a nested
+    // effect is already captured and must not exclude this callable. Keep the
+    // direct scan to this callable's own body; nested descent is a V1 concern.
+    const direct = analyzeDirectEffects({ source: candidate.locator.module, sourceFile: module.sourceFile, callable: node, nestedFunctions: "skip" });
     for (const finding of direct.findings) {
       const position = module.sourceFile.getPositionOfLineAndCharacter(finding.line - 1, finding.column - 1);
       const covered = coveredFindingCodes.has(finding.code) && [...effects.keys()].some((effectNode) => position === effectNode.getStart() || ((ts.isCallExpression(effectNode) || ts.isNewExpression(effectNode)) && position === effectNode.expression.getStart()));

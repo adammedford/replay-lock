@@ -235,8 +235,10 @@ test("shared module analysis preserves per-callable aliases, initialization and 
     const input = {source: "shared.ts", sourceFile};
     assert.deepEqual(analyzer.analyzeModuleInitialization(input), analyzeModuleInitialization(input));
     for (const callable of [...callables, ...callables.toReversed()]) {
-      const options = {...input, callable};
-      assert.deepEqual(analyzer.analyzeDirectEffects(options), analyzeDirectEffects(options));
+      for (const nestedFunctions of ["skip", "descend"]) {
+        const options = {...input, callable, nestedFunctions};
+        assert.deepEqual(analyzer.analyzeDirectEffects(options), analyzeDirectEffects(options));
+      }
     }
   }
 });
@@ -253,7 +255,7 @@ test("shared effect analysis matches retained pre-optimization findings and orde
     const input = {source: "shared.ts", sourceFile};
     assert.deepEqual(analyzer.analyzeModuleInitialization(input), entry.initialization);
     for (const index of [...callables.keys()].reverse()) {
-      assert.deepEqual(analyzer.analyzeDirectEffects({...input, callable: callables[index]}), entry.callables[index]);
+      assert.deepEqual(analyzer.analyzeDirectEffects({...input, callable: callables[index], nestedFunctions: "skip"}), entry.callables[index]);
     }
   }
 });

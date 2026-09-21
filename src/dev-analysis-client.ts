@@ -6,6 +6,14 @@ import type { AnalysisRequest } from "./dev-analysis-worker.js";
 export function createDevAnalysisClient(root: string, initialOptions: ResolvedDevOptions) {
   let options = initialOptions, epoch = 0, sequence = 0, closed = false;
   type Result = DevAnalysis | DevTransformResult | null;
+  // The worker always loads a file. Eval/stdin hosts may carry --input-type,
+  // which Node rejects for a file entrypoint; preserve all other host flags.
+  const execArgv: string[] = [];
+  for (let index = 0; index < process.execArgv.length; index++) {
+    const argument = process.execArgv[index]!;
+    if (argument === "--input-type") { index++; continue; }
+    if (!argument.startsWith("--input-type=")) execArgv.push(argument);
+  }
   const workers = new Map<DevEnvironment, {
     worker: Worker;
     pending: Map<number, { resolve(value: Result): void; reject(error: Error): void }>;
@@ -15,7 +23,7 @@ export function createDevAnalysisClient(root: string, initialOptions: ResolvedDe
     if (closed) return Promise.reject(new Error("INSTRUMENTATION_UNSUPPORTED: analysis session is closed"));
     let state = workers.get(environment);
     if (!state) {
-      const worker = new Worker(new URL("./dev-analysis-worker.js", import.meta.url), { workerData: { root, environment } });
+      const worker = new Worker(new URL("./dev-analysis-worker.js", import.meta.url), { workerData: { root, environment }, execArgv });
       state = { worker, pending: new Map() };
       workers.set(environment, state);
       const own = state;
