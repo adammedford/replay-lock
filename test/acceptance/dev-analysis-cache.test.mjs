@@ -43,3 +43,37 @@ test('package exports, dependency contents, aliases and configuration are finger
   await put(root,'missing.js','export function h(n){return n+3;}');assert.ok(names(cache.analyze('node')).includes('src/a.js#a'));
   const previous=cache.analyze('node');await put(root,'replaylock.config.mjs','export default {capture:{mode:"annotated"}};');assert.notEqual(cache.analyze('node'),previous);
 });
+
+
+test('authored transformation keeps admission and overlays in the same fresh realm snapshot', async t => {
+  const root=await fixture(t,{'src/a.js':'export function a(n){return n+Math.random();}'}), options=resolveDevOptions(), cache=createDevProjectCache(root,options);
+  const input={root,id:path.join(root,'src/a.js'),code:'export function a(n){return n+Math.random();}',environment:'browser',generation:'1',options};
+  assert.deepEqual(cache.transformAuthored(input),transformDevSource(input));
+  const overlay={...input,code:'// shifted source\n'+input.code};
+  assert.deepEqual(cache.transformAuthored(overlay),transformDevSource(overlay));
+  await put(root,'src/a.js','export function a(n){console.log(n);return n;}');
+  assert.equal(cache.transformAuthored(input),null,'an earlier safe overlay must not bypass current authored exclusion');
+  assert.equal(cache.transformAuthored({...input,id:path.join(root,'missing.js')}),null);
+});
+
+
+test('selected callers retain transitive dependency effects and unconditional module initialization checks', async t => {
+  const root=await fixture(t,{
+    'src/main.js':"import {helper} from 'tiny'; export function main(n){return helper(n);}",
+    'node_modules/tiny/package.json':'{"type":"module","exports":"./index.js"}',
+    'node_modules/tiny/index.js':'export function helper(n){return second(n);} function second(n){console.log(n);return n;} export function dormant(){return Date.now();}',
+  }), options=resolveDevOptions(), cache=createDevProjectCache(root,options);
+  for(const realm of ['node','browser']) {
+    const unsafe=cache.analyze(realm);
+    assert.ok(!names(unsafe).includes('src/main.js#main'));
+    assert.ok(unsafe.diagnostics.some(d=>d.code==='LOGGING'));
+  }
+  await put(root,'node_modules/tiny/index.js','export function helper(n){return second(n);} function second(n){return n+1;} export function dormant(){return Date.now();}');
+  for(const realm of ['node','browser']) assert.ok(names(cache.analyze(realm)).includes('src/main.js#main'));
+  await put(root,'node_modules/tiny/index.js','const initial=Date.now(); export function helper(n){return n+1;}');
+  for(const realm of ['node','browser']) {
+    const unsafe=cache.analyze(realm);
+    assert.ok(!names(unsafe).includes('src/main.js#main'));
+    assert.ok(unsafe.diagnostics.some(d=>d.code==='EFFECTFUL_INITIALIZATION'));
+  }
+});

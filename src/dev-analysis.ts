@@ -3,7 +3,7 @@ import { readdirSync, realpathSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import path from "node:path";
 import ts from "typescript";
-import { analyzeDirectEffects, analyzeModuleInitialization, DETERMINISTIC_INTRINSICS } from "./effect-analyzer.js";
+import { createEffectAnalyzer, DETERMINISTIC_INTRINSICS } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
@@ -81,6 +81,7 @@ export function analyzeDevProject(root: string, options: ResolvedDevOptions, env
 export function buildDevProject(rootInput: string, options: ResolvedDevOptions, environment: DevEnvironment, overlay?: { id: string; code: string }): DevProject {
   const root = realpathSync(rootInput);
   const inputs = createDevInputTracker();
+  const { analyzeDirectEffects, analyzeModuleInitialization } = createEffectAnalyzer();
   const { isFile, read } = inputs;
   inputs.track(rootInput);
   const sources = new Map<string, string>();
@@ -173,6 +174,12 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   }
   const compilerOptions: ts.CompilerOptions = { noLib: true, allowJs: true, checkJs: true, target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler };
   const host = ts.createCompilerHost(compilerOptions);
+  // A custom resolver otherwise leaves TypeScript rereading package metadata
+  // for each source file. This cache belongs only to this project build.
+  const packageResolution = ts.createModuleResolutionCache(root, host.getCanonicalFileName, compilerOptions);
+  host.getModuleResolutionCache = () => packageResolution;
+  host.fileExists = isFile;
+  host.readFile = (file) => isFile(file) ? read(file) : undefined;
   host.getSourceFile = (file) => modules.get(path.resolve(file))?.sourceFile;
   host.resolveModuleNames = (names, from) => names.map((name) => {
     const file = resolve(from, name);
@@ -322,7 +329,10 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     };
     initialization(module.sourceFile);
   }
-  for (const candidate of functions) {
+  // Unselected dependency callables contribute only when reached by a selected
+  // callable. Module initialization above remains unconditional for every import.
+  const reachableFunctions = new Set(functions.filter(candidate => candidate.instrument));
+  for (const candidate of reachableFunctions) {
     const { node, module, problems, effects, calls } = candidate;
     const inspect = (child: ts.Node): void => {
       if (child !== node && ts.isFunctionLike(child)) {
@@ -368,6 +378,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         if (!effect) {
           if (target && ts.isCallExpression(child) && !child.questionDotToken && !ts.isCallChain(child)) {
             calls.set(child, target);
+            reachableFunctions.add(target);
             asynchronous = target.asynchronous;
           } else if (name === "Promise.all" && ts.isCallExpression(child) && child.arguments.length === 1 && ts.isArrayLiteralExpression(unwrap(child.arguments[0]!))) {
             asynchronous = true;

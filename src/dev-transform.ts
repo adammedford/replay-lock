@@ -28,6 +28,18 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
     }
     return snapshot.project;
   }
+  function transform(options: DevTransformOptions, authoredOnly: boolean): DevTransformResult | null {
+    if (realpathSync(options.root) !== root) throw new Error("INVALID_PROJECT_ROOT: cache belongs to a different project");
+    let file = path.resolve(root, options.id.split("?", 1)[0]!);
+    try { file = realpathSync(file); } catch { /* unsaved overlay */ }
+    let project = projectFor(options.environment, options.options);
+    const module = path.relative(root, file).split(path.sep).join("/");
+    if (authoredOnly && !project.analysis.targets.some(target => target.locator.module === module)) return null;
+    if (project.modules.get(file)?.sourceFile.text !== options.code) {
+      project = buildDevProject(root, options.options, options.environment, { id: options.id, code: options.code });
+    }
+    return transformProject(project, options);
+  }
   return {
     analyze(environment: DevEnvironment) { return projectFor(environment, resolvedOptions).analysis; },
     hasAuthoredTargets(id: string, environment: DevEnvironment): boolean {
@@ -36,16 +48,8 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
       const module = path.relative(root, file).split(path.sep).join("/");
       return projectFor(environment, resolvedOptions).analysis.targets.some(target => target.locator.module === module);
     },
-    transform(options: DevTransformOptions): DevTransformResult {
-      if (realpathSync(options.root) !== root) throw new Error("INVALID_PROJECT_ROOT: cache belongs to a different project");
-      let file = path.resolve(root, options.id.split("?", 1)[0]!);
-      try { file = realpathSync(file); } catch { /* unsaved overlay */ }
-      let project = projectFor(options.environment, options.options);
-      if (project.modules.get(file)?.sourceFile.text !== options.code) {
-        project = buildDevProject(root, options.options, options.environment, { id: options.id, code: options.code });
-      }
-      return transformProject(project, options);
-    },
+    transform(options: DevTransformOptions): DevTransformResult { return transform(options, false)!; },
+    transformAuthored(options: DevTransformOptions): DevTransformResult | null { return transform(options, true); },
     invalidate(): void { snapshots.clear(); },
   };
 }

@@ -102,8 +102,11 @@ export function devRecordingPlugin(): Plugin {
   function invalidate(preserveAnalysis = false): void {
     generation++;
     if (!preserveAnalysis) project?.invalidate();
-    for (const environment of Object.values(server?.environments ?? {})) environment.moduleGraph.invalidateAll();
+    invalidateModuleGraphs();
     server?.ws.send({ type: "full-reload" });
+  }
+  function invalidateModuleGraphs(): void {
+    for (const environment of Object.values(server?.environments ?? {})) environment.moduleGraph.invalidateAll();
   }
   async function configureNode(): Promise<void> {
     if (configuration.configurationPath && configuration.adapters.length) {
@@ -305,9 +308,9 @@ export function devRecordingPlugin(): Plugin {
       // Only authored, source-qualified modules are capture candidates. Other
       // plugins' generated overlays must not trigger whole-project analysis for
       // excluded modules or introduce new recording targets behind discovery.
-      if (!project.hasAuthoredTargets(id, environment)) return null;
       const currentGeneration = String(generation).padStart(10, "0");
-      const result = project.transform({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" });
+      const result = project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" });
+      if (!result) return null;
       report?.discover(result, environment, currentGeneration);
       for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
       return { code: result.code, map: result.map as null };
@@ -316,11 +319,14 @@ export function devRecordingPlugin(): Plugin {
       if (context.file.includes("/.replaylock/")) return [];
       const relative = path.relative(root, context.file);
       if (recording && !relative.startsWith("..") && !path.isAbsolute(relative) && !context.file.startsWith(`${server!.config.cacheDir}/`) && !context.file.includes("/node_modules/") && /\.[cm]?[jt]sx?$/.test(context.file)) {
-        invalidate();
+        generation++;
+        invalidateModuleGraphs();
         configuration = await loadDevConfiguration(root, server!.config);
         project = createDevProjectCache(root, configuration.options);
         for (const environment of ["node", "browser"] as const) report?.discover(project.analyze(environment), environment, String(generation).padStart(10, "0"));
         await configureNode();
+        // Publish the existing full reload only after its new analysis is ready.
+        server!.ws.send({ type: "full-reload" });
         return [];
       }
     },
