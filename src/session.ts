@@ -3,11 +3,11 @@ import {
   chmodSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 export const SESSION_PARTIAL = "SESSION_PARTIAL" as const;
@@ -86,11 +86,11 @@ export function registerSessionWorker<T>(
 }
 
 /** Aggregate only atomically completed chunks from registered workers. */
-export function aggregateSession<T>(
+export async function aggregateSession<T>(
   sessionDirectory: string,
   token: string,
   validate: (value: unknown) => T,
-): SessionAggregation<T> {
+): Promise<SessionAggregation<T>> {
   assertSessionCapability(sessionDirectory, token);
   const records: T[] = [];
   const failures: SessionFailure[] = [];
@@ -99,7 +99,7 @@ export function aggregateSession<T>(
     for (const filename of sortedEntries(reportedFailuresDirectory)) {
       if (!filename.endsWith(".json")) continue;
       const value = JSON.parse(
-        readFileSync(path.join(reportedFailuresDirectory, filename), "utf8"),
+        await readFile(path.join(reportedFailuresDirectory, filename), "utf8"),
       ) as Partial<SessionFailure>;
       if (value.code !== SESSION_PARTIAL || value.reason !== "STORAGE_FAILURE") {
         throw new Error("Malformed session failure marker");
@@ -126,18 +126,23 @@ export function aggregateSession<T>(
     const workerDirectory = path.join(workersDirectory, workerName);
     try {
       const registration = parseRegistration(
-        readFileSync(path.join(workerDirectory, "registered.json"), "utf8"),
+        await readFile(path.join(workerDirectory, "registered.json"), "utf8"),
         token,
         workerName,
       );
       const chunks = sortedEntries(path.join(workerDirectory, "chunks")).filter((name) =>
         name.endsWith(".complete.json"),
       );
+      const rawChunks = await Promise.all(
+        chunks.map((filename) =>
+          readFile(path.join(workerDirectory, "chunks", filename), "utf8"),
+        ),
+      );
       for (let index = 0; index < chunks.length; index += 1) {
-        const filename = chunks[index];
-        if (!filename) continue;
+        const chunkText = rawChunks[index];
+        if (!chunkText) continue;
         const chunk = parseChunk(
-          readFileSync(path.join(workerDirectory, "chunks", filename), "utf8"),
+          chunkText,
           token,
           workerName,
           index,
@@ -146,7 +151,7 @@ export function aggregateSession<T>(
       }
       try {
         const closed = parseClose(
-          readFileSync(path.join(workerDirectory, "closed.json"), "utf8"),
+          await readFile(path.join(workerDirectory, "closed.json"), "utf8"),
           token,
           registration.workerId,
         );

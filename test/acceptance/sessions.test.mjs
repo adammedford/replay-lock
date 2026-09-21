@@ -60,7 +60,7 @@ test("workers register, write isolated completed chunks, and close cleanly", asy
     first.writeCompleted({ worker: 1, call: 2 });
     first.close();
     second.close();
-    const aggregate = aggregateSession(directory, tokenA, (value) => value);
+    const aggregate = await aggregateSession(directory, tokenA, (value) => value);
     assert.equal(aggregate.partial, false);
     assert.deepEqual(aggregate.records, [
       { worker: 1, call: 1 },
@@ -86,10 +86,10 @@ test("concurrent sessions stay isolated and pending plus accepted replacements a
     second.writeCompleted({ session: "second" });
     first.close();
     second.close();
-    assert.deepEqual(aggregateSession(firstDirectory, tokenA, (value) => value).records, [
+    assert.deepEqual((await aggregateSession(firstDirectory, tokenA, (value) => value)).records, [
       { session: "first" },
     ]);
-    assert.deepEqual(aggregateSession(secondDirectory, tokenB, (value) => value).records, [
+    assert.deepEqual((await aggregateSession(secondDirectory, tokenB, (value) => value)).records, [
       { session: "second" },
     ]);
 
@@ -112,7 +112,7 @@ test("non-closing writers, storage errors, malformed aggregation, and transforms
   try {
     const writer = registerSessionWorker(directory, tokenA, "open-writer");
     writer.writeCompleted({ safe: true });
-    const open = aggregateSession(directory, tokenA, (value) => value);
+    const open = await aggregateSession(directory, tokenA, (value) => value);
     assert.equal(open.partial, true);
     assert.equal(open.failures[0].reason, "NON_CLOSING_WRITER");
     assert.deepEqual(open.records, [{ safe: true }]);
@@ -120,12 +120,12 @@ test("non-closing writers, storage errors, malformed aggregation, and transforms
     writer.close();
     const [chunk] = await readdir(path.join(directory, "workers", "open-writer", "chunks"));
     await writeFile(path.join(directory, "workers", "open-writer", "chunks", chunk), "not json\n");
-    const malformed = aggregateSession(directory, tokenA, (value) => value);
+    const malformed = await aggregateSession(directory, tokenA, (value) => value);
     assert.equal(malformed.partial, true);
     assert.equal(malformed.failures[0].reason, "MALFORMED_CHUNK");
 
     await writeFile(path.join(storageFailure, "workers"), "not a directory");
-    const unavailable = aggregateSession(storageFailure, tokenA, (value) => value);
+    const unavailable = await aggregateSession(storageFailure, tokenA, (value) => value);
     assert.equal(unavailable.partial, true);
     assert.equal(unavailable.failures[0].reason, "STORAGE_FAILURE");
 
@@ -180,7 +180,7 @@ test("complete safe records survive partial sessions while incomplete records co
       assert.equal(contents.includes(completionSentinel), false, filename);
     }
 
-    const aggregate = aggregateSession(directory, tokenA, (value) => {
+    const aggregate = await aggregateSession(directory, tokenA, (value) => {
       if (value?.rejectedByAggregator) throw new Error("invalid complete chunk");
       return value;
     });
@@ -238,7 +238,7 @@ test("runtime storage failure preserves behavior, writes a value-free marker, an
       observeCall(metadata, [secretArgument], () => secretCompletion),
       secretCompletion,
     );
-    const aggregate = aggregateSession(directory, token, (value) => value);
+    const aggregate = await aggregateSession(directory, token, (value) => value);
     assert.equal(aggregate.partial, true);
     assert.deepEqual(aggregate.records, []);
     assert.deepEqual(aggregate.failures, [{ code: "SESSION_PARTIAL", reason: "STORAGE_FAILURE" }]);

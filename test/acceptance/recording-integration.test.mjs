@@ -68,7 +68,7 @@ test("runtime keeps original arguments and records safe values, returns, and thr
     );
     assert.deepEqual(canonicalLookingReturn, { kind: "number", value: 4 });
 
-    const aggregated = aggregateSession(session, token, validateCandidateSessionRecord);
+    const aggregated = await aggregateSession(session, token, validateCandidateSessionRecord);
     assert.deepEqual(aggregated.failures, []);
     const observations = aggregated.records
       .filter((record) => record.state === "observation")
@@ -162,7 +162,7 @@ test("unsafe invocations become valueless blocks without losing unrelated safe c
     assert.equal(observeCall({ ...metadata, locator: { ...metadata.locator, exportName: "safe" } }, [{ answer: 42 }], () => 84), 84);
     assert.equal(invocations, unsafeInputs.length);
 
-    const aggregated = aggregateSession(session, token, validateCandidateSessionRecord);
+    const aggregated = await aggregateSession(session, token, validateCandidateSessionRecord);
     assert.equal(aggregated.records.filter((record) => record.state === "observation").length, 1);
     const blocks = aggregated.records.filter((record) => record.state === "blocked");
     assert.equal(blocks.length, unsafeInputs.length);
