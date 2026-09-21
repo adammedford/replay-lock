@@ -1,7 +1,7 @@
-import { lstatSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, statSync, type BigIntStats } from "node:fs";
 import path from "node:path";
 
-interface Input { stamp: string; isFile: boolean; isDirectory: boolean; missingParent?: string; text?: string }
+interface Input { stat: BigIntStats | undefined; isFile: boolean; isDirectory: boolean; missingParent?: string; text?: string }
 
 /** Files, directories and failed resolution probes all belong to a snapshot.
  * ctime and inode catch replacements and edits whose mtime was restored. The
@@ -9,19 +9,25 @@ interface Input { stamp: string; isFile: boolean; isDirectory: boolean; missingP
  */
 export function createDevInputTracker() {
   const inputs = new Map<string, Input>();
+  function stat(file: string): BigIntStats | undefined {
+    try { return statSync(file, { bigint: true, throwIfNoEntry: false }); }
+    catch { return undefined; }
+  }
   function inspect(file: string): Input {
-    try {
-      const stat = statSync(file, { bigint: true, throwIfNoEntry: false });
-      if (!stat) return { stamp: "missing", isFile: false, isDirectory: false };
-      return { stamp: `${stat.dev}:${stat.ino}:${stat.mode}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`, isFile: stat.isFile(), isDirectory: stat.isDirectory() };
-    } catch { return { stamp: "missing", isFile: false, isDirectory: false }; }
+    const value = stat(file);
+    return { stat: value, isFile: value?.isFile() ?? false, isDirectory: value?.isDirectory() ?? false };
+  }
+  function unchanged(before: BigIntStats | undefined, after: BigIntStats | undefined): boolean {
+    if (!before || !after) return before === after;
+    return before.dev === after.dev && before.ino === after.ino && before.mode === after.mode
+      && before.size === after.size && before.mtimeNs === after.mtimeNs && before.ctimeNs === after.ctimeNs;
   }
   function input(file: string): Input {
     let value = inputs.get(file);
     if (!value) {
       value = inspect(file);
       inputs.set(file, value);
-      if (value.stamp === "missing") {
+      if (!value.stat) {
         const parent = path.dirname(file);
         const directory = inputs.get(parent) ?? inspect(parent);
         // Absence of an entry is stable while its existing parent directory is
@@ -45,7 +51,7 @@ export function createDevInputTracker() {
     },
     isFile(file: string): boolean { return input(file).isFile; },
     isCurrent(): boolean {
-      for (const [file, before] of inputs) if (!before.missingParent && inspect(file).stamp !== before.stamp) return false;
+      for (const [file, before] of inputs) if (!before.missingParent && !unchanged(before.stat, stat(file))) return false;
       return true;
     },
   };

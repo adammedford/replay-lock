@@ -122,6 +122,44 @@ test("middleware listener publication follows late listen and external close", a
   } finally {if(vite)await vite.close();if(host.listening)await new Promise(resolve=>host.close(resolve));await rm(directory,{recursive:true,force:true});}
 });
 
+test("closing a middleware server cancels startup awaiting configuration", { timeout: 30000 }, async () => {
+  const directory = await fixture(); let vite;
+  const host = httpServer((req, res) => vite.middlewares(req, res, () => { res.statusCode = 404; res.end(); }));
+  const release = path.join(directory, ".replaylock/release-start");
+  try {
+    await mkdir(path.join(directory, ".replaylock"), { recursive: true });
+    await writeFile(path.join(directory, "replaylock.config.mjs"), `import {existsSync,writeFileSync} from 'node:fs';
+const gate = ${JSON.stringify(path.join(directory, ".replaylock/pause-start"))};
+if (existsSync(gate)) {
+  writeFileSync(${JSON.stringify(path.join(directory, ".replaylock/start-waiting"))}, '');
+  while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 10));
+}
+export default {};
+`);
+    await new Promise(resolve => host.listen(0, "127.0.0.1", resolve));
+    vite = await createServer({ root: directory, configFile: false, plugins: [replaylock({ dev: true })], server: { middlewareMode: { server: host }, watch: null, ws: false } });
+    const manifest = await until(async () => (await manifests(directory))[0]);
+    await writeFile(path.join(directory, ".replaylock/pause-start"), "");
+    const starting = control(manifest, "start");
+    await until(async () => (await readdir(path.join(directory, ".replaylock"))).includes("start-waiting"));
+    const closing = vite.close();
+    // closeBundle marks the host closed before the blocked configuration resolves.
+    await new Promise(resolve => setImmediate(resolve));
+    await writeFile(release, "");
+    await closing;
+    const result = await starting;
+    assert.equal(result.status, 400);
+    assert.equal(result.body.code, "SESSION_NOT_ACTIVE");
+    assert.equal((await manifests(directory)).length, 0);
+    assert.equal(host.listening, true);
+  } finally {
+    await writeFile(release, "").catch(() => {});
+    await vite?.close();
+    if (host.listening) await new Promise(resolve => host.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("record controller survives one reset status connection without stopping the host", {timeout:30000},async()=>{
   const directory=await fixture();let vite,controller;let polls=0;
   const host=httpServer((req,res)=>{if(req.url==='/__replaylock/status'&&++polls===1){req.socket.destroy();return;}vite.middlewares(req,res);});
@@ -277,6 +315,58 @@ test("HMR retains latest completed behavior and retransmission is acknowledged o
     const names = await readdir(pending); assert.equal(names.length, 1);
     const candidate = JSON.parse(await readFile(path.join(pending, names[0]), "utf8"));
     assert.deepEqual(candidate.completion, { kind: "return", value: { kind: "number", value: 4 } });
+  } finally { await browser?.close(); await vite?.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test("full reload refreshes old and newly eligible capture modules while retaining unrelated transforms", { timeout: 90000 }, async () => {
+  const directory = await fixture();
+  let browser, vite;
+  try {
+    await writeFile(path.join(directory, "src/main.js"), "import {calculate} from './calculation.js'; import {emerging} from './emerging.js'; import './unrelated.js'; globalThis.invoke = () => [calculate(2), emerging(3), globalThis.unrelated];");
+    await writeFile(path.join(directory, "src/calculation.js"), "export function calculate(value) { return value + 1; }");
+    const dependency = path.join(directory, "src/dependency.js");
+    await writeFile(dependency, "export function dependency(value) { console.log(value); return value; }");
+    await writeFile(path.join(directory, "src/emerging.js"), "import {dependency} from './dependency.js'; export function emerging(value) { return dependency(value); }");
+    await writeFile(path.join(directory, "src/unrelated.js"), "globalThis.unrelated = 9;");
+    await writeFile(path.join(directory, "src/stateful.js"), "let count = 0; export function increment() { return ++count; }");
+    let unrelatedTransforms = 0, statefulTransforms = 0;
+    vite = await createServer({ root: directory, configFile: false, plugins: [replaylock({ dev: true }), {
+      name: "count-unrelated-transforms",
+      transform(_code, id) {
+        if (id.split("?")[0] === path.join(directory, "src/unrelated.js")) unrelatedTransforms++;
+        if (id.split("?")[0] === path.join(directory, "src/stateful.js")) statefulTransforms++;
+      },
+    }], server: { host: "127.0.0.1", port: 0, fs: { allow: [directory, root] } } });
+    await vite.listen();
+    const manifest = await until(async () => (await manifests(directory))[0]);
+    browser = await chromium.launch(); const page = await browser.newPage();
+    const observations = [];
+    page.on("request", request => {
+      if (request.url().endsWith("/__replaylock/observations") && request.postDataJSON()?.observation) observations.push(request.postDataJSON().observation);
+    });
+    const invoke = () => page.evaluate(() => globalThis.invoke());
+    await page.goto(manifest.url);
+    const started = page.waitForEvent("load");
+    assert.equal((await control(manifest, "start")).status, 200);
+    await started;
+    assert.deepEqual(await invoke(), [3, 3, 9]);
+    await until(() => observations.some(value => value.locator.module === "src/calculation.js"));
+    assert.equal(observations.some(value => value.locator.module === "src/emerging.js"), false);
+    const originalGeneration = observations.find(value => value.locator.module === "src/calculation.js").generation;
+    assert.equal((await vite.ssrLoadModule("/src/stateful.js")).increment(), 1);
+    const originalTransforms = unrelatedTransforms;
+    const reload = page.waitForEvent("load");
+    await writeFile(dependency, "export function dependency(value) { return value + 1; }");
+    await reload;
+    assert.deepEqual(await invoke(), [3, 4, 9]);
+    await until(() => observations.some(value => value.locator.module === "src/emerging.js"));
+    const current = observations.find(value => value.locator.module === "src/emerging.js");
+    assert.notEqual(current.generation, originalGeneration);
+    await until(() => observations.some(value => value.locator.module === "src/calculation.js" && value.generation === current.generation));
+    assert.equal((await vite.ssrLoadModule("/src/stateful.js")).increment(), 1, "SSR state resets across full reload");
+    assert.equal(statefulTransforms, 1, "SSR re-evaluates unchanged code without transforming it again");
+    assert.equal(unrelatedTransforms, originalTransforms, "an unrelated excluded module retains its transform across full reload");
+    assert.equal((await control(manifest, "stop")).status, 200);
   } finally { await browser?.close(); await vite?.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
