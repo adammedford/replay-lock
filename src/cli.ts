@@ -123,7 +123,7 @@ async function record(arguments_: string[]): Promise<number> {
 
   let recordingPreflight;
   try {
-    recordingPreflight = preflightRecordingProject(root, { packageCatalog, lockfile });
+    recordingPreflight = await preflightRecordingProject(root, { packageCatalog, lockfile });
   } catch (error) {
     console.error(`PROJECT_ANALYSIS_FAILED: ${errorMessage(error)}`);
     return 2;
@@ -612,7 +612,7 @@ async function scan(arguments_: string[]): Promise<number> {
     // Best-effort: an invalid or unreadable catalog never fails a scan.
   }
 
-  const report = scanProjectEligibility(root, { packageCatalog, ...(lockfile ? { lockfile } : {}) });
+  const report = await scanProjectEligibility(root, { packageCatalog, ...(lockfile ? { lockfile } : {}) });
   const counts: Record<ScanStatus, number> = {
     eligible: 0,
     "needs-review": 0,

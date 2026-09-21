@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MagicString from "magic-string";
@@ -169,16 +170,21 @@ export interface RecordingPreflight {
  * deliberately backed by the same evaluator used by the Vite transform: the
  * preflight is an execution gate, never a second interpretation of policy.
  */
-export function preflightRecordingProject(
+export async function preflightRecordingProject(
   projectRoot: string,
   resolution: PackageResolution = {},
-): RecordingPreflight {
+): Promise<RecordingPreflight> {
   let captureTargets = 0;
   let eligibleTargets = 0;
   const diagnostics: SourceDiagnostic[] = [];
-  for (const sourcePath of projectSourceFiles(projectRoot)) {
-    const code = readFileSync(sourcePath, "utf8");
-    const evaluated = evaluateCaptureSource(projectRoot, sourcePath, code, undefined, resolution);
+  const sourcePaths = projectSourceFiles(projectRoot);
+  const evaluatedResults = await Promise.all(
+    sourcePaths.map(async (sourcePath) => {
+      const code = await readFile(sourcePath, "utf8");
+      return evaluateCaptureSource(projectRoot, sourcePath, code, undefined, resolution);
+    }),
+  );
+  for (const evaluated of evaluatedResults) {
     captureTargets += evaluated.captureTargets;
     eligibleTargets += evaluated.targets.length;
     diagnostics.push(...evaluated.diagnostics);
@@ -214,15 +220,18 @@ export interface ScanReport {
  * the same shape recognition and call-graph analysis `record`'s preflight
  * uses; it never launches a second interpretation of policy.
  */
-export function scanProjectEligibility(
+export async function scanProjectEligibility(
   projectRoot: string,
   resolution: PackageResolution = {},
-): ScanReport {
-  const findings: ScanFinding[] = [];
-  for (const sourcePath of projectSourceFiles(projectRoot)) {
-    const code = readFileSync(sourcePath, "utf8");
-    findings.push(...scanSourceFile(projectRoot, sourcePath, code, resolution));
-  }
+): Promise<ScanReport> {
+  const sourcePaths = projectSourceFiles(projectRoot);
+  const findingsList = await Promise.all(
+    sourcePaths.map(async (sourcePath) => {
+      const code = await readFile(sourcePath, "utf8");
+      return scanSourceFile(projectRoot, sourcePath, code, resolution);
+    }),
+  );
+  const findings = findingsList.flat();
   findings.sort(compareScanFindings);
   return { findings };
 }
