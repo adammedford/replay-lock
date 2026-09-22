@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { loadConfigFromFile, type Plugin, type ViteDevServer } from "vite";
+import { loadConfigFromFile, normalizePath, type Plugin, type ViteDevServer } from "vite";
 import { atomicWrite } from "./model.js";
 import { projectLockfileDigest, readProjectLockfile } from "./project-lockfile.js";
 import { developmentAliases, loadDevConfiguration } from "./dev-options.js";
-import { createDevProjectCache } from "./dev-transform.js";
+import { createDevAnalysisClient } from "./dev-analysis-client.js";
 import { createDevCandidate, persistDevObservations } from "./dev-artifacts.js";
 import { configureDevRuntime, flushDevRuntime, runtimeProfile } from "./dev-runtime.js";
 import { loadDevRetention } from "./dev-retention.js";
@@ -33,11 +33,13 @@ export function devRecordingPlugin(): Plugin {
   let server: ViteDevServer | undefined;
   let disposeHost = async (): Promise<void> => {};
   let configuration: Awaited<ReturnType<typeof loadDevConfiguration>>;
-  let project: ReturnType<typeof createDevProjectCache>;
+  let project: ReturnType<typeof createDevAnalysisClient>;
   let retention: Awaited<ReturnType<typeof loadDevRetention>>;
   let report: ReturnType<typeof createDevSessionReport> | undefined;
   let checkpointTimer: ReturnType<typeof setTimeout> | undefined;
-  let recording = false, stopping = false, accepting = false, generation = 0;
+  let hostClosed = false;
+  let startup: Promise<void> | undefined;
+  let recording = false, stopping = false, starting = false, accepting = false, generation = 0;
   let session = "", sessionDirectory = "", lockfileDigest = "", sessionToken = "";
   let stored = 0, blocks = 0;
   let completed: Record<string, unknown> | undefined;
@@ -50,6 +52,7 @@ export function devRecordingPlugin(): Plugin {
   const clientWrites = new Map<string, Promise<void>>();
   const activeClients = new Set<string>();
   const knownMetadata = new Set<string>();
+  const instrumentedFiles = new Set<string>();
   const diagnostics = new Set<string>();
   const profiles = { node: runtimeProfile("node"), browser: { environment: "browser", runtime: "Chromium", timezone: "UTC", locale: "en-US" } as DevRuntimeProfile };
   const recordBlock = (block: DevBlock): void => {
@@ -102,39 +105,70 @@ export function devRecordingPlugin(): Plugin {
   function invalidate(preserveAnalysis = false): void {
     generation++;
     if (!preserveAnalysis) project?.invalidate();
-    for (const environment of Object.values(server?.environments ?? {})) environment.moduleGraph.invalidateAll();
+    invalidateModuleGraphs();
     server?.ws.send({ type: "full-reload" });
   }
-  async function configureNode(): Promise<void> {
-    if (configuration.configurationPath && configuration.adapters.length) {
-      const module = await server!.ssrLoadModule(configuration.configurationPath);
-      configuration.adapters = module.default.valueAdapters ?? [];
+  function invalidateModuleGraphs(): void {
+    for (const environment of Object.values(server?.environments ?? {})) environment.moduleGraph.invalidateAll();
+  }
+  function invalidateCaptureModules(files: Iterable<string>): void {
+    for (const environment of Object.values(server?.environments ?? {})) {
+      const graph = environment.moduleGraph;
+      const seen = new Set<Parameters<typeof graph.invalidateModule>[0]>();
+      for (const file of files) for (const module of graph.getModulesByFile(normalizePath(file)) ?? []) graph.invalidateModule(module, seen);
     }
-    configureDevRuntime({ adapters: configuration.adapters, isProxy: utilTypes.isProxy,
+  }
+  function requireOpenHost(): void {
+    if (hostClosed) throw new Error("SESSION_NOT_ACTIVE: development host is closed");
+  }
+  async function configureNode(): Promise<void> {
+    const current = configuration, currentGeneration = generation;
+    if (current.configurationPath && current.adapters.length) {
+      const module = await server!.ssrLoadModule(current.configurationPath);
+      if (!recording || generation !== currentGeneration) return;
+      current.adapters = module.default.valueAdapters ?? [];
+    }
+    if (!recording || generation !== currentGeneration) return;
+    configureDevRuntime({ adapters: current.adapters, isProxy: utilTypes.isProxy,
       onObservation: observation => { void accept(observation, profiles.node).catch(() => recordBlock({ code: "STORE_WRITE_FAILED" })); }, onBlock: recordBlock, onActivity: activity });
   }
   async function start(): Promise<void> {
-    if (recording || stopping) throw new Error("SESSION_ALREADY_ACTIVE");
+    requireOpenHost();
+    if (recording || stopping || starting) throw new Error("SESSION_ALREADY_ACTIVE");
+    starting = true;
+    try { startup = beginRecording(); await startup; }
+    catch (error) { await project.close(); throw error; }
+    finally { starting = false; startup = undefined; }
+  }
+  async function beginRecording(): Promise<void> {
     configuration = await loadDevConfiguration(root, server?.config);
+    requireOpenHost();
     configuration.options.resolveAliases = developmentAliases(server?.config.resolve.alias ?? [], true);
-    project = createDevProjectCache(root, configuration.options);
+    await project.close();
+    requireOpenHost();
+    project = createDevAnalysisClient(root, configuration.options);
     lockfileDigest = projectLockfileDigest(await readProjectLockfile(root));
-    const reports = (["node", "browser"] as const).map(environment => project.analyze(environment));
+    requireOpenHost();
+    const reports = await Promise.all((["node", "browser"] as const).map(environment => project.analyze(environment)));
+    requireOpenHost();
     const eligible = reports.reduce((count, report) => count + report.targets.length, 0);
     if (!eligible) throw new Error("NO_ELIGIBLE_TARGET");
     console.log(`ReplayLock: ${eligible} eligible environment targets; ${reports.reduce((count, report) => count + report.diagnostics.length, 0)} skipped findings`);
     session = randomUUID(); sessionToken = randomBytes(32).toString("hex");
     retention = await loadDevRetention(root, configuration.options.capture.retention);
+    requireOpenHost();
     report = createDevSessionReport(session);
     sessionDirectory = path.join(root, ".replaylock", "observations", "dev-sessions", session);
     await mkdir(sessionDirectory, { recursive: true, mode: 0o700 });
     await atomicWrite(path.join(sessionDirectory, "metadata.json"), JSON.stringify({ lockfileDigest, profiles, pid: process.pid, retention: retention.policy }));
+    requireOpenHost();
     stored = 0; blocks = 0; completed = undefined; knownMetadata.clear(); diagnostics.clear(); acknowledged.clear(); appliedCounts.clear(); appliedObservations.clear(); clientWrites.clear(); activeClients.clear();
     recording = true; accepting = true;
     invalidate(true);
     for (const [index, environment] of (["node", "browser"] as const).entries()) report.discover(reports[index]!, environment, String(generation).padStart(10, "0"));
     await checkpoint();
-    try { await configureNode(); }
+    requireOpenHost();
+    try { await configureNode(); requireOpenHost(); }
     catch (error) { recording = false; accepting = false; configureDevRuntime(undefined); invalidate(); throw error; }
     console.log(`ReplayLock RECORDING ${session}`);
   }
@@ -160,7 +194,9 @@ export function devRecordingPlugin(): Plugin {
     await atomicWrite(path.join(sessionDirectory, "result.json"), JSON.stringify({ ...result, session, recordingBlocks: blocks }));
     completed = { ...result, session, recordingBlocks: blocks };
     await checkpoint();
-    stopping = false; invalidate();
+    invalidate();
+    await project.close();
+    stopping = false;
     console.log(`ReplayLock: recorded ${observations.length} completed observations; ${result.candidates} pending candidates`);
     return completed;
   }
@@ -235,7 +271,7 @@ export function devRecordingPlugin(): Plugin {
   return {
     name: "replaylock:dev", enforce: "pre", apply: "serve",
     config() { return { optimizeDeps: { exclude: ["replaylock"] }, ssr: { external: ["replaylock"] } }; },
-    async configResolved(config) { root = realpathSync(config.root); configuration = await loadDevConfiguration(root, config); project = createDevProjectCache(root, configuration.options); },
+    async configResolved(config) { root = realpathSync(config.root); configuration = await loadDevConfiguration(root, config); project = createDevAnalysisClient(root, configuration.options); },
     async configureServer(vite) {
       server = vite;
       const metadataChange = (file: string): void => {
@@ -272,19 +308,25 @@ export function devRecordingPlugin(): Plugin {
       const closing = (): void => { void disposeHost().catch(() => { console.error("STORE_WRITE_FAILED: development listener cleanup failed"); }); };
       disposeHost = (): Promise<void> => disposal ??= (async () => {
         closed = true;
+        hostClosed = true; recording = false; accepting = false; generation++;
         host?.off("listening", listening); host?.off("close", closing);
         configureDevRuntime(undefined);
         if (checkpointTimer) clearTimeout(checkpointTimer);
         vite.watcher.off("add", metadataChange).off("change", metadataChange).off("unlink", metadataChange);
         await publishing;
         await pendingWrites;
+        await project.close();
+        await startup?.catch(() => {});
         if (manifestPath) await rm(manifestPath, { force: true });
       })();
       host?.once("listening", listening);
       host?.once("close", closing);
       if (host?.listening) { publishing = publish(); await publishing; }
     },
-    async closeBundle() { await disposeHost(); },
+    async closeBundle() {
+      hostClosed = true; recording = false; accepting = false; generation++;
+      await disposeHost(); await project?.close(); await startup?.catch(() => {});
+    },
     resolveId(id) { return id === virtualRuntime ? `\0${virtualRuntime}` : null; },
     load(id) {
       if (id !== `\0${virtualRuntime}`) return null;
@@ -296,7 +338,7 @@ export function devRecordingPlugin(): Plugin {
     transformIndexHtml() {
       return recording ? [{ tag: "script", attrs: { type: "module" }, children: `import ${JSON.stringify(`/@id/__x00__${virtualRuntime}`)};`, injectTo: "head-prepend" as const }] : [];
     },
-    transform(code, rawId, transformOptions) {
+    async transform(code, rawId, transformOptions) {
       if (!recording) return null;
       const id = rawId.split("?", 1)[0]!;
       if (id.startsWith("\0") || id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
@@ -305,9 +347,13 @@ export function devRecordingPlugin(): Plugin {
       // Only authored, source-qualified modules are capture candidates. Other
       // plugins' generated overlays must not trigger whole-project analysis for
       // excluded modules or introduce new recording targets behind discovery.
-      if (!project.hasAuthoredTargets(id, environment)) return null;
       const currentGeneration = String(generation).padStart(10, "0");
-      const result = project.transform({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" });
+      const result = await project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" }).catch(error => {
+        if (!recording || currentGeneration !== String(generation).padStart(10, "0")) return null;
+        throw error;
+      });
+      if (!result || currentGeneration !== String(generation).padStart(10, "0") || !recording) return null;
+      if (result.targets.length) instrumentedFiles.add(id);
       report?.discover(result, environment, currentGeneration);
       for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
       return { code: result.code, map: result.map as null };
@@ -316,11 +362,41 @@ export function devRecordingPlugin(): Plugin {
       if (context.file.includes("/.replaylock/")) return [];
       const relative = path.relative(root, context.file);
       if (recording && !relative.startsWith("..") && !path.isAbsolute(relative) && !context.file.startsWith(`${server!.config.cacheDir}/`) && !context.file.includes("/node_modules/") && /\.[cm]?[jt]sx?$/.test(context.file)) {
-        invalidate();
-        configuration = await loadDevConfiguration(root, server!.config);
-        project = createDevProjectCache(root, configuration.options);
-        for (const environment of ["node", "browser"] as const) report?.discover(project.analyze(environment), environment, String(generation).padStart(10, "0"));
+        const updateGeneration = ++generation;
+        // Previously wrapped modules must lose their old generation even if
+        // this edit makes them ineligible. Vite also invalidates their importers.
+        for (const environment of Object.values(server!.environments)) {
+          if (environment.name === "client") continue;
+          const graph = environment.moduleGraph;
+          const seen = new Set<Parameters<typeof graph.invalidateModule>[0]>();
+          // Vite soft invalidation clears evaluated SSR state while retaining
+          // unchanged transform output. Capture modules below invalidate hard.
+          for (const module of graph.idToModuleMap.values()) graph.invalidateModule(module, seen, undefined, false, true);
+        }
+        invalidateCaptureModules([context.file, ...instrumentedFiles]);
+        const previousConfiguration = configuration;
+        const nextConfiguration = await loadDevConfiguration(root, server!.config);
+        if (!recording || generation !== updateGeneration) return [];
+        configuration = nextConfiguration;
+        if (previousConfiguration.adapters.length || configuration.adapters.length
+          || previousConfiguration.configurationPath !== configuration.configurationPath
+          || context.file === configuration.configurationPath
+          || JSON.stringify(previousConfiguration.options) !== JSON.stringify(configuration.options)) invalidateModuleGraphs();
+        project.configure(configuration.options);
+        const environments = ["node", "browser"] as const;
+        const reports = await Promise.all(environments.map(environment => project.analyze(environment))).catch(error => {
+          if (!recording || generation !== updateGeneration) return null;
+          throw error;
+        });
+        if (!reports || !recording || generation !== updateGeneration) return [];
+        // A formerly excluded cached module may now qualify through a changed
+        // dependency. Its next transform must install the new generation too.
+        invalidateCaptureModules(reports.flatMap(result => result.targets.map(target => path.resolve(root, target.locator.module))));
+        for (const [index, environment] of environments.entries()) report?.discover(reports[index]!, environment, String(generation).padStart(10, "0"));
         await configureNode();
+        if (!recording || generation !== updateGeneration) return [];
+        // Publish the existing full reload only after its new analysis is ready.
+        server!.ws.send({ type: "full-reload" });
         return [];
       }
     },

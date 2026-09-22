@@ -1,0 +1,18 @@
+{
+  "libraryCommit": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+  "recoveredWorkload": true,
+  "sha256": {
+    "scripts/bench-dev-browser.mjs": "17c8ecc90cdf2317d65298270d6e414f502b0466c6e41b61d1e6d0357a561b71",
+    "dist/dev-server.js": "485e39f29367f9338a91623340f7f181b9d0c9ed1f71dd28be27a73a2267a817",
+    "dist/dev-transform.js": "c99fb1b62b74effec960a0c5d97209a7ea2488f926d2f5933e68c8ecb900fa46",
+    "dist/dev-analysis.js": "9e5ca897b710817e1e5073cb2e334cdb6af88e76688c340737dc4c24a23ed3e7",
+    "dist/effect-analyzer.js": "b338fc65aa75095d162540015a7316b354f601e77f7ce422972b102b0b0192e1",
+    "package-lock.json": "fd482d428384bb0d7af1aa72f5b8f37aabf5af75647f8831d8bb948f78b03538"
+  },
+  "app": {
+    "package.json": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+    "package-lock.json": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "server/index.ts": "fd650149c6c455d8ae97a79448ebb92f3c6ee68be40138e2c6ded37de4a969d2",
+    "vite.pilot-original.config.ts": "678efe0d588b484560001dc97c0024454d12420462f1fd849b7e35da8d8b70cf"
+  }
+}

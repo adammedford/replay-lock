@@ -17,3 +17,5 @@ A missing prerequisite, unsupported host/configuration, exclusion or workflow fa
 The paired [performance evidence](performance.json) and its methodology are described in [performance.md](../performance.md). Timing budgets are explicitly invoked; they are not part of ordinary correctness CI.
 
 The adoption follow-up has [paired browser latency evidence](browser-latency.md) and a [proposed explicit budget](browser-latency-budget.json). The [BMI application journey](bmi-journey.md) retains an unattended recording and review/replay/regression evidence, including its partial-capture limits.
+
+The [development responsiveness follow-up](responsiveness.md) retains a fresh baseline, failed intermediate evidence, CPU profiles and a passing five-pair final measurement against the ceilings adopted in #72.

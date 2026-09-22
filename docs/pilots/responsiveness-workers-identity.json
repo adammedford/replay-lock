@@ -1,0 +1,21 @@
+{
+  "baseCommit": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+  "uncommittedOptimization": true,
+  "sha256": {
+    "src/dev-server.ts": "3dc0a1cb6858e9064137f266be92920cb171a9f8c5c02b38480547db3aef193b",
+    "src/dev-analysis-client.ts": "acbdd02b1c631b903d630b022a2835309ba5a56738d13e0640883ba85e95cbe9",
+    "src/dev-analysis-worker.ts": "d330a650955685f4184e3b3ea091b98f5139ff1ce49813a47986caf1a69d80d6",
+    "src/dev-analysis.ts": "ec4ecaa8d37c86b33f4d66c9ccd458a0a06118aa9833a8ada3624996335b8f67",
+    "src/dev-project-cache.ts": "64a7824131096310d21824b9d63efef01d0914ddcb63135c15130fe2c1b3387c",
+    "src/dev-transform.ts": "3d57c4b2976c1c455d43d79ce4edc29bd87b5801c9da4bd800938700785776b9",
+    "src/effect-analyzer.ts": "e556d3659902cf0feb5a4e4bd2cbc97c1ee2bef75f7d1b14c41fc606df39ff92",
+    "package-lock.json": "fd482d428384bb0d7af1aa72f5b8f37aabf5af75647f8831d8bb948f78b03538",
+    "scripts/bench-dev-browser.mjs": "17c8ecc90cdf2317d65298270d6e414f502b0466c6e41b61d1e6d0357a561b71",
+    "dist/dev-server.js": "b6b6908f86669e2721a5e7a1bd33b149a23d9111abb7461818ce5eda9de2f0f3",
+    "dist/dev-analysis-client.js": "943eb93f85ba1d7ba3feeb7f7dcc9bf6ecc71644a74f763183abc5cea2d4966d",
+    "dist/dev-analysis-worker.js": "f49a1be94ae628378a2b34f3398b8841c903725763b7672e4e25a59608d72258",
+    "dist/dev-analysis.js": "8bb642d4a06f2b926b1002f26620cb5d3b1852e374d3cb33791dd0d65fad09d7",
+    "dist/dev-project-cache.js": "df6877da2c3e11e0bb791eb8c95d0d70cf3d102877414db8efdd666ae3c23e8f",
+    "dist/effect-analyzer.js": "4b360c6ab8617aa1f19b06d8caa02d26af78c8345cc7e3d1d2689d15ee61b098"
+  }
+}

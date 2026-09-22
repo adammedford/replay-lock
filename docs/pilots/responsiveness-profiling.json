@@ -1,0 +1,693 @@
+{
+  "method": "Node inspector profiles collected separately: control start through navigation, then edit through visible heading. Profiles are diagnostic only, not latency acceptance.",
+  "profiles": [
+    {
+      "stage": "baseline",
+      "phase": "startup",
+      "sourceCommit": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+      "rawProfile": "docs/pilots/responsiveness-profiles/baseline-startup.cpuprofile.gz",
+      "sha256": "c238483bc811336419acd43b9512ea2d9e8e1918f32970f04bdb2a680c19a3fc",
+      "samples": 14871,
+      "topSelfSamples": [
+        {
+          "function": "statSync",
+          "file": "node:fs",
+          "samples": 1138
+        },
+        {
+          "function": "visit",
+          "file": "effect-analyzer.js",
+          "samples": 863
+        },
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 860
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 649
+        },
+        {
+          "function": "",
+          "file": "effect-analyzer.js",
+          "samples": 644
+        },
+        {
+          "function": "isInitializationEffect",
+          "file": "effect-analyzer.js",
+          "samples": 596
+        },
+        {
+          "function": "visitInitializationNode",
+          "file": "effect-analyzer.js",
+          "samples": 593
+        },
+        {
+          "function": "makeSyncRequest",
+          "file": "hooks",
+          "samples": 336
+        },
+        {
+          "function": "visitNode2",
+          "file": "typescript.js",
+          "samples": 294
+        },
+        {
+          "function": "(idle)",
+          "file": "",
+          "samples": 265
+        },
+        {
+          "function": "visitNodes",
+          "file": "typescript.js",
+          "samples": 208
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 207
+        },
+        {
+          "function": "isFunctionLike",
+          "file": "effect-analyzer.js",
+          "samples": 207
+        },
+        {
+          "function": "forEachChild",
+          "file": "typescript.js",
+          "samples": 173
+        },
+        {
+          "function": "tryParseJson",
+          "file": "typescript.js",
+          "samples": 166
+        }
+      ],
+      "sha256Of": "uncompressedProfile"
+    },
+    {
+      "stage": "baseline",
+      "phase": "edit",
+      "sourceCommit": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+      "rawProfile": "docs/pilots/responsiveness-profiles/baseline-edit.cpuprofile.gz",
+      "sha256": "5d33930aa37d843c7769581de5c69967005b7f0d0d29f8a12769538673fe06d9",
+      "samples": 11334,
+      "topSelfSamples": [
+        {
+          "function": "statSync",
+          "file": "node:fs",
+          "samples": 1212
+        },
+        {
+          "function": "visit",
+          "file": "effect-analyzer.js",
+          "samples": 846
+        },
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 832
+        },
+        {
+          "function": "",
+          "file": "effect-analyzer.js",
+          "samples": 648
+        },
+        {
+          "function": "isInitializationEffect",
+          "file": "effect-analyzer.js",
+          "samples": 635
+        },
+        {
+          "function": "visitInitializationNode",
+          "file": "effect-analyzer.js",
+          "samples": 584
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 543
+        },
+        {
+          "function": "visitNode2",
+          "file": "typescript.js",
+          "samples": 333
+        },
+        {
+          "function": "isFunctionLike",
+          "file": "effect-analyzer.js",
+          "samples": 235
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 229
+        },
+        {
+          "function": "visitNodes",
+          "file": "typescript.js",
+          "samples": 209
+        },
+        {
+          "function": "forEachChild",
+          "file": "typescript.js",
+          "samples": 185
+        },
+        {
+          "function": "tryParseJson",
+          "file": "typescript.js",
+          "samples": 162
+        },
+        {
+          "function": "(idle)",
+          "file": "",
+          "samples": 154
+        },
+        {
+          "function": "forEachChildInPropertyAssignment",
+          "file": "typescript.js",
+          "samples": 113
+        }
+      ],
+      "sha256Of": "uncompressedProfile"
+    },
+    {
+      "stage": "recovered",
+      "phase": "startup",
+      "sourceCommit": "daab2fb",
+      "rawProfile": "docs/pilots/responsiveness-profiles/recovered-startup.cpuprofile.gz",
+      "sha256": "f9136338b64d03b1d36c7a5b992e55fda4669dc8a3b27b855b3b640403554e90",
+      "samples": 8395,
+      "topSelfSamples": [
+        {
+          "function": "",
+          "file": "",
+          "samples": 927
+        },
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 659
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 528
+        },
+        {
+          "function": "makeSyncRequest",
+          "file": "hooks",
+          "samples": 329
+        },
+        {
+          "function": "(idle)",
+          "file": "",
+          "samples": 278
+        },
+        {
+          "function": "visit",
+          "file": "context.js",
+          "samples": 134
+        },
+        {
+          "function": "getOrCreateCachedPaths",
+          "file": "cache.js",
+          "samples": 107
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 84
+        },
+        {
+          "function": "visitQueue",
+          "file": "context.js",
+          "samples": 83
+        },
+        {
+          "function": "scan",
+          "file": "typescript.js",
+          "samples": 73
+        },
+        {
+          "function": "inspect",
+          "file": "dev-analysis.js",
+          "samples": 73
+        },
+        {
+          "function": "print",
+          "file": "printer.js",
+          "samples": 73
+        },
+        {
+          "function": "visit",
+          "file": "dev-analysis.js",
+          "samples": 69
+        },
+        {
+          "function": "traverseNode",
+          "file": "traverse-node.js",
+          "samples": 68
+        },
+        {
+          "function": "bindWorker",
+          "file": "typescript.js",
+          "samples": 56
+        }
+      ],
+      "sha256Of": "uncompressedProfile"
+    },
+    {
+      "stage": "recovered",
+      "phase": "edit",
+      "sourceCommit": "daab2fb",
+      "rawProfile": "docs/pilots/responsiveness-profiles/recovered-edit.cpuprofile.gz",
+      "sha256": "8cf95d14cf61dbb132dff1c073958c0061621ddbccb2f40c3bed3a1b5bf0e816",
+      "samples": 3307,
+      "topSelfSamples": [
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 579
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 421
+        },
+        {
+          "function": "(idle)",
+          "file": "",
+          "samples": 142
+        },
+        {
+          "function": "buildDevProject",
+          "file": "dev-analysis.js",
+          "samples": 67
+        },
+        {
+          "function": "scan",
+          "file": "typescript.js",
+          "samples": 43
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 42
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 41
+        },
+        {
+          "function": "lstat",
+          "file": "",
+          "samples": 40
+        },
+        {
+          "function": "bind",
+          "file": "typescript.js",
+          "samples": 39
+        },
+        {
+          "function": "visit",
+          "file": "dev-analysis.js",
+          "samples": 36
+        },
+        {
+          "function": "",
+          "file": "dev-analysis.js",
+          "samples": 33
+        },
+        {
+          "function": "initialization",
+          "file": "dev-analysis.js",
+          "samples": 32
+        },
+        {
+          "function": "getOrCreateCachedPaths",
+          "file": "cache.js",
+          "samples": 30
+        },
+        {
+          "function": "bindWorker",
+          "file": "typescript.js",
+          "samples": 28
+        },
+        {
+          "function": "visit",
+          "file": "context.js",
+          "samples": 28
+        }
+      ],
+      "sha256Of": "uncompressedProfile"
+    },
+    {
+      "stage": "workers with targeted browser invalidation",
+      "phase": "edit",
+      "rawProfile": "docs/pilots/responsiveness-profiles/replaylock-worker-node-140.cpuprofile.gz",
+      "sha256": "1036aacaf272713c577de04503ba63e656ba907692c8cbadfba1f06f7b504984",
+      "samples": 1264,
+      "diagnosticOnly": true,
+      "topSelfSamples": [
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 137
+        },
+        {
+          "function": "buildDevProject",
+          "file": "dev-analysis.js",
+          "samples": 34
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 27
+        },
+        {
+          "function": "lstat",
+          "file": "",
+          "samples": 18
+        },
+        {
+          "function": "realpathSync",
+          "file": "node:fs",
+          "samples": 16
+        },
+        {
+          "function": "forEachChildRecursively",
+          "file": "typescript.js",
+          "samples": 15
+        },
+        {
+          "function": "resolvePackageSource",
+          "file": "dev-analysis.js",
+          "samples": 10
+        },
+        {
+          "function": "resolve",
+          "file": "dev-analysis.js",
+          "samples": 10
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 9
+        },
+        {
+          "function": "fixupParentReferences",
+          "file": "typescript.js",
+          "samples": 8
+        },
+        {
+          "function": "scanEscapeSequence",
+          "file": "typescript.js",
+          "samples": 8
+        },
+        {
+          "function": "relative",
+          "file": "node:path",
+          "samples": 7
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 6
+        },
+        {
+          "function": "join",
+          "file": "node:path",
+          "samples": 6
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 6
+        }
+      ],
+      "sha256Of": "compressedFile"
+    },
+    {
+      "stage": "workers with targeted browser invalidation",
+      "phase": "startup",
+      "rawProfile": "docs/pilots/responsiveness-profiles/replaylock-worker-browser-2.cpuprofile.gz",
+      "sha256": "f880a0b1e8039b961f278d8c66f2cfc1c28ae452ed7e89fc1c475a707950c1e9",
+      "samples": 2204,
+      "diagnosticOnly": true,
+      "topSelfSamples": [
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 123
+        },
+        {
+          "function": "buildDevProject",
+          "file": "dev-analysis.js",
+          "samples": 33
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 32
+        },
+        {
+          "function": "forEachChildRecursively",
+          "file": "typescript.js",
+          "samples": 18
+        },
+        {
+          "function": "lstat",
+          "file": "",
+          "samples": 15
+        },
+        {
+          "function": "bindParentToChild",
+          "file": "typescript.js",
+          "samples": 11
+        },
+        {
+          "function": "computeLineStarts",
+          "file": "typescript.js",
+          "samples": 10
+        },
+        {
+          "function": "realpathSync",
+          "file": "node:fs",
+          "samples": 9
+        },
+        {
+          "function": "resolvePackageSource",
+          "file": "dev-analysis.js",
+          "samples": 8
+        },
+        {
+          "function": "scanString",
+          "file": "typescript.js",
+          "samples": 8
+        },
+        {
+          "function": "resolve",
+          "file": "dev-analysis.js",
+          "samples": 7
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 7
+        },
+        {
+          "function": "bindChildren",
+          "file": "typescript.js",
+          "samples": 6
+        },
+        {
+          "function": "inspect",
+          "file": "dev-analysis.js",
+          "samples": 6
+        },
+        {
+          "function": "setParentRecursive",
+          "file": "typescript.js",
+          "samples": 5
+        }
+      ],
+      "sha256Of": "compressedFile"
+    },
+    {
+      "stage": "workers with targeted browser invalidation",
+      "phase": "edit",
+      "rawProfile": "docs/pilots/responsiveness-profiles/replaylock-worker-browser-141.cpuprofile.gz",
+      "sha256": "0a0eea768eae8829252c834e395c4a69ac56f319c899786ed4c18b042303ad55",
+      "samples": 1090,
+      "diagnosticOnly": true,
+      "topSelfSamples": [
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 128
+        },
+        {
+          "function": "buildDevProject",
+          "file": "dev-analysis.js",
+          "samples": 35
+        },
+        {
+          "function": "lstat",
+          "file": "",
+          "samples": 29
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 24
+        },
+        {
+          "function": "resolve",
+          "file": "dev-analysis.js",
+          "samples": 13
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 9
+        },
+        {
+          "function": "bindParentToChild",
+          "file": "typescript.js",
+          "samples": 7
+        },
+        {
+          "function": "fixupParentReferences",
+          "file": "typescript.js",
+          "samples": 7
+        },
+        {
+          "function": "realpathSync",
+          "file": "node:fs",
+          "samples": 6
+        },
+        {
+          "function": "resolvePackageSource",
+          "file": "dev-analysis.js",
+          "samples": 6
+        },
+        {
+          "function": "scanEscapeSequence",
+          "file": "typescript.js",
+          "samples": 6
+        },
+        {
+          "function": "scanString",
+          "file": "typescript.js",
+          "samples": 6
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 5
+        },
+        {
+          "function": "getLineAndCharacterOfPosition",
+          "file": "typescript.js",
+          "samples": 5
+        },
+        {
+          "function": "relative",
+          "file": "node:path",
+          "samples": 5
+        }
+      ],
+      "sha256Of": "compressedFile"
+    },
+    {
+      "stage": "workers with targeted browser invalidation",
+      "phase": "startup",
+      "rawProfile": "docs/pilots/responsiveness-profiles/replaylock-worker-node-1.cpuprofile.gz",
+      "sha256": "23938aeb7249f430c65f8e12262fdffefb986baa3c20033e5809102a839e4889",
+      "samples": 2452,
+      "diagnosticOnly": true,
+      "topSelfSamples": [
+        {
+          "function": "(garbage collector)",
+          "file": "",
+          "samples": 152
+        },
+        {
+          "function": "buildDevProject",
+          "file": "dev-analysis.js",
+          "samples": 38
+        },
+        {
+          "function": "lstat",
+          "file": "",
+          "samples": 27
+        },
+        {
+          "function": "readFileUtf8",
+          "file": "",
+          "samples": 23
+        },
+        {
+          "function": "forEachChildRecursively",
+          "file": "typescript.js",
+          "samples": 17
+        },
+        {
+          "function": "resolvePackageSource",
+          "file": "dev-analysis.js",
+          "samples": 14
+        },
+        {
+          "function": "bindParentToChild",
+          "file": "typescript.js",
+          "samples": 11
+        },
+        {
+          "function": "realpathSync",
+          "file": "node:fs",
+          "samples": 10
+        },
+        {
+          "function": "setParentRecursive",
+          "file": "typescript.js",
+          "samples": 9
+        },
+        {
+          "function": "input",
+          "file": "dev-project-cache.js",
+          "samples": 9
+        },
+        {
+          "function": "resolve",
+          "file": "dev-analysis.js",
+          "samples": 8
+        },
+        {
+          "function": "join",
+          "file": "node:path",
+          "samples": 8
+        },
+        {
+          "function": "canHaveJSDoc",
+          "file": "typescript.js",
+          "samples": 8
+        },
+        {
+          "function": "stat",
+          "file": "",
+          "samples": 7
+        },
+        {
+          "function": "resolve",
+          "file": "node:path",
+          "samples": 7
+        }
+      ],
+      "sha256Of": "compressedFile"
+    }
+  ]
+}

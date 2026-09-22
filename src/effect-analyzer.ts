@@ -97,28 +97,68 @@ export interface AnalyzeDirectEffectsOptions {
   nestedFunctions?: "descend" | "skip";
 }
 
+interface ModuleEffectFacts {
+  bindings: ReadonlySet<string>;
+  initializations: readonly ts.Node[];
+  aliasNodes: readonly (ts.VariableDeclaration | ts.FunctionLikeDeclaration)[];
+  importedEffects: ReadonlyMap<string, DirectEffectReasonCode>;
+}
+
+/** A build owns this context; source identity prevents facts crossing edits or overlays. */
+export function createEffectAnalyzer() {
+  const modules = new WeakMap<ts.SourceFile, ModuleEffectFacts>();
+  const initializations = new WeakMap<ts.SourceFile, readonly ts.Node[]>();
+  function initializationNodes(sourceFile: ts.SourceFile): readonly ts.Node[] {
+    let nodes = initializations.get(sourceFile);
+    if (!nodes) { nodes = effectfulModuleInitializations(sourceFile); initializations.set(sourceFile, nodes); }
+    return nodes;
+  }
+  function facts(sourceFile: ts.SourceFile): ModuleEffectFacts {
+    let value = modules.get(sourceFile);
+    if (!value) { value = moduleEffectFacts(sourceFile, initializationNodes(sourceFile)); modules.set(sourceFile, value); }
+    return value;
+  }
+  return {
+    analyzeDirectEffects(options: AnalyzeDirectEffectsOptions): DirectEffectAnalysis {
+      return analyzeCallableEffects(options, facts(options.sourceFile));
+    },
+    analyzeModuleInitialization(options: { source: string; sourceFile: ts.SourceFile }): DirectEffectAnalysis {
+      return analyzeInitialization(options, initializationNodes(options.sourceFile));
+    },
+  };
+}
+
+function moduleEffectFacts(sourceFile: ts.SourceFile, initializations: readonly ts.Node[] = effectfulModuleInitializations(sourceFile)): ModuleEffectFacts {
+  return {
+    bindings: collectModuleBindings(sourceFile),
+    initializations,
+    aliasNodes: collectAliasNodes(sourceFile),
+    importedEffects: collectImportedEffects(sourceFile),
+  };
+}
+
 /**
  * Reports only effects established directly by authored syntax. Calls that are
  * not in the intrinsic/effect catalogs are deliberately left for the
  * transitive analyzer rather than guessed safe or effectful here.
  */
-export function analyzeDirectEffects({
-  source,
-  sourceFile,
-  callable,
-  nestedFunctions = "descend",
-}: AnalyzeDirectEffectsOptions): DirectEffectAnalysis {
+export function analyzeDirectEffects(options: AnalyzeDirectEffectsOptions): DirectEffectAnalysis {
+  return analyzeCallableEffects(options, moduleEffectFacts(options.sourceFile));
+}
+
+function analyzeCallableEffects({ source, sourceFile, callable, nestedFunctions = "descend" }: AnalyzeDirectEffectsOptions, facts: ModuleEffectFacts): DirectEffectAnalysis {
   const findings: DirectEffectFinding[] = [];
   const parameters = collectBindingNames(callable.parameters.map((parameter) => parameter.name));
   const localBindings = collectCallableBindings(callable);
-  const moduleBindings = collectModuleBindings(sourceFile);
+  const moduleBindings = facts.bindings;
   const parameterAliases = collectAliases(callable, parameters);
   const ambientAliases = collectAliases(callable, moduleBindings);
   const freshLocals = collectFreshLiteralBindings(callable);
   const primitiveParameterPaths = collectPrimitiveParameterPaths(callable);
   const freshExternalLocals = collectFreshExternalBindings(callable, parameters, parameterAliases, primitiveParameterPaths);
-  const knownEffectAliases = collectKnownEffectAliases(callable, sourceFile);
-  const ambientReadAliases = collectAmbientReadAliases(callable, sourceFile);
+  const aliasNodes = callableAliasNodes(callable, facts.aliasNodes);
+  const knownEffectAliases = collectKnownEffectAliases(aliasNodes, facts.importedEffects);
+  const ambientReadAliases = collectAmbientReadAliases(aliasNodes);
 
   let nestedFunctionDepth = 0;
   const report = (code: DirectEffectReasonCode, node: ts.Node, message: string): void => {
@@ -129,7 +169,7 @@ export function analyzeDirectEffects({
     findings.push({ code, source, line: start.line + 1, column: start.character + 1, message });
   };
 
-  for (const initialization of effectfulModuleInitializations(sourceFile)) {
+  for (const initialization of facts.initializations) {
     report(
       "EFFECTFUL_INITIALIZATION",
       initialization,
@@ -282,15 +322,13 @@ export function parseAndAnalyzeDirectEffects(
  * fail-closed: an authored call, assignment, await, yield, or delete is
  * evidence that the module is not a passive value declaration.
  */
-export function analyzeModuleInitialization({
-  source,
-  sourceFile,
-}: {
-  source: string;
-  sourceFile: ts.SourceFile;
-}): DirectEffectAnalysis {
+export function analyzeModuleInitialization(options: { source: string; sourceFile: ts.SourceFile }): DirectEffectAnalysis {
+  return analyzeInitialization(options, effectfulModuleInitializations(options.sourceFile));
+}
+
+function analyzeInitialization({ source, sourceFile }: { source: string; sourceFile: ts.SourceFile }, initializations: readonly ts.Node[]): DirectEffectAnalysis {
   const findings: DirectEffectFinding[] = [];
-  for (const initialization of effectfulModuleInitializations(sourceFile)) {
+  for (const initialization of initializations) {
     const start = sourceFile.getLineAndCharacterOfPosition(initialization.getStart(sourceFile));
     findings.push({
       code: "EFFECTFUL_INITIALIZATION",
@@ -832,10 +870,42 @@ function isIoName(name: string): boolean {
   return /^(readFile|readFileSync|writeFile|writeFileSync|appendFile|appendFileSync|exec|execFile|spawn|fork)$/.test(name);
 }
 
-function collectKnownEffectAliases(
-  callable: ts.FunctionLikeDeclaration,
-  sourceFile: ts.SourceFile,
-): Map<string, DirectEffectReasonCode> {
+/** Keep traversal order, including the selected top-level callable's original
+ * position. Other functions are boundaries, not aliases belonging to this call. */
+function collectAliasNodes(root: ts.Node): (ts.VariableDeclaration | ts.FunctionLikeDeclaration)[] {
+  const nodes: (ts.VariableDeclaration | ts.FunctionLikeDeclaration)[] = [];
+  const visit = (node: ts.Node): void => {
+    if (isFunctionLike(node)) { nodes.push(node); return; }
+    if (ts.isVariableDeclaration(node)) nodes.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return nodes;
+}
+
+function callableAliasNodes(callable: ts.FunctionLikeDeclaration, moduleNodes: ModuleEffectFacts["aliasNodes"]): ts.VariableDeclaration[] {
+  const own: ts.VariableDeclaration[] = [];
+  const visit = (node: ts.Node): void => {
+    if (node !== callable && isFunctionLike(node)) return;
+    if (ts.isVariableDeclaration(node)) own.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(callable);
+  const result: ts.VariableDeclaration[] = [];
+  for (const node of moduleNodes) {
+    if (node === callable) result.push(...own);
+    else if (ts.isVariableDeclaration(node)) result.push(node);
+  }
+  // The original analysis visits the module, then the callable body. A callable
+  // encountered directly in the module is intentionally visited in both places.
+  if (callable.body) {
+    const bodyNodes = collectAliasNodes(callable.body);
+    for (const node of bodyNodes) if (ts.isVariableDeclaration(node)) result.push(node);
+  }
+  return result;
+}
+
+function collectImportedEffects(sourceFile: ts.SourceFile): Map<string, DirectEffectReasonCode> {
   const aliases = new Map<string, DirectEffectReasonCode>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
@@ -853,12 +923,16 @@ function collectKnownEffectAliases(
     }
   }
 
+  return aliases;
+}
+
+function collectKnownEffectAliases(nodes: readonly ts.VariableDeclaration[], imported: ReadonlyMap<string, DirectEffectReasonCode>): Map<string, DirectEffectReasonCode> {
+  const aliases = new Map(imported);
   let changed = true;
   while (changed) {
     changed = false;
-    const visit = (node: ts.Node): void => {
-      if (node !== callable && isFunctionLike(node)) return;
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+    for (const node of nodes) {
+      if (ts.isIdentifier(node.name) && node.initializer) {
         const effect = classifyKnownInvocation(expressionPath(node.initializer)) ??
           (ts.isIdentifier(node.initializer) ? aliases.get(node.initializer.text) : undefined);
         if (effect && aliases.get(node.name.text) !== effect) {
@@ -866,22 +940,15 @@ function collectKnownEffectAliases(
           changed = true;
         }
       }
-      ts.forEachChild(node, visit);
-    };
-    for (const statement of sourceFile.statements) visit(statement);
-    if (callable.body) visit(callable.body);
+    }
   }
   return aliases;
 }
 
-function collectAmbientReadAliases(
-  callable: ts.FunctionLikeDeclaration,
-  sourceFile: ts.SourceFile,
-): Set<string> {
+function collectAmbientReadAliases(nodes: readonly ts.VariableDeclaration[]): Set<string> {
   const aliases = new Set<string>();
-  const visit = (node: ts.Node): void => {
-    if (node !== callable && isFunctionLike(node)) return;
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+  for (const node of nodes) {
+    if (ts.isIdentifier(node.name) && node.initializer) {
       const path = expressionPath(node.initializer);
       const root = rootIdentifier(node.initializer);
       if (
@@ -891,10 +958,7 @@ function collectAmbientReadAliases(
         (root && aliases.has(root))
       ) aliases.add(node.name.text);
     }
-    ts.forEachChild(node, visit);
-  };
-  for (const statement of sourceFile.statements) visit(statement);
-  if (callable.body) visit(callable.body);
+  }
   return aliases;
 }
 
