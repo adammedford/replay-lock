@@ -1,1 +1,1 @@
-{"name":"yield-false-safe","type":"module","private":true}
+{"name":"yield-false-safe","type":"module","private":true,"imports":{"#effectful":"./src/timer.ts","#missing/*":"./src/missing/*.ts"}}
