@@ -64,6 +64,7 @@ import { preflightDevCases, validateDevCaseAdapters, verifyDevCases } from "./de
 import { loadDevConfiguration } from "./dev-options.js";
 import { analyzeDevProject } from "./dev-transform.js";
 import { formatDevDiagnostic, formatDevReport, readDevSessionReport } from "./dev-report.js";
+import { DEV_CATALOG_VERSION } from "./dev-catalog.js";
 import { finishScanWorker, runScanProcess, scanWorkerArgument } from "./scan-process.js";
 
 async function main(arguments_: string[]): Promise<number> {
@@ -595,7 +596,7 @@ async function scan(arguments_: string[]): Promise<number> {
       for (const diagnostic of report.diagnostics) console.log(formatDevDiagnostic(diagnostic));
       console.log(`Scanned ${environment}: ${report.targets.length} eligible, ${report.diagnostics.length} skipped findings`);
     }
-    if (arguments_.includes("--json")) console.log(JSON.stringify({ schemaVersion: 1, environments: reports }, null, 2));
+    if (arguments_.includes("--json")) console.log(JSON.stringify({ schemaVersion: 1, catalogVersion: DEV_CATALOG_VERSION, environments: reports }, null, 2));
     return 0;
   }
   let lockfile: ProjectLockfile | undefined;

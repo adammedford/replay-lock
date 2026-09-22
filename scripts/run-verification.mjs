@@ -18,6 +18,7 @@ const acceptanceFiles = [
   "test/acceptance/dev-integration.test.mjs",
   "test/acceptance/dev-trace.test.mjs",
   "test/acceptance/dev-transform.test.mjs",
+  "test/acceptance/dev-yield.test.mjs",
   "test/acceptance/core.test.mjs",
   "test/acceptance/source-policy.test.mjs",
   "test/acceptance/effects.test.mjs",

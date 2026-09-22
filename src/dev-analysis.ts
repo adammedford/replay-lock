@@ -6,6 +6,7 @@ import ts from "typescript";
 import { createEffectAnalyzer, DETERMINISTIC_INTRINSICS } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
+import { DEV_AMBIENT_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devDeterministicCall, devReadableBuiltin } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
 export type DevCallable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
@@ -70,8 +71,6 @@ class DevProblems extends Set<string> {
 const builtins = new Set(builtinModules.map((name) => name.replace(/^node:/, "")));
 const ignoredDirectories = new Set(["node_modules", ".git", ".replaylock", ".unlazy", "dist", "coverage", ".vite", ".next"]);
 const coveredFindingCodes = new Set(["CLOCK_ACCESS", "RANDOMNESS", "IO", "ENVIRONMENT_DEPENDENCE"]);
-const constructors = new Set(["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "EvalError"]);
-const ambientGlobals = new Set(["undefined", "NaN", "Infinity", "Math", "Date", "crypto", "performance", "fetch", "process", "Promise", "globalThis", "window", "self", "Array", "Object", "Number", "String", "Boolean", "BigInt", "parseInt", "parseFloat", "isFinite", "isNaN", ...constructors]);
 
 /** Static discovery only: importing or invoking project code is never necessary. */
 export function analyzeDevProject(root: string, options: ResolvedDevOptions, environment: DevEnvironment): DevAnalysis {
@@ -280,7 +279,14 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     }
     return undefined;
   };
-  const identity = (expression: ts.Expression): string | undefined => canonical(expression)?.replace(/^\$global\./, "").replace(/^fs\.promises\./, "fsPromises.").replace(/^\$perf_hooks\.performance\./, "performance.");
+  // The AST and checker are fixed for this build, so identities are memoized.
+  const identities = new Map<ts.Node, string | undefined>();
+  const identity = (expression: ts.Expression): string | undefined => {
+    if (identities.has(expression)) return identities.get(expression);
+    const name = canonical(expression)?.replace(/^\$global\./, "").replace(/^fs\.promises\./, "fsPromises.").replace(/^\$perf_hooks\.performance\./, "performance.");
+    identities.set(expression, name);
+    return name;
+  };
   const resolveFunction = (expression: ts.Expression, seen = new Set<ts.Node>()): DevFunction | undefined => {
     const node = unwrap(expression);
     if (seen.has(node)) return undefined;
@@ -334,11 +340,27 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   // Unselected dependency callables contribute only when reached by a selected
   // callable. Module initialization above remains unconditional for every import.
   const reachableFunctions = new Set(functions.filter(candidate => candidate.instrument));
+  // Every function body a target can reach is either analyzed as its own
+  // callable or excluded. An unanalyzed function value can run implicitly
+  // (toString, valueOf, iterators, callbacks) outside effect interception.
+  const discovered = new Set<ts.Node>(functions.map((candidate) => candidate.node));
+  // A binding imported from a Node builtin that has no effect identity
+  // (for example `os` or `child_process`) is ambient host state.
+  const builtinImportRoot = (expression: ts.Expression): boolean => {
+    let root = unwrap(expression);
+    while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root)) root = unwrap(root.expression);
+    if (!ts.isIdentifier(root)) return false;
+    let statement: ts.Node | undefined = checker.getSymbolAtLocation(root)?.declarations?.[0];
+    if (!statement || !(ts.isImportSpecifier(statement) || ts.isNamespaceImport(statement) || ts.isImportClause(statement))) return false;
+    while (statement && !ts.isImportDeclaration(statement)) statement = statement.parent;
+    return !!statement && ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && builtins.has(applyAlias(statement.moduleSpecifier.text, options).replace(/^node:/, "")) && canonical(root) === undefined;
+  };
   for (const candidate of reachableFunctions) {
     const { node, module, problems, effects, calls } = candidate;
     const inspect = (child: ts.Node): void => {
       if (child !== node && ts.isFunctionLike(child)) {
         if (ts.isGetAccessorDeclaration(child) || ts.isSetAccessorDeclaration(child)) problems.at("UNKNOWN_CALL", child);
+        else if (runtimeFunction(child) && !discovered.has(child)) problems.at("FUNCTION_VALUE", child);
         return;
       }
       if (ts.isTypeNode(child)) return;
@@ -357,16 +379,29 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             if (!owner && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker)) problems.at("AMBIENT_STATE", child);
           }
         }
+        // A function is safe only where it is called and analyzed as a call.
+        if (!calleePosition(child) && (bySymbol.has(binding!) || (declaration && functionDeclaration(declaration)))) problems.at("FUNCTION_VALUE", child);
         if (!declaration && child.text === "arguments") problems.at("UNSUPPORTED_CALLABLE", child);
-        if (!declaration && !ambientGlobals.has(child.text)) problems.at("UNKNOWN_REFERENCE", child);
+        if (!declaration && !DEV_AMBIENT_GLOBALS.has(child.text)) problems.at("UNKNOWN_REFERENCE", child);
       }
       if (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) {
         const binding = symbol(ts.isPropertyAccessExpression(child) ? child.name : child);
         const declaration = binding?.valueDeclaration;
         if (declaration && ts.isVariableDeclaration(declaration) && !descendantOf(declaration, node) && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker)) problems.at("AMBIENT_STATE", child);
         if (declaration && (ts.isGetAccessorDeclaration(declaration) || ts.isSetAccessorDeclaration(declaration))) problems.at("UNKNOWN_CALL", child);
+        if (binding && bySymbol.has(binding) && !calleePosition(child)) problems.at("FUNCTION_VALUE", child);
         const name = identity(child);
-        if (canonical(child.expression) === "$global" && !["Math", "Date", "crypto", "performance", "fetch", "process", "Promise", "Array", "Object", "Number", "String", "Boolean", "BigInt"].includes(name ?? "")) problems.at("AMBIENT_STATE", child);
+        if (canonical(child.expression) === "$global" && !DEV_GLOBAL_OBJECT_MEMBERS.has(name ?? "")) problems.at("AMBIENT_STATE", child);
+      }
+      // A built-in read outside a call is only safe when it is an immutable
+      // constant or a deterministic function; an alias is checked where used.
+      if (((ts.isIdentifier(child) && referenceIdentifier(child)) || ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) && valueReference(child)) {
+        const name = identity(child);
+        if (name !== undefined) {
+          if (!name.startsWith("$response") && operation(child)?.kind !== "environment" && !devReadableBuiltin(name)) problems.at(DEV_EFFECT_FUNCTIONS.has(name) ? "FUNCTION_VALUE" : "AMBIENT_STATE", child);
+        } else if (ts.isElementAccessExpression(child) ? identity(child.expression) !== undefined || builtinImportRoot(child.expression) : builtinImportRoot(child)) {
+          problems.at("AMBIENT_STATE", child);
+        }
       }
       const effect = operation(child);
       if (effect) {
@@ -388,7 +423,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             // Only immediate values; assimilating an unknown thenable would run hidden work.
             if (child.arguments[0] && !literalValue(child.arguments[0])) problems.at("UNKNOWN_CALL", child);
             asynchronous = true;
-          } else if (!(name && (DETERMINISTIC_INTRINSICS.has(name) || constructors.has(name) || ["Number", "String", "Boolean", "BigInt", "parseInt", "parseFloat", "isFinite", "isNaN"].includes(name)))) {
+          } else if (!(name && devDeterministicCall(name))) {
             problems.at("UNKNOWN_CALL", child);
           }
         }
@@ -540,6 +575,34 @@ function sourcePolicy(node: ts.Node): { capture: boolean; excluded: boolean; inv
     else invalid = true;
   }
   return { capture, excluded, invalid: invalid || (assumed && !capture) || (excluded && (capture || assumed)) };
+}
+function runtimeFunction(node: ts.Node): boolean {
+  return (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node)) && !!node.body;
+}
+function functionDeclaration(node: ts.Declaration): boolean {
+  if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isClassDeclaration(node) || ts.isClassExpression(node) || ts.isMethodDeclaration(node)) return true;
+  if (!ts.isVariableDeclaration(node) || !node.initializer) return false;
+  const initializer = unwrap(node.initializer);
+  return ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer) || ts.isClassExpression(initializer);
+}
+/** The outermost expression that `node` denotes, skipping type-only wrappers. */
+function expressionSite(node: ts.Node): ts.Node {
+  let current = node;
+  while (current.parent && (ts.isParenthesizedExpression(current.parent) || ts.isAsExpression(current.parent) || ts.isTypeAssertionExpression(current.parent) || ts.isNonNullExpression(current.parent) || ts.isSatisfiesExpression(current.parent))) current = current.parent;
+  return current;
+}
+function calleePosition(node: ts.Node): boolean {
+  const site = expressionSite(node);
+  const parent = site.parent;
+  return ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && parent.expression === site) || (ts.isTaggedTemplateExpression(parent) && parent.tag === site);
+}
+/** A complete value read: not a member-chain prefix, callee, alias declaration, or `typeof` operand. */
+function valueReference(node: ts.Node): boolean {
+  const site = expressionSite(node);
+  const parent = site.parent;
+  if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === site) return false;
+  if (calleePosition(node) || ts.isTypeOfExpression(parent)) return false;
+  return !(ts.isVariableDeclaration(parent) && parent.initializer === site && constantDeclaration(parent));
 }
 function descendantOf(node: ts.Node, ancestor: ts.Node): boolean { for (let current: ts.Node | undefined = node; current; current = current.parent) if (current === ancestor) return true; return false; }
 function enclosingFunction(node: ts.Node): ts.Node | undefined { for (let current = node.parent; current; current = current.parent) if (ts.isFunctionLike(current)) return current; return undefined; }

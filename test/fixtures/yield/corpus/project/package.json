@@ -1,0 +1,1 @@
+{"name":"yield-corpus","type":"module","private":true,"imports":{"#utils/*":"./src/*.ts"}}

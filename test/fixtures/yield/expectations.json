@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "1",
+  "corpus": {
+    "eligible": {
+      "node": [
+        "src/arrays.ts#first",
+        "src/errors.ts#requirePositive",
+        "src/numbers.ts#bmi",
+        "src/numbers.ts#clamp",
+        "src/numbers.ts#isEven",
+        "src/numbers.ts#percent",
+        "src/routes.ts#heading",
+        "src/strings.ts#greeting"
+      ],
+      "browser": [
+        "src/arrays.ts#first",
+        "src/errors.ts#requirePositive",
+        "src/numbers.ts#bmi",
+        "src/numbers.ts#clamp",
+        "src/numbers.ts#isEven",
+        "src/numbers.ts#percent",
+        "src/routes.ts#heading",
+        "src/strings.ts#greeting"
+      ]
+    },
+    "samples": {
+      "src/arrays.ts#first": [
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          []
+        ]
+      ],
+      "src/errors.ts#requirePositive": [
+        [
+          2
+        ],
+        [
+          -1
+        ]
+      ],
+      "src/numbers.ts#bmi": [
+        [
+          70,
+          1.7
+        ]
+      ],
+      "src/numbers.ts#clamp": [
+        [
+          15,
+          0,
+          10
+        ],
+        [
+          -3,
+          0,
+          10
+        ]
+      ],
+      "src/numbers.ts#isEven": [
+        [
+          4
+        ],
+        [
+          7
+        ]
+      ],
+      "src/numbers.ts#percent": [
+        [
+          1,
+          3
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "src/routes.ts#heading": [
+        [
+          "Notes"
+        ]
+      ],
+      "src/strings.ts#greeting": [
+        [
+          "Ada"
+        ]
+      ]
+    }
+  },
+  "falseSafe": {
+    "eligible": {
+      "node": [
+        "src/implicit.ts#randomText"
+      ],
+      "browser": [
+        "src/implicit.ts#randomText"
+      ]
+    },
+    "rejected": {
+      "src/ambient.ts#patchedMath": [
+        "AMBIENT_STATE"
+      ],
+      "src/ambient.ts#dynamicMathMember": [
+        "AMBIENT_STATE"
+      ],
+      "src/ambient.ts#argvLength": [
+        "AMBIENT_STATE"
+      ],
+      "src/ambient.ts#platformName": [
+        "AMBIENT_STATE"
+      ],
+      "src/ambient.ts#globalFlag": [
+        "AMBIENT_STATE"
+      ],
+      "src/callbacks.ts#randomInMap": [
+        "FUNCTION_VALUE",
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#sortArgument": [
+        "ARGUMENT_MUTATION",
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#randomComparator": [
+        "FUNCTION_VALUE",
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#callbackParameter": [
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#replacerFunction": [
+        "FUNCTION_VALUE",
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#anyReceiver": [
+        "UNKNOWN_CALL"
+      ],
+      "src/defaults.ts#withClockDefault": [
+        "UNSUPPORTED_CALLABLE"
+      ],
+      "src/env.ts#apiUrl": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/env.ts#token": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/implicit.ts#coerceToString": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#coerceValueOf": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#templateToString": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#iteratorRandom": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#writeInToString": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#helperAsToString": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#helperCall": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#randomAsValue": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#clockAliasAsValue": [
+        "FUNCTION_VALUE"
+      ],
+      "src/implicit.ts#exitAsValue": [
+        "AMBIENT_STATE"
+      ],
+      "src/implicit.ts#hostnameAsValue": [
+        "AMBIENT_STATE"
+      ],
+      "src/module-fetch.ts#increment": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/module-fetch.ts#pending": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/tables.ts#clockTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#mutatedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#bumpTable": [
+        "AMBIENT_MUTATION",
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#statefulRegex": [
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#exportedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/timer.ts#triple": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/uses-polyfill.ts#exclaim": [
+        "EFFECTFUL_INITIALIZATION"
+      ]
+    }
+  },
+  "selfFloor": {
+    "node": 6,
+    "browser": 6
+  }
+}
