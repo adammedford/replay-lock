@@ -420,7 +420,24 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
     if (mode === "attach") recorder = running(directory, [cli, "record", "--attach", manifest.url]);
     await until(() => recorder.output().includes("ReplayLock attached"));
     browser = await chromium.launch(); const page = await browser.newPage();
-    await page.goto(manifest.url); await page.click("#roll");
+    // Vite buffers the recording-start reload before the first socket connects.
+    // Deliver that real frame after initial navigation, then finish its reload
+    // before interacting; a click during replacement can hit unbound markup.
+    let releaseStartupReload;
+    await page.routeWebSocket("**/*", socket => {
+      const upstream = socket.connectToServer();
+      upstream.onMessage(message => {
+        if (!releaseStartupReload && JSON.parse(String(message)).type === "full-reload") releaseStartupReload = () => socket.send(message);
+        else socket.send(message);
+      });
+    });
+    await page.goto(manifest.url);
+    await until(() => releaseStartupReload);
+    const reloaded = page.waitForEvent("load");
+    releaseStartupReload();
+    await reloaded;
+    await page.waitForFunction(() => typeof document.querySelector("#roll")?.onclick === "function");
+    await page.click("#roll");
     await until(async () => (await control(manifest, "status")).body.stored >= 4);
     const active = (await control(manifest, "status")).body;
     if (mode === "recover") {

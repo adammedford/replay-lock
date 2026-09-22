@@ -31,3 +31,5 @@ Raw baseline and worker-stage five-pair reports, identities and separate CPU pro
 Final standards review found no hard violations; two optional helper-extraction suggestions were deferred. Spec review found SSR reset and startup/shutdown races during development; both were fixed and covered by public integration regressions. Follow-up static review found no further blocking issues.
 
 Hosted CI at `abc7642` exposed a queued-reply/termination reference race. Commit `1a58da3` fixes it, with a deterministic subprocess regression and all twelve cache/worker tests passing. A further five-pair timing run passed on that exact build. Cold page margin is only 30.436 ms; raw outliers and the prior passing report remain retained.
+
+The next hosted run passed worker lifetime checks but timed out in CLI attach during startup reload. The CLI fixture now synchronizes the real buffered Vite reload before its single workload click. Launch, attach and recovery checks pass; production code and timing identities are unchanged.
