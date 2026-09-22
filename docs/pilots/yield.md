@@ -15,3 +15,15 @@ Before this change, any function value in a capture target was invisible to anal
 The change removes no ordinary eligible callable in the corpus or this repository. The dominant exclusions in this repository remain module initialization (94% of skipped callables) and unknown calls (92%); later changes target those.
 
 Analysis time for this repository (both realms, median of five runs, three alternating main/branch rounds on one host) stayed within ±4% of `main`; build-local memoization of built-in identities offsets the added checks.
+
+## P1: deterministic built-ins (development catalog 2)
+
+Development analysis accepts `JSON`, `Object` and `Array` statics, `Date.UTC`, URI encoding, and `new Map`, `Set`, `URL`, `URLSearchParams` and `RegExp` when no argument can run user code: no reviver, replacer or mapping function, no spread, and `Object.freeze` only as literal syntax so argument-mutation analysis sees it. At module scope, these calls initialize safely only from literal data or constants holding it. A lookup table such as `new Map([["low", 1]])` no longer marks every function in its module as effectful.
+
+| Project | Before (P0) | After |
+|---|---|---|
+| Replay hazard fixtures (43 hazards, 9 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (33 callables) | 8 eligible | 12 eligible |
+| This repository (818 callables, each realm) | 6 eligible | 11 eligible |
+
+Reading a module table from a function still reports `AMBIENT_STATE`; immutable tables are the next change.

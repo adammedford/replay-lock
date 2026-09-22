@@ -3,10 +3,10 @@ import { readdirSync, realpathSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import path from "node:path";
 import ts from "typescript";
-import { createEffectAnalyzer, DETERMINISTIC_INTRINSICS } from "./effect-analyzer.js";
+import { createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
-import { DEV_AMBIENT_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devDeterministicCall, devReadableBuiltin } from "./dev-catalog.js";
+import { DEV_AMBIENT_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devCatalogInvocation, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
 export type DevCallable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
@@ -81,7 +81,11 @@ export function analyzeDevProject(root: string, options: ResolvedDevOptions, env
 export function buildDevProject(rootInput: string, options: ResolvedDevOptions, environment: DevEnvironment, overlay?: { id: string; code: string }): DevProject {
   const root = realpathSync(rootInput);
   const inputs = createDevInputTracker();
-  const { analyzeDirectEffects, analyzeModuleInitialization } = createEffectAnalyzer();
+  // This syntactic pass runs before bindings resolve, so it accepts any
+  // identifier argument; the binding-aware initialization pass below is strict.
+  const { analyzeDirectEffects, analyzeModuleInitialization } = createEffectAnalyzer({
+    isDeterministicInvocation: (node) => devInertInitialization(node, { name: expressionPath, inertIdentifier: () => true }),
+  });
   const { isFile, read } = inputs;
   inputs.track(rootInput);
   const sources = new Map<string, string>();
@@ -319,6 +323,22 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     return undefined;
   };
 
+  // A module-scope binding is inert when it is a constant initialized with
+  // literal data or catalogued built-in results that run no user code.
+  const inertBindings = new Map<ts.Node, boolean>();
+  const initializationContext = {
+    name: identity,
+    inertIdentifier: (node: ts.Identifier): boolean => {
+      const declaration = symbol(node)?.valueDeclaration;
+      if (!declaration) return ["undefined", "NaN", "Infinity"].includes(node.text) && !checker.getSymbolAtLocation(node)?.declarations?.length;
+      if (!ts.isVariableDeclaration(declaration) || !declaration.initializer || !constantDeclaration(declaration) || enclosingFunction(declaration)) return false;
+      if (!inertBindings.has(declaration)) {
+        inertBindings.set(declaration, false); // a cycle is not inert
+        inertBindings.set(declaration, inertExpression(declaration.initializer, initializationContext));
+      }
+      return inertBindings.get(declaration)!;
+    },
+  };
   // Module execution must be safe independently of capture selection. In
   // particular, an environment snapshot in a dependency is not a traced read.
   for (const module of modules.values()) {
@@ -332,7 +352,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         const name = identity(child);
         if (name === "process.env" || name?.startsWith("process.env.") || name === "import.meta.env" || name?.startsWith("import.meta.env.")) module.problems.at("EFFECTFUL_INITIALIZATION", child);
       }
-      if ((ts.isCallExpression(child) || ts.isNewExpression(child)) && !DETERMINISTIC_INTRINSICS.has(identity(child.expression) ?? "")) module.problems.at("EFFECTFUL_INITIALIZATION", child);
+      if ((ts.isCallExpression(child) || ts.isNewExpression(child)) && !devInertInitialization(child, initializationContext)) module.problems.at("EFFECTFUL_INITIALIZATION", child);
       ts.forEachChild(child, initialization);
     };
     initialization(module.sourceFile);
@@ -423,7 +443,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             // Only immediate values; assimilating an unknown thenable would run hidden work.
             if (child.arguments[0] && !literalValue(child.arguments[0])) problems.at("UNKNOWN_CALL", child);
             asynchronous = true;
-          } else if (!(name && devDeterministicCall(name))) {
+          } else if (!(name && devCatalogInvocation(child, name, expressionPath(child.expression)))) {
             problems.at("UNKNOWN_CALL", child);
           }
         }

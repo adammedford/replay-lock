@@ -45,6 +45,8 @@ Automatic selection includes supported module exports, private module functions,
 
 A function is eligible only when every function it can run is analyzed as a call. Anonymous functions and methods in its body, and project or built-in functions used as values rather than called, report `FUNCTION_VALUE`: a `toString`, `valueOf`, iterator, or callback can be invoked implicitly, outside effect interception. Reading host state that is not a traced effect, such as `process.argv`, `process.platform`, an unknown member of `Math`, or a Node builtin other than the traced `fs`, `crypto`, and `perf_hooks` reads, reports `AMBIENT_STATE`.
 
+Deterministic built-ins that run no user code are supported: `JSON.parse` without a reviver, `JSON.stringify` without a replacer function, `Object.keys`, `values`, `entries`, `fromEntries`, `hasOwn`, `getOwnPropertyNames`, `isFrozen`, and `freeze` (which still counts as mutating an argument it freezes), `Array.from` without a mapping function, `Array.of`, `Date.UTC`, the URI encoding functions, and `new Map`, `Set`, `URL`, `URLSearchParams`, and `RegExp`. At module scope they are safe initializers when every argument is literal data or a constant holding it, such as `const LIMITS = new Map([["small", 1]])`; any other module-scope call is still unsafe module initialization.
+
 Ordinary `async`/`await`, analyzed local calls, and supported `Promise.all` calls retain their own invocation context. Nested traces include their children's reads. Parent and child observations can each become independent cases. Browser execution and Node execution produce separate cases.
 
 Configuration belongs in `replaylock.config.ts` (or a supported JavaScript configuration extension):

@@ -205,6 +205,45 @@ export function entry(n: number) { const now = Date.now; function inner(x: numbe
   assert.deepEqual(names(transform(root, "source.ts")), ["helper", "entry", "entry.inner"]);
 });
 
+test("catalogued built-ins and inert module tables replay offline without tainting their module", async (t) => {
+  const root = project(t, { "source.ts": `
+const LIMITS = new Map([["small", 1], ["large", 3]]);
+const UNITS = Object.freeze({ kg: 1, lb: 0.5 });
+const PATTERN = new RegExp("^[a-z]+$", "i");
+export function entry(record: Record<string, number>, href: string) {
+  const copy = JSON.parse(JSON.stringify(record));
+  return [Object.keys(copy).length, Object.entries(copy).length, new URL(href).pathname, encodeURIComponent(href), [...new Set(Object.values(copy))].length, Array.from("ab").length, Math.random()];
+}` });
+  const result = transform(root, "source.ts", { replay: true });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(names(result), ["entry"]);
+  const module = await load(root, result);
+  const { observations, blocks } = capture();
+  const original = module.entry({ a: 1, b: 1 }, "https://example.test/a b");
+  assert.deepEqual(blocks, []);
+  assert.deepEqual(ops(observations[0]), ["Math.random"]);
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try { assert.deepEqual(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1, b: 1 }, "https://example.test/a b")), original); }
+  finally { Math.random = random; }
+  const refused = [
+    [`import { entries } from "./entries"; const TABLE = new Map(entries as never); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = new Map([["a", Date.now()]]); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = JSON.parse("{}", (key, value) => value); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = Object.freeze({ get now() { return Date.now(); } }); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`export function entry(value: { a: number }) { const freeze = Object.freeze; return freeze(value); }`, "UNKNOWN_CALL"],
+    [`export function entry(value: { a: number }) { return Object.freeze(value); }`, "ARGUMENT_MUTATION"],
+    [`export function entry(text: string, keys: string[]) { return JSON.stringify(text, keys); }`, "UNKNOWN_CALL"],
+    [`export function entry(values: number[]) { return Array.from(values, (value) => value * 2); }`, "UNKNOWN_CALL"],
+  ];
+  for (const [source, code] of refused) {
+    const blocked = project(t, { "source.ts": source, "entries.ts": `export const entries = { *[Symbol.iterator]() { yield ["a", Math.random()]; } };` });
+    const refusal = transform(blocked, "source.ts", { replay: true });
+    assert.deepEqual(names(refusal), [], source);
+    assert.ok(refusal.diagnostics.some((item) => item.code === code), `${code}: ${JSON.stringify(refusal.diagnostics)}`);
+  }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */
