@@ -42,6 +42,24 @@ async function until(predicate, timeout = 60000) {
   while (Date.now() < deadline) { const value = await predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 50)); }
   throw new Error("condition timed out");
 }
+// Use only for the first page when recording starts before any browser connects.
+// Vite buffers that startup reload. Hold its real frame until navigation ends,
+// await the resulting load, and forward every later edit/stop frame unchanged.
+async function openFirstRecordingPage(page, url) {
+  let releaseStartupReload;
+  await page.routeWebSocket("**/*", socket => {
+    const upstream = socket.connectToServer();
+    upstream.onMessage(message => {
+      if (!releaseStartupReload && JSON.parse(String(message)).type === "full-reload") releaseStartupReload = () => socket.send(message);
+      else socket.send(message);
+    });
+  });
+  await page.goto(url);
+  await until(() => releaseStartupReload);
+  const reloaded = page.waitForEvent("load");
+  releaseStartupReload();
+  await reloaded;
+}
 async function control(manifest, operation, headers = {}) {
   // Retry only a thrown transport error (a loopback socket occasionally resets
   // as the dev server tears down under load), never an HTTP status, so a real
@@ -87,7 +105,7 @@ test("middleware HTTP hosts discover authenticated capture and replay, with life
     assert.equal((await control(manifest,"start")).status,200);
     const calls=await vite.ssrLoadModule("/src/calculation.js");calls.calculate(7);
     browser=await chromium.launch({headless:true});const page=await browser.newPage();
-    await page.goto(manifest.url);await page.click("#roll");
+    await openFirstRecordingPage(page, manifest.url);await page.click("#roll");
     await page.waitForFunction(()=>document.querySelector("#result").textContent.length>0);
     const stopped=await control(manifest,"stop");
     assert.equal(stopped.body.recordingBlocks,0,JSON.stringify(stopped.body));
@@ -201,7 +219,7 @@ test("real Vite browser and Node workloads produce reviewed cases that replay of
     const page = await browser.newPage();
     const errors = []; page.on("pageerror", error => errors.push(error.message));
     const transport = []; page.on("console", message => { if (message.type() === "error" || message.type() === "warning") transport.push(message.text()); });
-    await page.goto(manifest.url);
+    await openFirstRecordingPage(page, manifest.url);
     await page.click("#roll");
     await page.click("#roll");
     await page.evaluate(async url => { const { remote } = await import('/src/calculation.js'); return remote(url); }, externalUrl);
@@ -260,7 +278,7 @@ export default defineReplayLock({valueAdapters:[defineValueAdapter({id:'example/
     const { Amount } = await vite.ssrLoadModule("/src/amount.js");
     const { echo } = await vite.ssrLoadModule("/src/calculation.js");
     assert.equal(echo(new Amount(7)).value, 7);
-    browser = await chromium.launch(); const page = await browser.newPage(); await page.goto(manifest.url);
+    browser = await chromium.launch(); const page = await browser.newPage(); await openFirstRecordingPage(page, manifest.url);
     assert.equal(await page.evaluate(async () => {
       const { Amount } = await import('/src/amount.js'); const { echo } = await import('/src/calculation.js');
       return echo(new Amount(7)).value;
@@ -298,7 +316,7 @@ test("HMR retains latest completed behavior and retransmission is acknowledged o
       if (++deliveries === 1) await route.abort();
       else await route.fulfill({ response });
     });
-    await page.goto(manifest.url);
+    await openFirstRecordingPage(page, manifest.url);
     assert.equal(await page.evaluate(async () => (await import('/src/calculation.js')).calculate(2)), 3);
     try { await until(async () => deliveries >= 2); }
     catch (error) { throw new Error(JSON.stringify({ deliveries, transport, status: await control(manifest, "status") }), { cause: error }); }
@@ -377,7 +395,7 @@ test("stop reports missing browser acknowledgements and keeps sealed observation
     vite = await createServer({ root: directory, configFile: false, plugins: [replaylock({ dev: true })], server: { host: "127.0.0.1", port: 0, fs: { allow: [directory, root] } } });
     await vite.listen(); const manifest = await until(async () => (await manifests(directory))[0]);
     assert.equal((await control(manifest, "start")).status, 200);
-    browser = await chromium.launch(); const page = await browser.newPage(); await page.goto(manifest.url); await page.click("#roll");
+    browser = await chromium.launch(); const page = await browser.newPage(); await openFirstRecordingPage(page, manifest.url); await page.click("#roll");
     await until(async () => (await control(manifest, "status")).body.stored === 4);
     await page.route("**/__replaylock/observations", route => route.abort());
     const stopped = await control(manifest, "stop");
@@ -393,7 +411,7 @@ test("browser queue overflow reaches the collector as a partial-capture diagnost
     vite = await createServer({ root: directory, configFile: false, plugins: [replaylock({ dev: true })], server: { host: "127.0.0.1", port: 0, fs: { allow: [directory, root] } } });
     await vite.listen(); const manifest = await until(async () => (await manifests(directory))[0]);
     assert.equal((await control(manifest, "start")).status, 200);
-    browser = await chromium.launch(); const page = await browser.newPage(); await page.goto(manifest.url);
+    browser = await chromium.launch(); const page = await browser.newPage(); await openFirstRecordingPage(page, manifest.url);
     let disconnected = true;
     await page.route("**/__replaylock/observations", route => disconnected ? route.abort() : route.continue());
     await page.evaluate(() => { for (let index = 0; index < 1001; index++) globalThis.runEcho(7); });
@@ -420,22 +438,7 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
     if (mode === "attach") recorder = running(directory, [cli, "record", "--attach", manifest.url]);
     await until(() => recorder.output().includes("ReplayLock attached"));
     browser = await chromium.launch(); const page = await browser.newPage();
-    // Vite buffers the recording-start reload before the first socket connects.
-    // Deliver that real frame after initial navigation, then finish its reload
-    // before interacting; a click during replacement can hit unbound markup.
-    let releaseStartupReload;
-    await page.routeWebSocket("**/*", socket => {
-      const upstream = socket.connectToServer();
-      upstream.onMessage(message => {
-        if (!releaseStartupReload && JSON.parse(String(message)).type === "full-reload") releaseStartupReload = () => socket.send(message);
-        else socket.send(message);
-      });
-    });
-    await page.goto(manifest.url);
-    await until(() => releaseStartupReload);
-    const reloaded = page.waitForEvent("load");
-    releaseStartupReload();
-    await reloaded;
+    await openFirstRecordingPage(page, manifest.url);
     await page.waitForFunction(() => typeof document.querySelector("#roll")?.onclick === "function");
     await page.click("#roll");
     await until(async () => (await control(manifest, "status")).body.stored >= 4);
