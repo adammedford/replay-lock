@@ -183,3 +183,44 @@ test('analysis workers can start from a module-eval host', async t => {
     execFileSync(process.execPath,[...flags,'--eval',script],{timeout:15000,stdio:'pipe'});
   }
 });
+
+test('a queued worker reply cannot release the host during termination', async t => {
+  const root = await fixture(t, {'src/a.js':'export function a(n){return n+1;}'});
+  const clientUrl = new URL('../../dist/dev-analysis-client.js', import.meta.url).href;
+  const optionsUrl = new URL('../../dist/dev-options.js', import.meta.url).href;
+  const script = `import assert from 'node:assert/strict';
+import {Worker} from 'node:worker_threads';
+import {createDevAnalysisClient} from ${JSON.stringify(clientUrl)};
+import {resolveDevOptions} from ${JSON.stringify(optionsUrl)};
+const originalOn = Worker.prototype.on, originalTerminate = Worker.prototype.terminate, originalUnref = Worker.prototype.unref;
+let hold = false, deliver, arrived, terminating = false, releasedDuringClose = 0;
+Worker.prototype.on = function(event, listener) {
+  return originalOn.call(this, event, event === 'message' ? message => {
+    if (hold) { deliver = () => listener(message); arrived(); }
+    else listener(message);
+  } : listener);
+};
+Worker.prototype.terminate = function() {
+  const completion = originalTerminate.call(this);
+  // Deliver a real analysis reply queued just before termination began.
+  if (deliver) { const queued = deliver; deliver = undefined; queued(); }
+  return completion;
+};
+Worker.prototype.unref = function() {
+  if (terminating && this.threadId !== -1) releasedDuringClose++;
+  return originalUnref.call(this);
+};
+const client = createDevAnalysisClient(${JSON.stringify(root)}, resolveDevOptions());
+await Promise.all(['node','browser'].map(realm => client.analyze(realm)));
+hold = true;
+const queued = new Promise(resolve => { arrived = resolve; });
+const pending = client.analyze('node');
+await queued;
+terminating = true;
+const closing = client.close();
+assert.equal(releasedDuringClose, 0, 'queued replies must retain termination handles');
+await closing;
+await pending;
+process.stdout.write('all workers closed');`;
+  assert.equal(execFileSync(process.execPath, ['--input-type=module', '--eval', script], {timeout:15000, encoding:'utf8', stdio:'pipe'}), 'all workers closed');
+});

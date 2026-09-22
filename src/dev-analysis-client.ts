@@ -31,7 +31,7 @@ export function createDevAnalysisClient(root: string, initialOptions: ResolvedDe
         own.failure = error;
         for (const pending of own.pending.values()) pending.reject(error);
         own.pending.clear();
-        worker.unref();
+        if (!closed) worker.unref();
       };
       worker.on("error", fail);
       worker.on("exit", () => fail(new Error("INSTRUMENTATION_UNSUPPORTED: analysis worker exited")));
@@ -41,7 +41,9 @@ export function createDevAnalysisClient(root: string, initialOptions: ResolvedDe
         own.pending.delete(message.id);
         if (message.error) pending.reject(new Error(message.error));
         else pending.resolve(message.result!);
-        if (!own.pending.size) worker.unref();
+        // terminate() refs the worker until exit; a queued reply must not
+        // undo that reference while close() is awaiting termination.
+        if (!closed && !own.pending.size) worker.unref();
       });
     }
     if (state.failure) return Promise.reject(state.failure);
@@ -53,7 +55,7 @@ export function createDevAnalysisClient(root: string, initialOptions: ResolvedDe
       try { own.worker.postMessage({ id, epoch, options, ...(transform ? { transform } : {}) } satisfies AnalysisRequest); }
       catch (error) {
         own.pending.delete(id);
-        if (!own.pending.size) own.worker.unref();
+        if (!closed && !own.pending.size) own.worker.unref();
         reject(error);
       }
     });
