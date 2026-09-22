@@ -236,12 +236,21 @@ export function analyzeProjectCallGraph(options: AnalyzeCallGraphOptions): CallG
     initializedModules.size > 0 ? "refuted" : unknownModuleDependency ? "unknown" : "likely-safe",
   );
   status.set(entryResolution.id, rootStatus);
-  const summaries = [...reachableTargets.values()].sort((a, b) => a.id.localeCompare(b.id)).map((target) => ({
-    id: target.id, module: target.module.key, name: target.name, excluded: target.excluded, verdict: status.get(target.id) ?? "unknown",
-  }));
-  const finalFindings = dedupeFindings(findings);
-  const trustedCalls = dedupeTrustedPackageCalls(edges.flatMap((edge) => edge.trustedPackageCall ? [edge.trustedPackageCall] : []));
-  return freezeAnalysis(rootStatus, finalFindings, [...reachableModules].sort(), summaries, trustedCalls);
+  const summaries: CallGraphNodeSummary[] = [];
+  for (const target of [...reachableTargets.values()].sort((a, b) => a.id.localeCompare(b.id))) {
+    summaries.push(Object.freeze({
+      id: target.id,
+      module: target.module.key,
+      name: target.name,
+      excluded: target.excluded,
+      verdict: status.get(target.id) ?? "unknown",
+    }));
+  }
+  const trustedCalls: TrustedPackageCallEvidence[] = [];
+  for (const edge of edges) {
+    if (edge.trustedPackageCall) trustedCalls.push(edge.trustedPackageCall);
+  }
+  return freezeAnalysis(rootStatus, findings, [...reachableModules].sort(), summaries, trustedCalls);
 }
 
 function createModules(input: AnalyzeCallGraphOptions["modules"]): Map<string, ModuleInfo> {
@@ -604,7 +613,7 @@ function knownDirectEffect(path: string): DirectEffectReasonCode | undefined {
   return undefined;
 }
 
-function analyzeInitializerEvidence(info: ModuleInfo, initializer: ts.Expression): { verdict: CallGraphVerdict; findings: CallGraphFinding[] } {
+function analyzeInitializerEvidence(info: ModuleInfo, initializer: ts.Expression): { verdict: CallGraphVerdict; findings: readonly CallGraphFinding[] } {
   const findings: CallGraphFinding[] = [];
   let verdict: CallGraphVerdict = "likely-safe";
   const visit = (node: ts.Node): void => {
@@ -622,25 +631,31 @@ function analyzeInitializerEvidence(info: ModuleInfo, initializer: ts.Expression
   return { verdict, findings: dedupeFindings(findings) };
 }
 
-function freezeAnalysis(verdict: CallGraphVerdict, findings: CallGraphFinding[], modules: string[], nodes: CallGraphNodeSummary[], trustedCalls: TrustedPackageCallEvidence[]): CallGraphAnalysis {
+function freezeAnalysis(
+  verdict: CallGraphVerdict,
+  findings: readonly CallGraphFinding[],
+  modules: readonly string[],
+  nodes: readonly CallGraphNodeSummary[],
+  trustedCalls: readonly TrustedPackageCallEvidence[],
+): CallGraphAnalysis {
   return Object.freeze({
     verdict,
     analyzerVersion: EFFECT_ANALYZER_VERSION,
-    findings: Object.freeze(dedupeFindings(findings).map((finding) => Object.freeze(finding))),
+    findings: dedupeFindings(findings),
     reachableModules: Object.freeze(modules),
-    reachableCallables: Object.freeze(nodes.map((node) => Object.freeze(node))),
-    trustedPackageCalls: Object.freeze(dedupeTrustedPackageCalls(trustedCalls).map((call) => Object.freeze(call))),
+    reachableCallables: Object.freeze(nodes),
+    trustedPackageCalls: dedupeTrustedPackageCalls(trustedCalls),
   });
 }
 
-function dedupeTrustedPackageCalls(calls: readonly TrustedPackageCallEvidence[]): TrustedPackageCallEvidence[] {
+function dedupeTrustedPackageCalls(calls: readonly TrustedPackageCallEvidence[]): readonly TrustedPackageCallEvidence[] {
   const map = new Map<string, TrustedPackageCallEvidence>();
   for (const call of calls) {
     const key = `${call.package}\0${call.export}\0${call.matchedVersion ?? ""}\0${call.unpinned}`;
-    if (!map.has(key)) map.set(key, call);
+    if (!map.has(key)) map.set(key, Object.freeze(call));
   }
-  return [...map.values()].sort((a, b) =>
-    a.package.localeCompare(b.package) || a.export.localeCompare(b.export) || (a.matchedVersion ?? "").localeCompare(b.matchedVersion ?? ""));
+  return Object.freeze([...map.values()].sort((a, b) =>
+    a.package.localeCompare(b.package) || a.export.localeCompare(b.export) || (a.matchedVersion ?? "").localeCompare(b.matchedVersion ?? "")));
 }
 
 function directFindings(findings: readonly DirectEffectFinding[]): CallGraphFinding[] { return findings.map((finding) => ({ ...finding })); }
@@ -651,7 +666,14 @@ function problemFinding(problem: ResolutionProblem, source: string, file: ts.Sou
   return { code, source, line: position.line + 1, column: position.character + 1, message };
 }
 function messageForProblem(problem: ResolutionProblem): string { return problem.reason === "package" ? "package call or initialization cannot be inspected" : problem.reason === "ambiguous" ? "dispatch has multiple possible local targets" : problem.reason === "unknown-module" ? "local module could not be resolved" : "call target could not be resolved"; }
-function dedupeFindings(findings: readonly CallGraphFinding[]): CallGraphFinding[] { const map = new Map<string, CallGraphFinding>(); for (const finding of findings) { const key = `${finding.code}\0${finding.source}\0${finding.line}\0${finding.column}`; if (!map.has(key)) map.set(key, finding); } return [...map.values()].sort((a, b) => a.source.localeCompare(b.source) || a.line - b.line || a.column - b.column || a.code.localeCompare(b.code)); }
+function dedupeFindings(findings: readonly CallGraphFinding[]): readonly CallGraphFinding[] {
+  const map = new Map<string, CallGraphFinding>();
+  for (const finding of findings) {
+    const key = `${finding.code}\0${finding.source}\0${finding.line}\0${finding.column}`;
+    if (!map.has(key)) map.set(key, Object.freeze(finding));
+  }
+  return Object.freeze([...map.values()].sort((a, b) => a.source.localeCompare(b.source) || a.line - b.line || a.column - b.column || a.code.localeCompare(b.code)));
+}
 function joinVerdicts(left: CallGraphVerdict, right: CallGraphVerdict): CallGraphVerdict { if (left === "refuted" || right === "refuted") return "refuted"; if (left === "unknown" || right === "unknown") return "unknown"; return "likely-safe"; }
 function isModule(value: Target | ModuleInfo): value is ModuleInfo { return "sourceFile" in value; }
 function isTarget(value: unknown): value is Target { return !!value && typeof value === "object" && "callable" in value; }
