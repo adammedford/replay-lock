@@ -430,12 +430,10 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
   return value as Record<string, unknown>;
 }
 async function readStored(directory: string): Promise<StoredObservation[]> {
-  const observations: StoredObservation[] = [];
-  for (const name of (await readdir(directory)).filter(name => /^\d+\.json$/.test(name)).sort()) {
-    const entry = JSON.parse(await readFile(path.join(directory, name), "utf8")) as StoredObservation;
-    observations.push(entry);
-  }
-  return observations;
+  const files = (await readdir(directory)).filter(name => /^\d+\.json$/.test(name)).sort();
+  return Promise.all(
+    files.map(async name => JSON.parse(await readFile(path.join(directory, name), "utf8")) as StoredObservation)
+  );
 }
 export async function hasDevelopmentPlugin(root: string): Promise<boolean> {
   const loaded = await loadConfigFromFile({ command: "serve", mode: "development" }, undefined, root, "silent");
