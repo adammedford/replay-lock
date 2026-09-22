@@ -1,0 +1,124 @@
+{
+  "base": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+  "cases": [
+    {
+      "sourceText": "import { readFileSync as read } from 'fs';\n     const env = process.env;\n     const second = first; const first = read;\n     export function one(input) { const alias = second; alias(input); return env.MODE; }\n     export function two(input) { const alias = Math.random; return alias() + input; }\n     export function outer(input) { function nested() { return process.env.MODE; } return input; }",
+      "initialization": {
+        "verdict": "likely-safe",
+        "analyzerVersion": "1",
+        "findings": []
+      },
+      "callables": [
+        {
+          "verdict": "refuted",
+          "analyzerVersion": "1",
+          "findings": [
+            {
+              "code": "IO",
+              "source": "shared.ts",
+              "line": 4,
+              "column": 57,
+              "message": "callable performs input/output"
+            },
+            {
+              "code": "ENVIRONMENT_DEPENDENCE",
+              "source": "shared.ts",
+              "line": 4,
+              "column": 78,
+              "message": "callable reads the process environment"
+            }
+          ]
+        },
+        {
+          "verdict": "refuted",
+          "analyzerVersion": "1",
+          "findings": [
+            {
+              "code": "RANDOMNESS",
+              "source": "shared.ts",
+              "line": 5,
+              "column": 69,
+              "message": "callable obtains ambient randomness"
+            }
+          ]
+        },
+        {
+          "verdict": "likely-safe",
+          "analyzerVersion": "1",
+          "findings": []
+        },
+        {
+          "verdict": "refuted",
+          "analyzerVersion": "1",
+          "findings": [
+            {
+              "code": "ENVIRONMENT_DEPENDENCE",
+              "source": "shared.ts",
+              "line": 6,
+              "column": 64,
+              "message": "callable reads the process environment"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sourceText": "const x = Math.abs(2); export function one(n) { return n + x; }\n     export const two = (n) => { const alias = process.env; return alias.MODE; };\n     class Holder { static value = Date.now(); }",
+      "initialization": {
+        "verdict": "refuted",
+        "analyzerVersion": "1",
+        "findings": [
+          {
+            "code": "EFFECTFUL_INITIALIZATION",
+            "source": "shared.ts",
+            "line": 3,
+            "column": 36,
+            "message": "module initialization executes an effect before a callable is invoked"
+          }
+        ]
+      },
+      "callables": [
+        {
+          "verdict": "refuted",
+          "analyzerVersion": "1",
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "source": "shared.ts",
+              "line": 3,
+              "column": 36,
+              "message": "module initialization executes an effect before the callable is invoked"
+            }
+          ]
+        },
+        {
+          "verdict": "refuted",
+          "analyzerVersion": "1",
+          "findings": [
+            {
+              "code": "ENVIRONMENT_DEPENDENCE",
+              "source": "shared.ts",
+              "line": 2,
+              "column": 48,
+              "message": "callable reads the process environment"
+            },
+            {
+              "code": "ENVIRONMENT_DEPENDENCE",
+              "source": "shared.ts",
+              "line": 2,
+              "column": 68,
+              "message": "callable reads the process environment"
+            },
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "source": "shared.ts",
+              "line": 3,
+              "column": 36,
+              "message": "module initialization executes an effect before the callable is invoked"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

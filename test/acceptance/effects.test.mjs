@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseAndAnalyzeDirectEffects } from "../../dist/effect-analyzer.js";
+import { readFile } from "node:fs/promises";
+import ts from "typescript";
+import { createEffectAnalyzer, analyzeDirectEffects, analyzeModuleInitialization, parseAndAnalyzeDirectEffects } from "../../dist/effect-analyzer.js";
 
 test("eligible local calculations and deterministic intrinsics remain likely-safe", () => {
   const result = analyze(`
@@ -211,3 +213,49 @@ export function calculate(input: number): number {
 function analyze(sourceText) {
   return parseAndAnalyzeDirectEffects(sourceText, "src/calculation.ts", "calculate");
 }
+
+
+test("shared module analysis preserves per-callable aliases, initialization and source identity", () => {
+  const analyzer = createEffectAnalyzer();
+  for (const sourceText of [
+    `import { readFileSync as read } from 'fs';
+     const env = process.env;
+     const second = first; const first = read;
+     export function one(input) { const alias = second; alias(input); return env.MODE; }
+     export function two(input) { const alias = Math.random; return alias() + input; }
+     export function outer(input) { function nested() { return process.env.MODE; } return input; }`,
+    `const x = Math.abs(2); export function one(n) { return n + x; }
+     export const two = (n) => { const alias = process.env; return alias.MODE; };
+     class Holder { static value = Date.now(); }`,
+  ]) {
+    const sourceFile = ts.createSourceFile("shared.ts", sourceText, ts.ScriptTarget.Latest, true);
+    const callables = [];
+    const visit = node => { if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node)) callables.push(node); ts.forEachChild(node, visit); };
+    visit(sourceFile);
+    const input = {source: "shared.ts", sourceFile};
+    assert.deepEqual(analyzer.analyzeModuleInitialization(input), analyzeModuleInitialization(input));
+    for (const callable of [...callables, ...callables.toReversed()]) {
+      for (const nestedFunctions of ["skip", "descend"]) {
+        const options = {...input, callable, nestedFunctions};
+        assert.deepEqual(analyzer.analyzeDirectEffects(options), analyzeDirectEffects(options));
+      }
+    }
+  }
+});
+
+
+test("shared effect analysis matches retained pre-optimization findings and order", async () => {
+  const baseline = JSON.parse(await readFile(new URL("../fixtures/responsiveness/effects-baseline.json", import.meta.url), "utf8"));
+  const analyzer = createEffectAnalyzer();
+  for (const entry of baseline.cases) {
+    const sourceFile = ts.createSourceFile("shared.ts", entry.sourceText, ts.ScriptTarget.Latest, true);
+    const callables = [];
+    const visit = node => { if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node)) callables.push(node); ts.forEachChild(node, visit); };
+    visit(sourceFile);
+    const input = {source: "shared.ts", sourceFile};
+    assert.deepEqual(analyzer.analyzeModuleInitialization(input), entry.initialization);
+    for (const index of [...callables.keys()].reverse()) {
+      assert.deepEqual(analyzer.analyzeDirectEffects({...input, callable: callables[index], nestedFunctions: "skip"}), entry.callables[index]);
+    }
+  }
+});

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "status": "adopted",
+  "maximumAddedMedianMs": {
+    "coldPageMs": 2000,
+    "navigationMs": 100,
+    "visibleHmrMs": 2000
+  },
+  "sourceIssue": "https://github.com/adammedford/replay-lock/issues/72"
+}

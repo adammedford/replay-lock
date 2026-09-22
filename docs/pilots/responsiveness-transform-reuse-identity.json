@@ -1,0 +1,29 @@
+{
+  "baseCommit": "2f9ff9467608a458e4f37ddc53aec3a6c40d28af",
+  "sourceCommit": "7edfc6a5b6ae28fb3b9c4b16ae824c4686ba253f",
+  "uncommittedOptimization": false,
+  "sha256": {
+    "src/dev-server.ts": "f5e7cf6141ec0e750adca415837f0eaf138de1658f9509381e389a9760b296c6",
+    "src/dev-analysis-client.ts": "7c68c65ff32fe43a4e9b98cd6069f94484434fe81f37f5d1fcdc16537dc3ada8",
+    "src/dev-analysis-worker.ts": "d330a650955685f4184e3b3ea091b98f5139ff1ce49813a47986caf1a69d80d6",
+    "src/dev-analysis.ts": "a172a87954e6c25a6c5755e2a713ef902b3b01c5acb815ae4ccad56179b24b85",
+    "src/dev-project-cache.ts": "ebce0ed7c9ffcb2ac483aa97cdade8961bdde5a6eb32edf200be04df6a413cc7",
+    "src/dev-transform.ts": "44449e5bf6e53b65abbb96a4d4a1aa48a0ead65dd352d3173549d37b42e00ccd",
+    "src/effect-analyzer.ts": "fe3b6e00580b5e8521d6afffcdf09d8d345f2ab23d8e71e7c8b7e08871531803",
+    "package-lock.json": "fd482d428384bb0d7af1aa72f5b8f37aabf5af75647f8831d8bb948f78b03538",
+    "scripts/bench-dev-browser.mjs": "17c8ecc90cdf2317d65298270d6e414f502b0466c6e41b61d1e6d0357a561b71",
+    "dist/dev-server.js": "a4baf411a0d458f7066f42135cb7e993b44829d3597700ea5a16efb24829ecdb",
+    "dist/dev-analysis-client.js": "2c53e60b6a2b9916d11764c7195a0af02b43490359be7162ed6d305cb14c9b34",
+    "dist/dev-analysis-worker.js": "f49a1be94ae628378a2b34f3398b8841c903725763b7672e4e25a59608d72258",
+    "dist/dev-analysis.js": "5e1309dc73a9e3ccaccbafda719bf9b044dcd2dfc018316848ae2ca2bb06e555",
+    "dist/dev-project-cache.js": "cc61421424a0fc7768cebd8c5100b66d69159908676925e4612d172366899e9a",
+    "dist/dev-transform.js": "81108890d10b593bac872df669e806235346e1882e5e41661092fa4392dfbbe6",
+    "dist/effect-analyzer.js": "0d6345c87de7cd5171ba0ace8a5b94149140a39ffc1fbd196aeeb3c727778ab9"
+  },
+  "app": {
+    "package.json": "499078b4d8092faddc3ab89b398758cb55d3824b34e23806f33c3660f51597c7",
+    "package-lock.json": "143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "server/index.ts": "fd650149c6c455d8ae97a79448ebb92f3c6ee68be40138e2c6ded37de4a969d2",
+    "vite.pilot-original.config.ts": "678efe0d588b484560001dc97c0024454d12420462f1fd849b7e35da8d8b70cf"
+  }
+}
