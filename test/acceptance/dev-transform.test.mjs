@@ -244,6 +244,47 @@ export function entry(record: Record<string, number>, href: string) {
   }
 });
 
+test("module-private literal tables are read like scalars and replay offline", async (t) => {
+  const root = project(t, { "source.ts": `
+const LABELS = { draft: "Draft", published: "Published" } as const;
+const FACTORS = Object.freeze({ kg: 1, lb: 0.5 });
+const SIZES = [1, 2, 3];
+export function entry(status: keyof typeof LABELS, unit: "kg" | "lb") {
+  let total = 0;
+  for (const size of SIZES) total += size;
+  return [LABELS[status], FACTORS[unit] * total, "kg" in FACTORS, Object.keys(LABELS).length, [...SIZES].length, SIZES.length, Math.random()];
+}` });
+  const result = transform(root, "source.ts", { replay: true });
+  assert.deepEqual(result.diagnostics, []);
+  const module = await load(root, result);
+  const { observations } = capture();
+  const original = module.entry("draft", "lb");
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try { assert.deepEqual(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]("draft", "lb")), original); }
+  finally { Math.random = random; }
+  const refused = [
+    `const T = { a: 1 }; export function entry() { return T; }`,
+    `const T = { a: 1 }; function change(value: { a: number }) { value.a = 2; } export function entry() { change(T); return T.a; }`,
+    `const T = { a: 1 }; export function grow() { T.a = 2; } export function entry() { return T.a; }`,
+    `const T = { a: 1 }; export function entry() { (T as { a: number }).a++; return T.a; }`,
+    `const T = { a: 1 }; export function entry() { const alias = T; alias.a = 2; return T.a; }`,
+    `const T = [1]; export function entry() { [T[0]] = [2]; return T[0]; }`,
+    `const T = { inner: { a: 1 } }; export function entry() { return T.inner.a; }`,
+    `const T = { a: 1, get b() { return Date.now(); } }; export function entry() { return T.a; }`,
+    `export const T = { a: 1 }; export function entry() { return T.a; }`,
+    `const T = { a: 1 }; export { T }; export function entry() { return T.a; }`,
+    `const T = { a: 1 }; export function entry() { return (T as unknown as { constructor: unknown }).constructor; }`,
+    `let T = { a: 1 }; export function entry() { return T.a; }`,
+  ];
+  for (const source of refused) {
+    const blocked = project(t, { "source.ts": source });
+    const refusal = transform(blocked, "source.ts", { replay: true });
+    assert.ok(!names(refusal).includes("entry"), source);
+    assert.ok(refusal.diagnostics.some((item) => item.code === "AMBIENT_STATE" && item.locator.namePath[0] === "entry"), `${source}: ${JSON.stringify(refusal.diagnostics)}`);
+  }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */
