@@ -323,6 +323,29 @@ export function entry(n: number) { return tag(double(n)); }`,
   }
 });
 
+test("a replaced built-in blocks capture and fails replay instead of running natively", async (t) => {
+  const root = project(t, { "source.ts": `export function entry(value: { a: number }) { return JSON.stringify(value) + Math.random(); }` });
+  const result = transform(root, "source.ts", { replay: true });
+  assert.deepEqual(names(result), ["entry"]);
+  const module = await load(root, result);
+  const { observations, blocks } = capture();
+  const stringify = JSON.stringify;
+  JSON.stringify = (...args) => stringify(...args);
+  try { assert.match(module.entry({ a: 1 }), /^\{"a":1\}/); }
+  finally { JSON.stringify = stringify; }
+  assert.deepEqual(blocks.map((item) => item.code), ["INTRINSIC_MODIFIED"]);
+  assert.equal(observations.length, 0);
+  const original = module.entry({ a: 1 });
+  assert.equal(observations.length, 1);
+  Array.prototype.polluted = true;
+  try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+  finally { delete Array.prototype.polluted; }
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try { assert.equal(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), original); }
+  finally { Math.random = random; }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */
