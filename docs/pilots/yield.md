@@ -49,3 +49,7 @@ Package `exports` and `imports` use the Vite host's per-environment development 
 | This repository (each realm) | 11 eligible | 11 eligible |
 
 Resolving more packages can move a function from `UNKNOWN_MODULE` to `EFFECTFUL_INITIALIZATION`: the corpus router package now resolves and its module-scope `window` write is analyzed. Reference-scoped initialization is the next change.
+
+## P3b: built-in integrity guard
+
+Recording and replay now check that the built-ins analysis relies on are the engine's own: the properties of core prototypes, iterator prototypes, and the `Math`, `JSON`, `Object`, `Array`, `Number`, `String`, `Boolean`, `Date`, `Map`, `Set`, `RegExp`, `Promise`, `URL` and `URLSearchParams` objects, and the global bindings for them and the URI and number-parsing functions. A replaced, added, or removed property, or a non-native function when the runtime loads (Node's JavaScript `URL` classes excepted), blocks capture with `INTRINSIC_MODIFIED` and fails replay with exit `2`. `Math.random` and `Date.now` are exempt as traced effects. A full check costs about 20 µs on an Apple M4 Pro, so capture checks once per synchronous run; replay checks every case. Eligibility is unchanged.

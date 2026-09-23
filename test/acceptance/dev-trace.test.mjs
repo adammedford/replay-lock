@@ -574,15 +574,17 @@ test("duplicate runtime module identities share configuration and synchronous co
 });
 
 test("portable modules load and replay in a realm without Node globals", () => {
-  for (const file of ["dev-values", "dev-runtime"]) assert.doesNotMatch(readFileSync(new URL(`../../dist/${file}.js`, import.meta.url), "utf8"), /from\s*["']node:|import\s*\(["']node:/);
+  for (const file of ["dev-values", "dev-intrinsics", "dev-runtime"]) assert.doesNotMatch(readFileSync(new URL(`../../dist/${file}.js`, import.meta.url), "utf8"), /from\s*["']node:|import\s*\(["']node:/);
   const script = `
     import { readFileSync } from 'node:fs';
     import vm from 'node:vm';
     const context = vm.createContext({ TextEncoder, TextDecoder, btoa, atob, setTimeout, clearTimeout, queueMicrotask });
     const values = new vm.SourceTextModule(readFileSync('dist/dev-values.js', 'utf8'), { context });
+    const intrinsics = new vm.SourceTextModule(readFileSync('dist/dev-intrinsics.js', 'utf8'), { context });
     const runtime = new vm.SourceTextModule(readFileSync('dist/dev-runtime.js', 'utf8'), { context });
     await values.link(() => { throw Error('unexpected import'); });
-    await runtime.link(() => values);
+    await intrinsics.link(() => { throw Error('unexpected import'); });
+    await runtime.link((specifier) => ({ './dev-values.js': values, './dev-intrinsics.js': intrinsics })[specifier]);
     await runtime.evaluate();
     context.api = runtime.namespace; context.codec = values.namespace;
     const result = await vm.runInContext(

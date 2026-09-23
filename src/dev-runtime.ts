@@ -3,6 +3,7 @@ import type {
   DevRuntimeConfiguration, DevRuntimeProfile, DevValue, TraceEvent,
 } from "./dev-contract.js";
 import { decodeDevValue, DEV_VALUE_LIMITS, devValueError, encodeDevValue, validateDevAdapters, validateDevValue } from "./dev-values.js";
+import { intrinsicsIntact, intrinsicsIntactThisTurn } from "./dev-intrinsics.js";
 
 declare const frameBrand: unique symbol;
 /** A lexical capability: withDevContext lends it only for a synchronous handoff. */
@@ -159,6 +160,11 @@ export function observeDevCall<T>(metadata: DevMetadata, args: readonly unknown[
   }
   if (state.pending.size >= MAX_PENDING) {
     if (parent) block(parent, "PENDING_LIMIT"); else report(configuration, "PENDING_LIMIT", metadata);
+    return uncaptured();
+  }
+  // Analysis assumes the engine's own built-ins; a replaced one runs natively.
+  if (!parent && !intrinsicsIntactThisTurn()) {
+    report(configuration, "INTRINSIC_MODIFIED", metadata);
     return uncaptured();
   }
   const frame = {} as RuntimeFrame;
@@ -448,6 +454,7 @@ function validateTrace(trace: readonly TraceEvent[], options: DevCodecOptions): 
 
 /** The caller supplies an isolated module/realm; this never calls a native effect. */
 export async function replayDevTrace(trace: readonly TraceEvent[], invoke: (frame: RuntimeFrame) => unknown, codecOptions: DevCodecOptions = {}): Promise<unknown> {
+  if (!intrinsicsIntact()) throw Object.assign(new Error("INTRINSIC_MODIFIED: a built-in the case relies on was replaced before replay"), { code: "INTRINSIC_MODIFIED" });
   const frame = {} as RuntimeFrame;
   const replay: Replay = {
     mode: "replay", frame, trace: validateTrace(trace, codecOptions), cursor: 0, options: codecOptions,

@@ -75,6 +75,11 @@ export async function evaluateFaults(api){
     let settle;const detached=new Promise(r=>settle=r);
     assert(api.observeDevCall(metadata,[],frame=>{api.devEffect(frame,'fs.readFile',[],()=>detached);return 9;})===9,'detached completion changed');
     assert(blocks.includes('INCOMPLETE_OBSERVATION'),'detached work was captured');settle('done');await detached;await Promise.resolve();assert(observations.length===0,'incomplete observation escaped');
-    return {observerFailures:true,capacity:1001,detachedRejected:true};
+    blocks.length=0;const stringify=JSON.stringify;JSON.stringify=(...args)=>stringify(...args);
+    try{
+      assert(api.observeDevCall(metadata,[],()=>5)===5,'guard changed completion');assert(blocks.includes('INTRINSIC_MODIFIED')&&observations.length===0,'replaced built-in was captured');
+      let rejected=false;try{await api.replayDevTrace([],()=>1);}catch(error){rejected=/INTRINSIC_MODIFIED/.test(error.message);}assert(rejected,'replay ran with a replaced built-in');
+    }finally{JSON.stringify=stringify;}
+    return {observerFailures:true,capacity:1001,detachedRejected:true,intrinsicsGuarded:true};
   }finally{api.configureDevRuntime(undefined);}
 }

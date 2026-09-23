@@ -19,7 +19,7 @@ export async function runConformance({seed,count=32,realm='both'}={}){
     for(const environment of realm==='both'?['node','browser']:[realm]){
       let runtimeImport=new URL('../dist/dev-runtime.js',import.meta.url).href;
       if(environment==='browser'){
-        const content=new Map([['/runtime',await readFile(new URL('../dist/dev-runtime.js',import.meta.url),'utf8')],['/dev-values.js',await readFile(new URL('../dist/dev-values.js',import.meta.url),'utf8')],['/suite',await readFile(new URL('./dev-conformance-programs.mjs',import.meta.url),'utf8')]]);
+        const content=new Map([['/runtime',await readFile(new URL('../dist/dev-runtime.js',import.meta.url),'utf8')],['/dev-values.js',await readFile(new URL('../dist/dev-values.js',import.meta.url),'utf8')],['/dev-intrinsics.js',await readFile(new URL('../dist/dev-intrinsics.js',import.meta.url),'utf8')],['/suite',await readFile(new URL('./dev-conformance-programs.mjs',import.meta.url),'utf8')]]);
         server=createServer((req,res)=>{const text=content.get(req.url);res.setHeader('Content-Type',text?'text/javascript':'text/html');res.end(text??'<title>Conformance</title>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
         runtimeImport=`http://127.0.0.1:${server.address().port}/runtime`;
       }
