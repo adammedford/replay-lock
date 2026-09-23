@@ -6,11 +6,12 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createDevProjectCache } from '../dist/dev-transform.js';
 import { resolveDevOptions } from '../dist/dev-options.js';
 import * as api from '../dist/dev-runtime.js';
-import { generatedProgram, evaluatePrograms, evaluateFaults } from './dev-conformance-programs.mjs';
-export async function runConformance({seed,count=32,realm='both'}={}){
-  if(!Number.isSafeInteger(count)||count<1||count>1000||seed!==undefined&&(!Number.isSafeInteger(seed)||seed<0||seed>0xffffffff)||!['node','browser','both'].includes(realm))throw Error('invalid conformance options');
+import { generatedProgram, generatedIdiomProgram, evaluatePrograms, evaluateFaults } from './dev-conformance-programs.mjs';
+export async function runConformance({seed,count=32,realm='both',family='core'}={}){
+  if(!Number.isSafeInteger(count)||count<1||count>1000||seed!==undefined&&(!Number.isSafeInteger(seed)||seed<0||seed>0xffffffff)||!['node','browser','both'].includes(realm)||!['core','idioms'].includes(family))throw Error('invalid conformance options');
+  const generate=family==='idioms'?generatedIdiomProgram:generatedProgram;
   const root=await mkdtemp(path.join(tmpdir(),'replaylock-conformance-'));
-  const programs=Array.from({length:seed===undefined?count:1},(_,i)=>generatedProgram(seed??i));
+  const programs=Array.from({length:seed===undefined?count:1},(_,i)=>generate(seed??i));
   let server,browser;
   try{
     await writeFile(path.join(root,'package.json'),'{"type":"module"}');await mkdir(path.join(root,'src'));
@@ -43,6 +44,6 @@ export async function runConformance({seed,count=32,realm='both'}={}){
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const args=process.argv.slice(2),option=name=>{const i=args.indexOf(name);return i<0?undefined:args[i+1];};
-  const result=await runConformance({seed:option('--seed')===undefined?undefined:Number(option('--seed')),count:args.includes('--extended')?1000:32,realm:option('--realm')??'both'});
+  const result=await runConformance({seed:option('--seed')===undefined?undefined:Number(option('--seed')),count:args.includes('--extended')?1000:32,realm:option('--realm')??'both',family:option('--family')??'core'});
   console.log(JSON.stringify(result));console.log('DEV CONFORMANCE PASSED');
 }

@@ -71,7 +71,7 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
   const module = project.modules.get(file);
   const targets = project.functions.filter((candidate) => candidate.module === module && candidate.instrument && candidate.problems.size === 0);
   const analysis = {
-    targets: targets.map(({ locator, replayExport }) => ({ locator, replayExport })),
+    targets: targets.map(({ locator, replayExport, requires }) => ({ locator, replayExport, ...(requires ? { requires } : {}) })),
     diagnostics: project.analysis.diagnostics.filter((diagnostic) => diagnostic.locator?.module === (module ? path.relative(realpathSync(options.root), module.file).split(path.sep).join("/") : "")),
     sourceGraphDigest: project.analysis.sourceGraphDigest,
   };
@@ -112,7 +112,8 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
     const metadata = JSON.stringify({ locator: candidate.locator, sourceGraphDigest: analysis.sourceGraphDigest, generation: options.generation, environment: options.environment });
     const body = render(node.body!, candidate);
     const callbackBody = ts.isBlock(node.body!) ? body : `{ return ${body}; }`;
-    return `{ return ${observe}(${metadata}, ${args}, ${candidate.asynchronous ? "async " : ""}(${frames.get(candidate)}) => ${callbackBody}, ${candidate.asynchronous}); }`;
+    const policy = candidate.requires?.includes("plainValues") ? ", { plainValues: true }" : "";
+    return `{ return ${observe}(${metadata}, ${args}, ${candidate.asynchronous ? "async " : ""}(${frames.get(candidate)}) => ${callbackBody}, ${candidate.asynchronous}${policy}); }`;
   };
   const render = (node: ts.Node, active?: DevFunction): string => {
     const callable = byNode.get(node as DevFunction["node"]);

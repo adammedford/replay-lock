@@ -67,3 +67,15 @@ Two decisions made here are recorded for review: writes to conventionally privat
 | This repository (each realm) | 11 eligible | 14 eligible |
 
 The corpus gains `getUserImgSrc` beside a CommonJS UI library, `displayName` beside a schema definition, and `double` beside `const startedAt = Date.now()`. Their offline replay samples import those modules, whose initializers run natively without affecting the recorded completion.
+
+## P4a: built-in methods and pure callbacks (development catalog 3)
+
+Built-in methods are allowed by name on data receivers, with mutating methods limited to values the invocation created and `test`/`exec` limited to non-global, non-sticky local expressions. Inline synchronous callbacks are analyzed as part of their caller: traced effects inside them, or calls from them to effectful project functions, report `CALLBACK_EFFECT`; writes are limited to the caller's locals and owned values. Targets that use these methods, or built-ins that invoke argument methods, refuse Value Adapter instances at record and verify. A new conformance family replays these idioms offline in Node and Chromium under all three settlement schedules.
+
+| Project | Before (P3c) | After |
+|---|---|---|
+| Replay hazard fixtures (86 hazards, 12 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (40 callables) | 18 of 33 eligible | 36 of 40 eligible |
+| This repository (each realm) | 14 eligible | 36 eligible |
+
+The corpus gained seven ordinary list and string helpers in this change; all are eligible. The four remaining corpus exclusions are a function that reads a clock-initialized binding, a React-style hook that passes a function to library code, a meta arrow with a destructured parameter, and a helper that calls into a router package with module-wide initialization.

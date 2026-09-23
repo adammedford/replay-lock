@@ -6,7 +6,7 @@ import { DETERMINISTIC_INTRINSICS, expressionPath } from "./effect-analyzer.js";
  * shared V1 intrinsic catalog without changing it: V1 assumption fingerprints
  * bind `INTRINSIC_CATALOG_VERSION`, which this catalog never affects.
  */
-export const DEV_CATALOG_VERSION = "2" as const;
+export const DEV_CATALOG_VERSION = "3" as const;
 
 export const DEV_ERROR_CONSTRUCTORS: ReadonlySet<string> = new Set(["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "EvalError"]);
 export const DEV_CONVERSION_FUNCTIONS: ReadonlySet<string> = new Set(["Number", "String", "Boolean", "BigInt", "parseInt", "parseFloat", "isFinite", "isNaN"]);
@@ -19,6 +19,10 @@ const DEV_STATIC_FUNCTIONS: ReadonlySet<string> = new Set([
 ]);
 /** Deterministic, but mutates its argument. Mutation analysis matches the literal call syntax, so aliases are refused. */
 const DEV_MUTATING_STATICS: ReadonlySet<string> = new Set(["Object.freeze"]);
+/** Whether `name` is a catalogued built-in that mutates its first argument. */
+export function devMutatingStatic(name: string): boolean {
+  return DEV_MUTATING_STATICS.has(name);
+}
 /** Built-in classes whose construction is deterministic; only `new` is supported. */
 const DEV_CONSTRUCTORS: ReadonlySet<string> = new Set(["Map", "Set", "URL", "URLSearchParams", "RegExp"]);
 export const DEV_AMBIENT_GLOBALS: ReadonlySet<string> = new Set([
@@ -144,3 +148,46 @@ function unwrapExpression(node: ts.Expression): ts.Expression {
   while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
   return node;
 }
+
+/**
+ * Built-in methods development analysis allows by name. Names are safe across
+ * every built-in type that defines them: capture values are plain data or
+ * built-ins (never user functions or, for these targets, adapted instances),
+ * and INTRINSIC_MODIFIED guards the prototypes themselves. `callbacks` are
+ * the argument positions that receive a function; `mutating` methods change
+ * their receiver and are allowed only on a value the invocation created.
+ */
+export interface DevMethod { readonly mutating?: boolean; readonly callbacks?: readonly number[]; readonly regex?: boolean }
+const method = (spec: DevMethod = {}): DevMethod => spec;
+const callback = method({ callbacks: [0] });
+export const DEV_METHODS: ReadonlyMap<string, DevMethod> = new Map<string, DevMethod>([
+  // String
+  ...["charAt", "charCodeAt", "codePointAt", "endsWith", "match", "matchAll", "normalize", "padStart", "padEnd", "repeat", "search", "split", "startsWith", "substring", "toLowerCase", "toUpperCase", "trim", "trimStart", "trimEnd", "isWellFormed", "toWellFormed"].map((name) => [name, method()] as const),
+  ["replace", method({ callbacks: [1] })], ["replaceAll", method({ callbacks: [1] })],
+  // String and Array
+  ...["at", "concat", "includes", "indexOf", "lastIndexOf", "slice"].map((name) => [name, method()] as const),
+  // Array
+  ...["every", "filter", "find", "findIndex", "findLast", "findLastIndex", "flatMap", "map", "reduce", "reduceRight", "some", "toSorted"].map((name) => [name, callback] as const),
+  ...["flat", "join", "toReversed", "toSpliced", "with"].map((name) => [name, method()] as const),
+  ["sort", method({ mutating: true, callbacks: [0] })],
+  ...["push", "pop", "shift", "unshift", "splice", "reverse", "fill", "copyWithin"].map((name) => [name, method({ mutating: true })] as const),
+  // Array, Map, Set, URLSearchParams
+  ["forEach", callback], ...["entries", "keys", "values"].map((name) => [name, method()] as const),
+  // Map, Set, URLSearchParams
+  ...["get", "getAll", "has"].map((name) => [name, method()] as const),
+  ...["set", "add", "delete", "clear", "append"].map((name) => [name, method({ mutating: true })] as const),
+  // Number
+  ...["toFixed", "toPrecision", "toExponential"].map((name) => [name, method()] as const),
+  // Date
+  ...["getTime", "toISOString", "toJSON", "getUTCFullYear", "getUTCMonth", "getUTCDate", "getUTCDay", "getUTCHours", "getUTCMinutes", "getUTCSeconds", "getUTCMilliseconds"].map((name) => [name, method()] as const),
+  // Any value
+  ...["toString", "valueOf", "hasOwnProperty"].map((name) => [name, method()] as const),
+  // RegExp: lastIndex makes global and sticky expressions stateful.
+  ...["test", "exec"].map((name) => [name, method({ regex: true })] as const),
+]);
+/** Methods and statics whose result is a new value the invocation owns. */
+export const DEV_FRESH_METHODS: ReadonlySet<string> = new Set(["concat", "filter", "flat", "flatMap", "map", "slice", "toReversed", "toSorted", "toSpliced", "with", "split", "match"]);
+export const DEV_FRESH_STATICS: ReadonlySet<string> = new Set(["Array.from", "Array.of", "Object.keys", "Object.values", "Object.entries", "Object.fromEntries", "JSON.parse"]);
+export const DEV_FRESH_CONSTRUCTORS: ReadonlySet<string> = new Set(["Map", "Set", "URLSearchParams"]);
+/** Built-ins that invoke methods of their argument, such as `toJSON` or an iterator. */
+export const DEV_IMPLICIT_CALLERS: ReadonlySet<string> = new Set(["JSON.stringify", "Array.from", "Object.fromEntries", "Map", "Set", "URLSearchParams", "URL", "encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI"]);

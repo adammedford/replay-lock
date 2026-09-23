@@ -16,6 +16,26 @@ export function generatedProgram(seed) {
   ];
   return {seed,variant,code:programs[variant],args:variant===7?[[seed]]:[seed],eligible:variant!==7};
 }
+/** Idiomatic programs: deterministic built-ins, tables, callbacks and initializers beside traced effects. */
+export function generatedIdiomProgram(seed) {
+  let state=seed>>>0;
+  const next=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state;};
+  const constant=next()%17+1;
+  const programs=[
+    [`export function main(n){const copy=JSON.parse(JSON.stringify({n,k:${constant}}));return [copy.n+copy.k,Object.keys(copy).length,Math.random()];}`,true],
+    [`const T=Object.freeze({a:${constant},b:2});export function main(n){return T[n%2?'a':'b']*Math.random();}`,true],
+    [`const boot=Date.now();export function main(n){return n+${constant}+Math.random();}`,true],
+    [`const boot=Date.now();export function main(n){return n+(boot>0?${constant}:0);}`,false],
+    [`export function main(n){return String(n*${constant}).split('').map(d=>Number(d)).reduce((a,b)=>a+b,0)+Math.random();}`,true],
+    [`export function main(n){const counts={};[n%3,${constant}%3,n%3].forEach(k=>{counts[k]=(counts[k]??0)+1;});return [counts,[...[n,${constant},1]].sort((a,b)=>a-b),Date.now()];}`,true],
+    [`export function main(n){const r=Math.random();return [1,2,3].map(x=>{if(x===2&&n%2===1)throw new RangeError('stop');return x+r;});}`,true],
+    [`export function main(n){return [n,${constant}].map(x=>x+Math.random());}`,false],
+    [`export function main(n){return [n,${constant},3].sort(()=>Math.random()-0.5);}`,false],
+  ];
+  const variant=seed%programs.length;
+  const [code,eligible]=programs[variant];
+  return {seed,variant,code,args:[seed],eligible};
+}
 function assert(condition, message) {if(!condition)throw new Error(message);}
 const same=(a,b,label)=>assert(JSON.stringify(a)===JSON.stringify(b),`${label}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`);
 const completion=async fn=>{try{return {kind:'return',value:await fn()};}catch(error){return {kind:'throw',value:{name:error.name,message:error.message}};}};

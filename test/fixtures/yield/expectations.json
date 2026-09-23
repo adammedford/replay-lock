@@ -1,47 +1,83 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2",
+  "catalogVersion": "3",
   "corpus": {
     "eligible": {
       "node": [
         "src/arrays.ts#first",
+        "src/arrays.ts#pairs",
+        "src/arrays.ts#sortedKeys",
+        "src/arrays.ts#sum",
         "src/arrays.ts#unique",
         "src/boot.ts#double",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
+        "src/json.ts#toQuery",
+        "src/lists.ts#compact",
+        "src/lists.ts#countBy",
+        "src/lists.ts#evens",
+        "src/lists.ts#isEmail",
+        "src/lists.ts#segmentLengths",
+        "src/lists.ts#sortedCopy",
+        "src/lists.ts#titleCase",
         "src/misc.ts#getUserImgSrc",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
+        "src/numbers.ts#formatPrice",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
         "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
+        "src/strings.ts#initials",
+        "src/strings.ts#padId",
+        "src/strings.ts#slugify",
+        "src/strings.ts#truncate",
         "src/tables.ts#isPositive",
+        "src/tables.ts#priority",
         "src/tables.ts#statusLabel",
-        "src/tables.ts#toKg"
+        "src/tables.ts#toKg",
+        "src/user.ts#parsePermissionString"
       ],
       "browser": [
         "src/arrays.ts#first",
+        "src/arrays.ts#pairs",
+        "src/arrays.ts#sortedKeys",
+        "src/arrays.ts#sum",
         "src/arrays.ts#unique",
         "src/boot.ts#double",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
+        "src/json.ts#toQuery",
+        "src/lists.ts#compact",
+        "src/lists.ts#countBy",
+        "src/lists.ts#evens",
+        "src/lists.ts#isEmail",
+        "src/lists.ts#segmentLengths",
+        "src/lists.ts#sortedCopy",
+        "src/lists.ts#titleCase",
         "src/misc.ts#getUserImgSrc",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
+        "src/numbers.ts#formatPrice",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
         "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
+        "src/strings.ts#initials",
+        "src/strings.ts#padId",
+        "src/strings.ts#slugify",
+        "src/strings.ts#truncate",
         "src/tables.ts#isPositive",
+        "src/tables.ts#priority",
         "src/tables.ts#statusLabel",
-        "src/tables.ts#toKg"
+        "src/tables.ts#toKg",
+        "src/user.ts#parsePermissionString"
       ]
     },
     "samples": {
@@ -50,6 +86,37 @@
           [
             3,
             4
+          ]
+        ],
+        [
+          []
+        ]
+      ],
+      "src/arrays.ts#pairs": [
+        [
+          [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        ]
+      ],
+      "src/arrays.ts#sortedKeys": [
+        [
+          {
+            "b": 1,
+            "a": 2
+          }
+        ]
+      ],
+      "src/arrays.ts#sum": [
+        [
+          [
+            1,
+            2,
+            3
           ]
         ],
         [
@@ -90,6 +157,70 @@
           }
         ]
       ],
+      "src/json.ts#toQuery": [
+        [
+          {
+            "q": "a b",
+            "page": "2"
+          }
+        ]
+      ],
+      "src/lists.ts#compact": [
+        [
+          [
+            0,
+            1,
+            null,
+            2
+          ]
+        ]
+      ],
+      "src/lists.ts#countBy": [
+        [
+          [
+            "a",
+            "b",
+            "a"
+          ]
+        ]
+      ],
+      "src/lists.ts#evens": [
+        [
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ]
+      ],
+      "src/lists.ts#isEmail": [
+        [
+          "ada@example.test"
+        ],
+        [
+          "not an email"
+        ]
+      ],
+      "src/lists.ts#segmentLengths": [
+        [
+          " a:bb:ccc "
+        ]
+      ],
+      "src/lists.ts#sortedCopy": [
+        [
+          [
+            3,
+            1,
+            2
+          ]
+        ]
+      ],
+      "src/lists.ts#titleCase": [
+        [
+          "hello WORLD"
+        ]
+      ],
       "src/misc.ts#getUserImgSrc": [
         [
           "abc"
@@ -114,6 +245,14 @@
           -3,
           0,
           10
+        ]
+      ],
+      "src/numbers.ts#formatPrice": [
+        [
+          1999
+        ],
+        [
+          5
         ]
       ],
       "src/numbers.ts#isEven": [
@@ -150,12 +289,45 @@
           "Ada"
         ]
       ],
+      "src/strings.ts#initials": [
+        [
+          "Ada Lovelace"
+        ]
+      ],
+      "src/strings.ts#padId": [
+        [
+          42
+        ]
+      ],
+      "src/strings.ts#slugify": [
+        [
+          "  Hello, World!  "
+        ]
+      ],
+      "src/strings.ts#truncate": [
+        [
+          "characterization",
+          8
+        ],
+        [
+          "short",
+          8
+        ]
+      ],
       "src/tables.ts#isPositive": [
         [
           3
         ],
         [
           -1
+        ]
+      ],
+      "src/tables.ts#priority": [
+        [
+          "high"
+        ],
+        [
+          "none"
         ]
       ],
       "src/tables.ts#statusLabel": [
@@ -175,16 +347,26 @@
           3,
           "kg"
         ]
+      ],
+      "src/user.ts#parsePermissionString": [
+        [
+          "read:note:own,any"
+        ],
+        [
+          "delete:user"
+        ]
       ]
     }
   },
   "falseSafe": {
     "eligible": {
       "node": [
-        "src/implicit.ts#randomText"
+        "src/implicit.ts#randomText",
+        "src/methods.ts#noisy"
       ],
       "browser": [
-        "src/implicit.ts#randomText"
+        "src/implicit.ts#randomText",
+        "src/methods.ts#noisy"
       ]
     },
     "rejected": {
@@ -216,12 +398,10 @@
         "UNKNOWN_CALL"
       ],
       "src/callbacks.ts#randomComparator": [
-        "FUNCTION_VALUE",
-        "UNKNOWN_CALL"
+        "CALLBACK_EFFECT"
       ],
       "src/callbacks.ts#randomInMap": [
-        "FUNCTION_VALUE",
-        "UNKNOWN_CALL"
+        "CALLBACK_EFFECT"
       ],
       "src/callbacks.ts#replacerFunction": [
         "FUNCTION_VALUE",
@@ -331,6 +511,44 @@
       "src/init/uses-tla.ts#afterAwait": [
         "EFFECTFUL_INITIALIZATION"
       ],
+      "src/methods.ts#aliasPush": [
+        "ARGUMENT_MUTATION",
+        "UNKNOWN_CALL"
+      ],
+      "src/methods.ts#asyncCallback": [
+        "FUNCTION_VALUE"
+      ],
+      "src/methods.ts#effectfulCallee": [
+        "CALLBACK_EFFECT"
+      ],
+      "src/methods.ts#forEachWrite": [
+        "ARGUMENT_MUTATION"
+      ],
+      "src/methods.ts#freezeElements": [
+        "ARGUMENT_MUTATION"
+      ],
+      "src/methods.ts#helperCallback": [
+        "FUNCTION_VALUE"
+      ],
+      "src/methods.ts#localeSort": [
+        "UNKNOWN_CALL",
+        "LOCALE_DEPENDENCE"
+      ],
+      "src/methods.ts#moduleTotal": [
+        "AMBIENT_MUTATION"
+      ],
+      "src/methods.ts#parameterRegex": [
+        "UNKNOWN_CALL"
+      ],
+      "src/methods.ts#randomReplacer": [
+        "CALLBACK_EFFECT"
+      ],
+      "src/methods.ts#receiverCallback": [
+        "RECEIVER_DEPENDENCE"
+      ],
+      "src/methods.ts#reduceIntoArgument": [
+        "UNKNOWN_CALL"
+      ],
       "src/module-fetch.ts#increment": [
         "EFFECTFUL_INITIALIZATION"
       ],
@@ -420,7 +638,7 @@
     }
   },
   "selfFloor": {
-    "node": 14,
-    "browser": 14
+    "node": 36,
+    "browser": 36
   }
 }

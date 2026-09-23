@@ -405,6 +405,65 @@ export function readsBoot(n: number) { return n + boot; }` });
   assert.deepEqual(names(transform(privateRegistration, "source.ts")), [], "an unbound statement still taints its own module");
 });
 
+test("built-in methods and pure callbacks replay offline; their targets refuse adapted values", async (t) => {
+  const root = project(t, { "source.ts": `
+export function entry(path: string, values: number[], record: Record<string, number>) {
+  const parts = path.trim().split(":").map((part) => part.length);
+  const sorted = [...values].sort((a, b) => a - b);
+  const counts: Record<string, number> = {};
+  values.forEach((value) => { counts[value] = (counts[value] ?? 0) + 1; });
+  const out: number[] = [];
+  for (const value of values) if (value > 1) out.push(value);
+  return [parts, sorted, values.reduce((a, b) => a + b, 0), Object.keys(record).sort(), (values[0] ?? 0).toFixed(2), values.filter(Boolean), counts, out, /^a/.test(path.trim()), Math.random()];
+}
+export function label(value: unknown) { return JSON.stringify(value); }
+export function echo(value: unknown) { return value; }` });
+  const result = transform(root, "source.ts", { replay: true });
+  assert.deepEqual(result.diagnostics, []);
+  const requirement = (name) => result.targets.find((target) => target.locator.namePath[0] === name).requires;
+  assert.deepEqual(requirement("entry"), ["plainValues"]);
+  assert.deepEqual(requirement("label"), ["plainValues"]);
+  assert.equal(requirement("echo"), undefined);
+  const module = await load(root, result);
+  const { observations, blocks } = capture();
+  const original = module.entry(" a:bb ", [3, 1, 2], { b: 1, a: 2 });
+  assert.deepEqual(blocks, []);
+  assert.deepEqual(ops(observations[0]), ["Math.random"]);
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try { assert.deepEqual(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport](" a:bb ", [3, 1, 2], { b: 1, a: 2 })), original); }
+  finally { Math.random = random; }
+  // An adapted instance's methods would run natively inside JSON.stringify.
+  class Amount { constructor(value) { this.value = value; } toJSON() { return Date.now(); } }
+  const adapted = { observations: [], blocks: [] };
+  configureDevRuntime({ adapters: [{ id: "amount", version: 1, type: Amount, serialize: (value) => value.value, deserialize: (value) => new Amount(value) }], onObservation: (value) => adapted.observations.push(value), onBlock: (value) => adapted.blocks.push(value) });
+  module.label(new Amount(1));
+  assert.deepEqual(adapted.blocks.map((item) => item.code), ["UNSUPPORTED_VALUE"]);
+  module.echo(new Amount(1));
+  assert.equal(adapted.observations.length, 1);
+  assert.equal(adapted.observations[0].locator.namePath[0], "echo");
+  const refused = [
+    [`export function entry(values: number[]) { return values.map((value) => value + Math.random()); }`, "CALLBACK_EFFECT"],
+    [`function noisy(value: number) { return value + Date.now(); } export function entry(values: number[]) { return values.map((value) => noisy(value)); }`, "CALLBACK_EFFECT"],
+    [`export function entry(values: { n: number }[]) { values.forEach((value) => { value.n++; }); return 0; }`, "ARGUMENT_MUTATION"],
+    [`let total = 0; export function entry(values: number[]) { values.forEach((value) => { total += value; }); return 0; }`, "AMBIENT_MUTATION"],
+    [`export function entry(values: number[]) { return values.sort(); }`, "ARGUMENT_MUTATION"],
+    [`export function entry(input: { items: number[] }) { const items = input.items; items.push(1); return items.length; }`, "UNKNOWN_CALL"],
+    [`export function entry(values: number[], transform: (value: number) => number) { return values.map(transform); }`, "UNKNOWN_CALL"],
+    [`export function entry(values: number[]) { return values.map(async (value) => value); }`, "FUNCTION_VALUE"],
+    [`export function entry(values: number[]) { return values.map(function (this: { k: number }, value) { return value + this.k; }); }`, "RECEIVER_DEPENDENCE"],
+    [`export function entry(text: string) { return /a/g.test(text); }`, "UNKNOWN_CALL"],
+    [`export function entry(value: { custom(): number }) { return value.custom(); }`, "UNKNOWN_CALL"],
+    [`export function entry(values: { a: number }[]) { values.forEach((value) => Object.freeze(value)); return 0; }`, "ARGUMENT_MUTATION"],
+  ];
+  for (const [source, code] of refused) {
+    const blocked = project(t, { "source.ts": source });
+    const refusal = transform(blocked, "source.ts", { replay: true });
+    assert.ok(!names(refusal).includes("entry"), source);
+    assert.ok(refusal.diagnostics.some((item) => item.code === code && item.locator.namePath[0] === "entry"), `${code}: ${source}: ${JSON.stringify(refusal.diagnostics)}`);
+  }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */

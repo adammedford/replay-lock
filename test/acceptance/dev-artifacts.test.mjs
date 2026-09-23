@@ -203,6 +203,15 @@ test("invalid tolerance, skip and reject never accidentally accept a candidate",
   assert.deepEqual(await pendingFiles(project), []); assert.deepEqual(await acceptedFiles(project), []);
 });
 
+test("preflight refuses an adapted case for a target whose built-ins could call its methods", async t => {
+  const project = await fixture(t, "export function target(value) { return JSON.stringify(value) + Math.random(); }\n");
+  await preflightDevCases(project, [toDevCase(candidate())], options);
+  class Amount { constructor(value) { this.value = value; } }
+  const adapters = [{ id: "amount", version: 1, type: Amount, serialize: (value) => value.value, deserialize: (value) => new Amount(value) }];
+  const adapted = toDevCase(candidate({ arguments: encodeDevValue([new Amount(2)], { adapters }) }));
+  await assert.rejects(preflightDevCases(project, [adapted], options), /REPLAY_SAFETY_REGRESSION[^\n]*UNSUPPORTED_VALUE/);
+});
+
 test("preflight resolves real paths and rechecks every callable before project execution", async t => {
   const project = await fixture(t);
   const valid = toDevCase(candidate());
