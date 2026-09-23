@@ -248,7 +248,11 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   const loaded = await loadConfigFromFile({ command: "serve", mode: "test" }, undefined, root, "silent");
   const projectConfig = loaded?.config ?? {};
   projectConfig.plugins = await replayPlugins(projectConfig.plugins ?? []);
-  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin], resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
+  // The harness imports targets dynamically, where Vite's dependency scan
+  // cannot see them. Scan them up front: a dependency discovered mid-run makes
+  // Vite re-optimize and reload the page under a running case.
+  const optimizeDeps = { entries: [...new Set(cases.map((artifact) => artifact.locator.module))] };
+  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin], optimizeDeps, resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
   // Browser Mode starts a separate Vite server from project options. An explicit
   // project carries the same source transforms and aliases into that realm.
   const replayProject = { ...viteOptions, test: { ...testOptions, name: "replaylock-v2" } };
