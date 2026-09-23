@@ -7,6 +7,7 @@
         "src/arrays.ts#first",
         "src/arrays.ts#unique",
         "src/errors.ts#requirePositive",
+        "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
         "src/numbers.ts#bmi",
@@ -23,6 +24,7 @@
         "src/arrays.ts#first",
         "src/arrays.ts#unique",
         "src/errors.ts#requirePositive",
+        "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
         "src/numbers.ts#bmi",
@@ -176,6 +178,12 @@
       "src/ambient.ts#platformName": [
         "AMBIENT_STATE"
       ],
+      "src/assets.ts#cssClass": [
+        "UNKNOWN_MODULE"
+      ],
+      "src/assets.ts#jsonLimit": [
+        "UNKNOWN_MODULE"
+      ],
       "src/callbacks.ts#anyReceiver": [
         "UNKNOWN_CALL"
       ],
@@ -275,6 +283,12 @@
         "AMBIENT_STATE",
         "UNKNOWN_CALL"
       ],
+      "src/subpath-missing.ts#missingSubpath": [
+        "UNKNOWN_MODULE"
+      ],
+      "src/subpath.ts#besideEffectful": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
       "src/table-escapes.ts#aliasedTable": [
         "AMBIENT_STATE"
       ],
@@ -338,6 +352,9 @@
       ],
       "src/uses-polyfill.ts#exclaim": [
         "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/worker-import.ts#workerName": [
+        "UNKNOWN_MODULE"
       ]
     }
   },

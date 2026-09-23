@@ -285,6 +285,44 @@ export function entry(status: keyof typeof LABELS, unit: "kg" | "lb") {
   }
 });
 
+test("subpath imports, host conditions, and asset imports resolve like Vite without admitting their values", (t) => {
+  const files = {
+    "package.json": '{"type":"module","imports":{"#lib/*":"./lib/*.ts"}}',
+    "lib/math.ts": "export function double(n: number) { return n * 2; }",
+    "styles.css": "body { margin: 0; }",
+    "data.json": '{"limit": 3}',
+    "node_modules/conditional/package.json": '{"name":"conditional","type":"module","exports":{".":{"react-server":"./server.js","module-sync":"./sync.js","import":"./index.js"}}}',
+    "node_modules/conditional/index.js": "export function tag(value) { return value; }",
+    "node_modules/conditional/server.js": "globalThis.serverOnly = Date.now(); export function tag(value) { return value; }",
+    "node_modules/conditional/sync.js": "globalThis.syncOnly = Date.now(); export function tag(value) { return value; }",
+    "source.ts": `import { double } from "#lib/math";
+import { tag } from "conditional";
+import "./styles.css";
+import url from "./styles.css?url";
+export function entry(n: number) { return tag(double(n)); }`,
+  };
+  const conditions = { node: ["module", "node", "development"], browser: ["module", "browser", "development"] };
+  const root = project(t, files);
+  const hosted = transform(root, "source.ts", { options: { ...defaults, resolveConditions: conditions } });
+  assert.ok(names(hosted).includes("entry"), JSON.stringify(hosted.diagnostics));
+  // Without the host's conditions, an unknown condition cannot be guessed.
+  const unhosted = transform(root, "source.ts");
+  assert.ok(unhosted.diagnostics.some((item) => item.code === "UNKNOWN_MODULE" && item.locator.namePath[0] === "entry"));
+  const refused = [
+    `import data from "./data.json"; export function entry() { return data.limit; }`,
+    `import url from "./styles.css?url"; export function entry() { return url; }`,
+    `import Worker from "./lib/math.ts?worker"; export function entry() { return 1; }`,
+    `import { missing } from "#lib/math"; export function entry() { return missing; }`,
+    `import { value } from "#nothing/here"; export function entry() { return value; }`,
+  ];
+  for (const source of refused) {
+    const blocked = project(t, { ...files, "source.ts": source });
+    const refusal = transform(blocked, "source.ts", { options: { ...defaults, resolveConditions: conditions } });
+    assert.ok(!names(refusal).includes("entry"), source);
+    assert.ok(refusal.diagnostics.some((item) => item.code === "UNKNOWN_MODULE" && item.locator.namePath[0] === "entry"), `${source}: ${JSON.stringify(refusal.diagnostics)}`);
+  }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */

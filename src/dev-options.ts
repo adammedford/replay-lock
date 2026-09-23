@@ -1,6 +1,6 @@
 import { createServer, loadConfigFromFile, type Alias, type ResolvedConfig } from "vite";
 import { findProjectConfiguration } from "./project-configuration.js";
-import type { DevAdapter, DevOptions, DevRetentionPolicy, ResolvedDevOptions } from "./dev-contract.js";
+import type { DevAdapter, DevEnvironment, DevOptions, DevRetentionPolicy, ResolvedDevOptions } from "./dev-contract.js";
 
 export function resolveDevRetention(input?: false | Partial<DevRetentionPolicy>): false | DevRetentionPolicy {
   if (input === false) return false;
@@ -62,7 +62,16 @@ export function developmentAliases(aliases: readonly Alias[], resolved = false):
   return result;
 }
 
-export async function loadDevConfiguration(root: string, resolvedVite?: Pick<ResolvedConfig, "resolve">): Promise<{
+/** The package conditions Vite applies to each environment in development mode. */
+export function developmentConditions(vite: Pick<ResolvedConfig, "environments">): Record<DevEnvironment, string[]> | undefined {
+  const node = vite.environments?.ssr?.resolve?.conditions;
+  const browser = vite.environments?.client?.resolve?.conditions;
+  if (!Array.isArray(node) || !Array.isArray(browser)) return undefined;
+  const development = (conditions: readonly string[]) => [...new Set(conditions.map((condition) => condition === "development|production" ? "development" : condition))];
+  return { node: development(node), browser: development(browser) };
+}
+
+export async function loadDevConfiguration(root: string, resolvedVite?: Pick<ResolvedConfig, "resolve" | "environments">): Promise<{
   options: ResolvedDevOptions; adapters: DevAdapter[]; configurationPath?: string;
 }> {
   // Configuration hooks can acquire resources that plugins release through
@@ -79,11 +88,13 @@ export async function loadDevConfiguration(root: string, resolvedVite?: Pick<Res
   }
   const vite = resolvedVite;
   const resolveAliases = developmentAliases(vite.resolve.alias, true);
+  const resolveConditions = developmentConditions(vite);
+  const host = { resolveAliases, ...(resolveConditions ? { resolveConditions } : {}) };
   const configurationPath = await findProjectConfiguration(root);
-  if (!configurationPath) return { options: { ...resolveDevOptions(), resolveAliases }, adapters: [] };
+  if (!configurationPath) return { options: { ...resolveDevOptions(), ...host }, adapters: [] };
   const loaded = await loadConfigFromFile({ command: "serve", mode: "development" }, configurationPath, root, "silent");
   if (!loaded) throw new Error("INVALID_POLICY: ReplayLock configuration could not be loaded");
   const config = loaded.config as DevOptions & { valueAdapters?: DevAdapter[] };
   if (config.valueAdapters !== undefined && !Array.isArray(config.valueAdapters)) throw new Error("VALUE_ADAPTER_INVALID");
-  return { options: { ...resolveDevOptions(config), resolveAliases }, adapters: config.valueAdapters ?? [], configurationPath };
+  return { options: { ...resolveDevOptions(config), ...host }, adapters: config.valueAdapters ?? [], configurationPath };
 }

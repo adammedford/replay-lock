@@ -107,6 +107,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     sources.set(overlayFile, overlay.code);
     if (!overlayFile.split(path.sep).includes("node_modules")) rootFiles.add(overlayFile);
   }
+  const conditions = options.resolveConditions?.[environment];
   const resolution = new Map<string, string | undefined>();
   const readMetadata = (directory: string): void => {
     const file = path.join(directory, "package.json");
@@ -121,15 +122,15 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const requested = applyAlias(specifier, options);
     if (builtins.has(requested.replace(/^node:/, ""))) { resolution.set(key, undefined); return undefined; }
     let resolved: string | undefined;
-    if (requested.startsWith(".") || path.isAbsolute(requested)) {
-      const base = path.resolve(path.dirname(from), requested);
-      const stem = base.replace(/\.[cm]?jsx?$/, "");
-      const candidates = [base, ...[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"].flatMap((extension) => [stem + extension, base + extension, path.join(base, "index" + extension)])];
-      resolved = candidates.find((file) => sources.has(file) || isFile(file));
+    if (requested.startsWith(".") || path.isAbsolute(requested) || requested.startsWith("#")) {
+      // Subpath imports map through the importing package's `imports` field;
+      // like Vite, the mapped path is then resolved as a relative request.
+      const base = requested.startsWith("#") ? resolveSubpathImport(root, from, requested, environment, conditions, metadata, inputs) : path.resolve(path.dirname(from), requested);
+      resolved = base === undefined ? undefined : sourceCandidates(base).find((file) => sources.has(file) || isFile(file));
     } else {
       // Node's package exports/main resolution is used for installed code, never
       // a declaration file standing in for executable dependency behavior.
-      resolved = resolvePackageSource(from, requested, environment, metadata, inputs);
+      resolved = resolvePackageSource(from, requested, environment, metadata, inputs, conditions);
     }
     if (resolved && isFile(resolved)) resolved = realpathSync(resolved);
     if (resolved && (!inside(root, resolved) || !sourceFilename(resolved))) resolved = undefined;
@@ -143,6 +144,19 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     }
     resolution.set(key, resolved);
     return resolved;
+  };
+  // A stylesheet, image, font, media, text or JSON import, or a `?url`,
+  // `?raw` or `?inline` import, executes no code. Its bindings, if any, are
+  // still unresolved values that capture targets cannot read.
+  const inertAsset = (from: string, specifier: string): boolean => {
+    const requested = applyAlias(specifier, options);
+    const query = requested.indexOf("?");
+    const request = query < 0 ? requested : requested.slice(0, query);
+    if (query < 0 ? !assetFilename(request) : !["url", "raw", "inline"].includes(requested.slice(query + 1))) return false;
+    const file = request.startsWith(".") || path.isAbsolute(request) ? path.resolve(path.dirname(from), request)
+      : request.startsWith("#") ? resolveSubpathImport(root, from, request, environment, conditions, metadata, inputs)
+      : resolvePackageSource(from, request, environment, metadata, inputs, conditions);
+    return !!file && isFile(file) && inside(root, realpathSync(file));
   };
   const modules = new Map<string, DevModule>();
   // Excluded tests/configuration are fingerprinted but are not discovery roots.
@@ -166,6 +180,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       const specifier = statement.moduleSpecifier;
       if (!specifier || !ts.isStringLiteral(specifier)) { problems.at("UNKNOWN_MODULE", statement); continue; }
       if (builtins.has(applyAlias(specifier.text, options).replace(/^node:/, ""))) continue;
+      if (inertAsset(file, specifier.text)) continue;
       const dependency = resolve(file, specifier.text);
       if (!dependency) { problems.at("UNKNOWN_MODULE", specifier); continue; }
       dependencies.add(dependency);
@@ -433,6 +448,16 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     tables.set(declaration, result);
     return result;
   };
+  // An imported binding whose module or export does not resolve has no
+  // analyzed value; builtin imports are identified separately.
+  const unresolvedImport = (node: ts.Identifier): boolean => {
+    const own = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
+    if (!own || !(own.flags & ts.SymbolFlags.Alias) || checker.getAliasedSymbol(own).declarations?.length) return false;
+    let statement: ts.Node | undefined = own.declarations?.[0];
+    while (statement && !ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) statement = statement.parent;
+    const specifier = statement && (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) ? statement.moduleSpecifier : undefined;
+    return !(specifier && ts.isStringLiteral(specifier) && builtins.has(applyAlias(specifier.text, options).replace(/^node:/, "")));
+  };
   // A binding imported from a Node builtin that has no effect identity
   // (for example `os` or `child_process`) is ambient host state.
   const builtinImportRoot = (expression: ts.Expression): boolean => {
@@ -470,6 +495,8 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         }
         // A function is safe only where it is called and analyzed as a call.
         if (!calleePosition(child) && (bySymbol.has(binding!) || (declaration && functionDeclaration(declaration)))) problems.at("FUNCTION_VALUE", child);
+        // An unresolved import already taints its module, with a cause chain.
+        if (!module.problems.has("UNKNOWN_MODULE") && unresolvedImport(child)) problems.at("UNKNOWN_MODULE", child);
         if (!declaration && child.text === "arguments") problems.at("UNSUPPORTED_CALLABLE", child);
         if (!declaration && !DEV_AMBIENT_GLOBALS.has(child.text)) problems.at("UNKNOWN_REFERENCE", child);
       }
@@ -743,7 +770,7 @@ function immutableScalar(expression: ts.Expression, checker: ts.TypeChecker, see
 }
 
 /** Resolve import conditions instead of accidentally analyzing a package's require branch. */
-function resolvePackageSource(from: string, specifier: string, environment: DevEnvironment, metadata: Map<string, string>, inputs: ReturnType<typeof createDevInputTracker>): string | undefined {
+function resolvePackageSource(from: string, specifier: string, environment: DevEnvironment, metadata: Map<string, string>, inputs: ReturnType<typeof createDevInputTracker>, conditions?: readonly string[]): string | undefined {
   const { isFile, read } = inputs;
   if (specifier.startsWith("#") || path.isAbsolute(specifier)) return undefined;
   const parts = specifier.split("/");
@@ -761,28 +788,9 @@ function resolvePackageSource(from: string, specifier: string, environment: DevE
       if (definition.exports !== undefined) {
         let entry: unknown = definition.exports;
         let wildcard: string | undefined;
-        if (entry && typeof entry === "object" && !Array.isArray(entry) && Object.keys(entry).some((key) => key.startsWith("."))) {
-          const entries = entry as Record<string, unknown>;
-          entry = entries[subpath];
-          if (entry === undefined) {
-            const pattern = Object.keys(entries).filter((key) => key.includes("*")).sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length).find((key) => {
-              const [before, after] = key.split("*");
-              return subpath.startsWith(before!) && subpath.endsWith(after!) && subpath.length >= before!.length + after!.length;
-            });
-            if (pattern) { const [before, after] = pattern.split("*"); wildcard = subpath.slice(before!.length, subpath.length - after!.length); entry = entries[pattern]; }
-          }
-        } else if (subpath !== ".") return undefined;
-        const select = (value: unknown): string | undefined => {
-          if (typeof value === "string") return value;
-          if (Array.isArray(value)) { for (const item of value) { const selected = select(item); if (selected) return selected; } }
-          else if (value && typeof value === "object") for (const [condition, target] of Object.entries(value)) {
-            if (["default", "import", environment, ...(environment === "node" ? ["node-addons"] : [])].includes(condition)) return select(target);
-            // Configured/custom conditions cannot safely be guessed from source.
-            if (!["types", "require", "node", "node-addons", "browser"].includes(condition)) return undefined;
-          }
-          return undefined;
-        };
-        let target = select(entry);
+        if (entry && typeof entry === "object" && !Array.isArray(entry) && Object.keys(entry).some((key) => key.startsWith("."))) ({ entry, wildcard } = subpathEntry(entry as Record<string, unknown>, subpath));
+        else if (subpath !== ".") return undefined;
+        let target = selectTarget(entry, environment, conditions);
         if (!target?.startsWith("./")) return undefined;
         if (wildcard !== undefined) target = target.replaceAll("*", wildcard);
         const file = path.resolve(packageRoot, target);
@@ -799,6 +807,73 @@ function resolvePackageSource(from: string, specifier: string, environment: DevE
     if (parent === directory) return undefined;
     directory = parent;
   }
+}
+/**
+ * Map a `#` specifier through the `imports` field of the importer's package
+ * scope (its nearest package.json inside the project) to a path or package.
+ */
+function resolveSubpathImport(root: string, from: string, specifier: string, environment: DevEnvironment, conditions: readonly string[] | undefined, metadata: Map<string, string>, inputs: ReturnType<typeof createDevInputTracker>): string | undefined {
+  const { isFile, read } = inputs;
+  for (let directory = path.dirname(from); inside(root, directory); directory = path.dirname(directory)) {
+    const manifest = path.join(directory, "package.json");
+    if (!isFile(manifest)) { if (directory === root) return undefined; continue; }
+    const text = read(manifest);
+    metadata.set(manifest, text);
+    let definition: { imports?: unknown };
+    try { definition = JSON.parse(text) as typeof definition; } catch { return undefined; }
+    if (!definition.imports || typeof definition.imports !== "object" || Array.isArray(definition.imports)) return undefined;
+    const { entry, wildcard } = subpathEntry(definition.imports as Record<string, unknown>, specifier);
+    let target = selectTarget(entry, environment, conditions);
+    if (target === undefined) return undefined;
+    if (wildcard !== undefined) target = target.replaceAll("*", wildcard);
+    if (!target.startsWith("./")) return target.startsWith("#") || target.startsWith(".") || path.isAbsolute(target) ? undefined : resolvePackageSource(manifest, target, environment, metadata, inputs, conditions);
+    const file = path.resolve(directory, target);
+    return inside(directory, file) ? file : undefined;
+  }
+  return undefined;
+}
+/** The exports or imports entry for a subpath, and the text its `*` matched. */
+function subpathEntry(entries: Record<string, unknown>, subpath: string): { entry: unknown; wildcard?: string } {
+  if (entries[subpath] !== undefined) return { entry: entries[subpath] };
+  const pattern = Object.keys(entries).filter((key) => key.includes("*")).sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length).find((key) => {
+    const [before, after] = key.split("*");
+    return subpath.startsWith(before!) && subpath.endsWith(after!) && subpath.length >= before!.length + after!.length;
+  });
+  if (!pattern) return { entry: undefined };
+  const [before, after] = pattern.split("*");
+  return { entry: entries[pattern], wildcard: subpath.slice(before!.length, subpath.length - after!.length) };
+}
+/**
+ * Node's conditional target selection. With the host's conditions, inactive
+ * conditions are skipped as Vite skips them; without them, a configured or
+ * custom condition cannot safely be guessed from source and fails closed.
+ */
+function selectTarget(value: unknown, environment: DevEnvironment, conditions: readonly string[] | undefined): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    for (const item of value) { const selected = selectTarget(item, environment, conditions); if (selected) return selected; }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  for (const [condition, target] of Object.entries(value)) {
+    if (conditions) {
+      if (condition !== "default" && condition !== "import" && !conditions.includes(condition)) continue;
+      if (target === null) return undefined;
+      const selected = selectTarget(target, environment, conditions);
+      if (selected !== undefined) return selected;
+      continue;
+    }
+    if (["default", "import", environment, ...(environment === "node" ? ["node-addons"] : [])].includes(condition)) return selectTarget(target, environment, conditions);
+    if (!["types", "require", "node", "node-addons", "browser"].includes(condition)) return undefined;
+  }
+  return undefined;
+}
+function sourceCandidates(base: string): string[] {
+  const stem = base.replace(/\.[cm]?jsx?$/, "");
+  return [base, ...[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"].flatMap((extension) => [stem + extension, base + extension, path.join(base, "index" + extension)])];
+}
+function assetFilename(request: string): boolean {
+  return /\.(?:css|scss|sass|less|styl|stylus|pcss|postcss|svg|png|jpe?g|gif|webp|avif|ico|bmp|tiff?|woff2?|ttf|otf|eot|mp4|webm|ogg|mp3|wav|flac|aac|opus|mov|m4a|txt|json|webmanifest)$/i.test(request);
 }
 function joinedAsync(node: ts.Node, candidate: DevFunction, identity: (node: ts.Expression) => string | undefined): boolean {
   let current = node;

@@ -37,3 +37,15 @@ A function may read a module-private constant that holds flat literal data (a re
 | Replay hazard fixtures (57 hazards, 14 new) | 0 eligible | 0 eligible |
 | Ordinary code corpus (33 callables) | 12 eligible | 14 eligible |
 | This repository (each realm) | 11 eligible | 11 eligible |
+
+## P3a: import resolution
+
+Package `exports` and `imports` use the Vite host's per-environment development conditions (`module`, `browser` or `node`, and `development` by default); inactive conditions such as `module-sync` or `react-server` are skipped as Vite skips them, and analysis without host conditions keeps failing closed. `#` subpath imports resolve through the importing package's `imports` field. Asset imports and `?url`/`?raw`/`?inline` imports are inert; a function that reads a value they bind, or any import whose module or export does not resolve, reports `UNKNOWN_MODULE` at that reference.
+
+| Project | Before (P2) | After |
+|---|---|---|
+| Replay hazard fixtures (62 hazards, 5 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (33 callables) | 14 eligible | 15 eligible |
+| This repository (each realm) | 11 eligible | 11 eligible |
+
+Resolving more packages can move a function from `UNKNOWN_MODULE` to `EFFECTFUL_INITIALIZATION`: the corpus router package now resolves and its module-scope `window` write is analyzed. Reference-scoped initialization is the next change.

@@ -14,6 +14,8 @@ export interface DevRetentionPolicy { maxPerCallable: number; maxPerGroup: numbe
 export interface ResolvedDevOptions {
   /** Resolved Vite string aliases, supplied by the host rather than user capture policy. */
   resolveAliases?: { find: string; replacement: string }[];
+  /** Package export/import conditions of the host's environments; without them, unknown conditions fail closed. */
+  resolveConditions?: Record<DevEnvironment, string[]>;
   capture: { mode: "automatic" | "annotated"; include: string[]; exclude: string[]; retention?: false | DevRetentionPolicy };
   effects: { randomness: boolean; time: boolean; fetch: boolean; filesystem: boolean; environment: string[] };
 }

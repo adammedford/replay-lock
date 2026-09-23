@@ -8,14 +8,16 @@ import ts from "typescript";
 import { analyzeDevProject } from "../../dist/dev-analysis.js";
 import { transformDevSource } from "../../dist/dev-transform.js";
 import { configureDevRuntime, replayDevTrace } from "../../dist/dev-runtime.js";
-import { resolveDevOptions } from "../../dist/dev-options.js";
+import { defaultClientConditions, defaultServerConditions } from "vite";
+import { developmentConditions, resolveDevOptions } from "../../dist/dev-options.js";
 import { DEV_CATALOG_VERSION } from "../../dist/dev-catalog.js";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const fixtures = path.join(repository, "test/fixtures/yield");
 const expectations = JSON.parse(readFileSync(path.join(fixtures, "expectations.json"), "utf8"));
 const runtimeImport = new URL("../../dist/dev-runtime.js", import.meta.url).href;
-const options = resolveDevOptions();
+// A Vite host supplies its environments' development conditions.
+const options = { ...resolveDevOptions(), resolveConditions: developmentConditions({ environments: { ssr: { resolve: { conditions: defaultServerConditions } }, client: { resolve: { conditions: defaultClientConditions } } } }) };
 const realms = ["node", "browser"];
 const locator = (value) => `${value.module}#${value.namePath.join(".")}`;
 
