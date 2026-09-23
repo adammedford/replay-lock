@@ -101,7 +101,11 @@ export function analyzeDevProject(root: string, options: ResolvedDevOptions, env
 
 /** Shared analysis/rewrite plan. Each covered finding has an actual AST rewrite. */
 export function buildDevProject(rootInput: string, options: ResolvedDevOptions, environment: DevEnvironment, overlay?: { id: string; code: string }): DevProject {
-  const root = realpathSync(rootInput);
+  // Development paths use the physical spelling, as Vite module ids and
+  // `fs/promises.realpath` do. `realpathSync` keeps each component's input
+  // spelling (`C:\Users\RUNNER~1`, or other letter case), so an alias or
+  // root spelled another way would fall outside the project.
+  const root = realpathSync.native(rootInput);
   const inputs = createDevInputTracker();
   // This syntactic pass runs before bindings resolve, so it accepts any
   // identifier argument; the binding-aware initialization pass below is strict.
@@ -125,7 +129,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   };
   walk(root);
   let overlayFile = overlay ? path.resolve(root, overlay.id.split("?", 1)[0]!) : undefined;
-  if (overlayFile && isFile(overlayFile)) overlayFile = realpathSync(overlayFile);
+  if (overlayFile && isFile(overlayFile)) overlayFile = realpathSync.native(overlayFile);
   if (overlay && overlayFile && inside(root, overlayFile) && sourceFilename(overlayFile) && physicalInside(root, overlayFile)) {
     sources.set(overlayFile, overlay.code);
     if (!overlayFile.split(path.sep).includes("node_modules")) rootFiles.add(overlayFile);
@@ -155,7 +159,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       // a declaration file standing in for executable dependency behavior.
       resolved = resolvePackageSource(from, requested, environment, metadata, inputs, conditions);
     }
-    if (resolved && isFile(resolved)) resolved = realpathSync(resolved);
+    if (resolved && isFile(resolved)) resolved = realpathSync.native(resolved);
     if (resolved && (!inside(root, resolved) || !sourceFilename(resolved))) resolved = undefined;
     if (resolved) {
       let directory = path.dirname(resolved);
@@ -179,7 +183,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const file = request.startsWith(".") || path.isAbsolute(request) ? path.resolve(path.dirname(from), request)
       : request.startsWith("#") ? resolveSubpathImport(root, from, request, environment, conditions, metadata, inputs)
       : resolvePackageSource(from, request, environment, metadata, inputs, conditions);
-    return !!file && isFile(file) && inside(root, realpathSync(file));
+    return !!file && isFile(file) && inside(root, realpathSync.native(file));
   };
   const modules = new Map<string, DevModule>();
   // Excluded tests/configuration are fingerprinted but are not discovery roots.
@@ -967,7 +971,7 @@ function freezeAnalysis(value: object): void {
 function sourceFilename(file: string): boolean { return isTypeScriptSourceFilename(file) && !/\.d\.[cm]?ts$/.test(file); }
 function isFile(file: string): boolean { try { return statSync(file).isFile(); } catch { return false; } }
 function inside(root: string, file: string): boolean { const relative = path.relative(root, file); return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); }
-function physicalInside(root: string, file: string): boolean { try { return inside(root, realpathSync(file)); } catch { return inside(root, realpathSync(path.dirname(file))); } }
+function physicalInside(root: string, file: string): boolean { try { return inside(root, realpathSync.native(file)); } catch { return inside(root, realpathSync.native(path.dirname(file))); } }
 function posix(file: string): string { return file.split(path.sep).join("/"); }
 function selectedSource(file: string, options: ResolvedDevOptions): boolean {
   const match = (pattern: string): boolean => {
