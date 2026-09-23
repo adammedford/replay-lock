@@ -28,7 +28,11 @@
         "src/numbers.ts#formatPrice",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
+        "src/params.ts#joinWith",
+        "src/params.ts#pageRange",
+        "src/params.ts#pairSum",
         "src/routes.ts#heading",
+        "src/routes.ts#meta",
         "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
         "src/strings.ts#initials",
@@ -66,7 +70,11 @@
         "src/numbers.ts#formatPrice",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
+        "src/params.ts#joinWith",
+        "src/params.ts#pageRange",
+        "src/params.ts#pairSum",
         "src/routes.ts#heading",
+        "src/routes.ts#meta",
         "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
         "src/strings.ts#initials",
@@ -273,9 +281,65 @@
           0
         ]
       ],
+      "src/params.ts#joinWith": [
+        [
+          "-",
+          "a",
+          "b"
+        ],
+        [
+          null,
+          "a",
+          "b"
+        ],
+        []
+      ],
+      "src/params.ts#pageRange": [
+        [
+          {
+            "page": 2
+          }
+        ],
+        [],
+        [
+          {
+            "size": 5
+          }
+        ]
+      ],
+      "src/params.ts#pairSum": [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          3
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          null
+        ]
+      ],
       "src/routes.ts#heading": [
         [
           "Notes"
+        ]
+      ],
+      "src/routes.ts#meta": [
+        [
+          {
+            "title": "Notes",
+            "extra": 1
+          }
         ]
       ],
       "src/schemas.ts#displayName": [
@@ -434,6 +498,15 @@
       ],
       "src/catalog.ts#replacerParameter": [
         "UNKNOWN_CALL"
+      ],
+      "src/defaults.ts#computedKey": [
+        "UNSUPPORTED_CALLABLE"
+      ],
+      "src/defaults.ts#nestedClockDefault": [
+        "UNSUPPORTED_CALLABLE"
+      ],
+      "src/defaults.ts#tableDefault": [
+        "UNSUPPORTED_CALLABLE"
       ],
       "src/defaults.ts#withClockDefault": [
         "UNSUPPORTED_CALLABLE"
@@ -666,7 +739,7 @@
     }
   },
   "selfFloor": {
-    "node": 36,
-    "browser": 36
+    "node": 38,
+    "browser": 38
   }
 }

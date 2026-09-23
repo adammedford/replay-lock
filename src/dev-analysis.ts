@@ -988,8 +988,31 @@ function callableName(node: ts.Node): ts.Identifier | undefined {
   }
   return undefined;
 }
+/**
+ * Parameters bind before the capture wrapper runs, so they must run no code:
+ * destructuring patterns without computed keys, and defaults that are inert
+ * literals. Recording keeps the arguments as passed.
+ */
+function supportedParameter(parameter: ts.ParameterDeclaration | ts.BindingElement): boolean {
+  if (parameter.initializer && !inertLiteral(parameter.initializer)) return false;
+  const name = parameter.name;
+  if (ts.isIdentifier(name)) return !["this", "arguments"].includes(name.text);
+  return name.elements.every((element) => ts.isOmittedExpression(element) || ((!element.propertyName || !ts.isComputedPropertyName(element.propertyName)) && supportedParameter(element)));
+}
+function inertLiteral(expression: ts.Expression): boolean {
+  const node = unwrap(expression);
+  if (literalValue(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isBigIntLiteral(node) || (ts.isIdentifier(node) && node.text === "undefined")) return true;
+  if (ts.isPrefixUnaryExpression(node)) return node.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(node.operand);
+  if (ts.isArrayLiteralExpression(node)) return node.elements.every((element) => !ts.isSpreadElement(element) && !ts.isOmittedExpression(element) && inertLiteral(element));
+  if (ts.isObjectLiteralExpression(node)) return node.properties.every((property) => ts.isPropertyAssignment(property) && !ts.isComputedPropertyName(property.name) && property.name.getText() !== "__proto__" && inertLiteral(property.initializer));
+  return false;
+}
+/** An arrow whose parameters need rebinding inside the capture wrapper. */
+export function patternArrow(node: DevCallable): boolean {
+  return ts.isArrowFunction(node) && node.parameters.some((parameter) => !ts.isIdentifier(parameter.name) || !!parameter.initializer);
+}
 function supportedShape(node: DevCallable): boolean {
-  if (node.asteriskToken || node.parameters.some((parameter) => !ts.isIdentifier(parameter.name) || !!parameter.initializer || ["this", "arguments"].includes(parameter.name.text))) return false;
+  if (node.asteriskToken || !node.parameters.every(supportedParameter)) return false;
   if (ts.isFunctionDeclaration(node)) return !!node.name && (ts.isSourceFile(node.parent) || !!enclosingFunction(node));
   let outer: ts.Node = node;
   while (outer.parent && (ts.isParenthesizedExpression(outer.parent) || ts.isAsExpression(outer.parent) || ts.isSatisfiesExpression(outer.parent))) outer = outer.parent;

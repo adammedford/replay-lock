@@ -89,3 +89,15 @@ Allowed callbacks run synchronously inside their caller, so the transform now in
 | Replay hazard fixtures | 86 rejected | 82 rejected, 4 intercepted and replayed offline |
 | Ordinary code corpus (40 callables) | 36 eligible | 36 eligible |
 | This repository (each realm) | 36 eligible | 36 eligible |
+
+## P5: parameter patterns and literal defaults
+
+Destructuring parameters and inert literal defaults are supported. Function declarations and expressions already record `arguments`; arrows with patterns or defaults take synthetic parameters that preserve `length` and rebind the original patterns inside the capture wrapper, including nested replay exports. Computed pattern keys and non-literal defaults stay `UNSUPPORTED_CALLABLE`.
+
+| Project | Before (P4b) | After |
+|---|---|---|
+| Replay hazard fixtures (85 rejected, 3 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (43 callables) | 36 of 40 eligible | 40 of 43 eligible |
+| This repository (each realm) | 36 eligible | 38 eligible |
+
+The three remaining corpus exclusions each observe module-scope effects or pass a function to library code.
