@@ -340,6 +340,20 @@ test("a replaced built-in blocks capture and fails replay instead of running nat
   Array.prototype.polluted = true;
   try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
   finally { delete Array.prototype.polluted; }
+  const protoDesc = Object.getOwnPropertyDescriptor(Object.prototype, "__proto__");
+  if (protoDesc?.set) {
+    Object.defineProperty(Object.prototype, "__proto__", { get: protoDesc.get, set: () => {} });
+    try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+    finally { Object.defineProperty(Object.prototype, "__proto__", protoDesc); }
+  }
+  const symbolFor = Symbol.for;
+  Symbol.for = () => Symbol("tampered");
+  try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+  finally { Symbol.for = symbolFor; }
+  const reflectHas = Reflect.has;
+  Reflect.has = () => false;
+  try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+  finally { Reflect.has = reflectHas; }
   const random = Math.random;
   Math.random = () => { throw new Error("native randomness during replay"); };
   try { assert.equal(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), original); }
