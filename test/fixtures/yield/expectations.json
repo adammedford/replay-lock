@@ -6,15 +6,18 @@
       "node": [
         "src/arrays.ts#first",
         "src/arrays.ts#unique",
+        "src/boot.ts#double",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
+        "src/misc.ts#getUserImgSrc",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
+        "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
         "src/tables.ts#isPositive",
         "src/tables.ts#statusLabel",
@@ -23,15 +26,18 @@
       "browser": [
         "src/arrays.ts#first",
         "src/arrays.ts#unique",
+        "src/boot.ts#double",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
         "src/json.ts#roundTrip",
+        "src/misc.ts#getUserImgSrc",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
+        "src/schemas.ts#displayName",
         "src/strings.ts#greeting",
         "src/tables.ts#isPositive",
         "src/tables.ts#statusLabel",
@@ -59,6 +65,11 @@
           ]
         ]
       ],
+      "src/boot.ts#double": [
+        [
+          2
+        ]
+      ],
       "src/errors.ts#requirePositive": [
         [
           2
@@ -77,6 +88,14 @@
           {
             "a": 1
           }
+        ]
+      ],
+      "src/misc.ts#getUserImgSrc": [
+        [
+          "abc"
+        ],
+        [
+          null
         ]
       ],
       "src/numbers.ts#bmi": [
@@ -118,6 +137,12 @@
       "src/routes.ts#heading": [
         [
           "Notes"
+        ]
+      ],
+      "src/schemas.ts#displayName": [
+        [
+          "Ada",
+          "Lovelace"
         ]
       ],
       "src/strings.ts#greeting": [
@@ -270,6 +295,42 @@
       "src/implicit.ts#writeInToString": [
         "FUNCTION_VALUE"
       ],
+      "src/init/console-init.ts#logged": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/global-install.ts#afterInstall": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/host-write.ts#afterHostWrite": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/namespace.ts#namespaceRead": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/read-init.ts#besideConfigRead": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/same-module-register.ts#besideRegister": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/transitive.ts#sinceBoot": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/uses-broken.ts#afterBroken": [
+        "UNSUPPORTED_SOURCE"
+      ],
+      "src/init/uses-patcher.ts#patchedImport": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/uses-reexport.ts#startedPlus": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/uses-setup.ts#afterSetup": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/uses-tla.ts#afterAwait": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
       "src/module-fetch.ts#increment": [
         "EFFECTFUL_INITIALIZATION"
       ],
@@ -359,7 +420,7 @@
     }
   },
   "selfFloor": {
-    "node": 11,
-    "browser": 11
+    "node": 14,
+    "browser": 14
   }
 }

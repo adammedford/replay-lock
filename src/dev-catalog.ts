@@ -26,6 +26,21 @@ export const DEV_AMBIENT_GLOBALS: ReadonlySet<string> = new Set([
   "Array", "Object", "Number", "String", "Boolean", "BigInt", "parseInt", "parseFloat", "isFinite", "isNaN", ...DEV_ERROR_CONSTRUCTORS,
   "JSON", "encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI", ...DEV_CONSTRUCTORS,
 ]);
+/**
+ * Global bindings the language and platform define. Writing to one, to its
+ * members, or through the global object to its name at module scope changes
+ * behavior every module relies on.
+ */
+export const DEV_BUILTIN_GLOBALS: ReadonlySet<string> = new Set([
+  "Object", "Function", "Array", "String", "Number", "Boolean", "Symbol", "BigInt", "Math", "JSON", "Reflect", "Proxy", "Intl",
+  "Date", "RegExp", "Map", "Set", "WeakMap", "WeakSet", "WeakRef", "Promise", "Iterator", "ArrayBuffer", "SharedArrayBuffer", "DataView",
+  "Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array",
+  "Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "EvalError", "AggregateError",
+  "URL", "URLSearchParams", "TextEncoder", "TextDecoder", "structuredClone",
+  "parseInt", "parseFloat", "isFinite", "isNaN", "encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI", "escape", "unescape", "eval",
+  "undefined", "NaN", "Infinity", "globalThis",
+]);
+
 /** Members that may follow `globalThis`/`window`/`self` without being ambient state. */
 export const DEV_GLOBAL_OBJECT_MEMBERS: ReadonlySet<string> = new Set(["Math", "Date", "crypto", "performance", "fetch", "process", "Promise", "Array", "Object", "Number", "String", "Boolean", "BigInt"]);
 

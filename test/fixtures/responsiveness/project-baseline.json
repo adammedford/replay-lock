@@ -828,10 +828,8 @@
       "realms": {
         "node": {
           "analysis": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -839,39 +837,15 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 1,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 1,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "a8aaf9d0fcb67499710b9c2d0ccc7850da66d7d42c5bd96c377f370ad0654544"
           },
           "transform": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -879,41 +853,27 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 1,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 1,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "a8aaf9d0fcb67499710b9c2d0ccc7850da66d7d42c5bd96c377f370ad0654544",
-            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
-            "map": null
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"a8aaf9d0fcb67499710b9c2d0ccc7850da66d7d42c5bd96c377f370ad0654544\",\"generation\":\"1\",\"environment\":\"node\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
           },
           "overlay": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -921,43 +881,29 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 2,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 2,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "8044f4c79ab5101a962e859fb8ed07b234e11a7ae6a691989477dbb5e5d58ae1",
-            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
-            "map": null
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\n// shifted\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"8044f4c79ab5101a962e859fb8ed07b234e11a7ae6a691989477dbb5e5d58ae1\",\"generation\":\"1\",\"environment\":\"node\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;AACT,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
           }
         },
         "browser": {
           "analysis": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -965,39 +911,15 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 1,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 1,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "03ddd5a1bf9ddd49988758aa99696015f13263b0bb790c3ba6e8514caf40cb7e"
           },
           "transform": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -1005,41 +927,27 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 1,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 1,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "03ddd5a1bf9ddd49988758aa99696015f13263b0bb790c3ba6e8514caf40cb7e",
-            "code": "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
-            "map": null
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"03ddd5a1bf9ddd49988758aa99696015f13263b0bb790c3ba6e8514caf40cb7e\",\"generation\":\"1\",\"environment\":\"browser\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "import {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
           },
           "overlay": {
-            "targets": [],
-            "diagnostics": [
+            "targets": [
               {
-                "code": "EFFECTFUL_INITIALIZATION",
                 "locator": {
                   "module": "src/main.js",
                   "kind": "export",
@@ -1047,35 +955,23 @@
                     "main"
                   ]
                 },
-                "position": {
-                  "module": "src/main.js",
-                  "line": 2,
-                  "column": 30
-                },
-                "causes": [
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "src/main.js",
-                      "line": 2,
-                      "column": 22
-                    }
-                  },
-                  {
-                    "code": "EFFECTFUL_INITIALIZATION",
-                    "position": {
-                      "module": "node_modules/tiny/index.js",
-                      "line": 1,
-                      "column": 15
-                    }
-                  }
-                ],
-                "message": "src/main.js#main: EFFECTFUL_INITIALIZATION"
+                "replayExport": "__replaylock_dev_abb7d6c34ba63476432dc22e"
               }
             ],
+            "diagnostics": [],
             "sourceGraphDigest": "efe96818008312f0c7124457436d3e258c66a8c4112f7c35ab3d68d1a72a3605",
-            "code": "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}",
-            "map": null
+            "code": "import { observeDevCall as __replaylock_dev_observe, withDevContext as __replaylock_dev_context, devEffect as __replaylock_dev_effect } from \"replaylock/dev/runtime\";\n// shifted\nimport {helper} from 'tiny'; export function main(n){ return __replaylock_dev_observe({\"locator\":{\"module\":\"src/main.js\",\"kind\":\"export\",\"namePath\":[\"main\"]},\"sourceGraphDigest\":\"efe96818008312f0c7124457436d3e258c66a8c4112f7c35ab3d68d1a72a3605\",\"generation\":\"1\",\"environment\":\"browser\"}, [...arguments], (__replaylock_dev_frame0) => {return ((__replaylock_dev_binding0, __replaylock_dev_args1) => __replaylock_dev_context(__replaylock_dev_frame0, () => __replaylock_dev_binding0[1].apply(__replaylock_dev_binding0[0], __replaylock_dev_args1)))([void 0, helper], [n])+((__replaylock_dev_binding2, __replaylock_dev_args3) => __replaylock_dev_effect(__replaylock_dev_frame0, \"Math.random\", __replaylock_dev_args3, () => __replaylock_dev_binding2[1].apply(__replaylock_dev_binding2[0], __replaylock_dev_args3)))(((__replaylock_dev_receiver4) => [__replaylock_dev_receiver4, __replaylock_dev_receiver4.random])(Math), []);}, false); }",
+            "map": {
+              "version": 3,
+              "sources": [
+                "$root/src/main.js"
+              ],
+              "sourcesContent": [
+                "// shifted\nimport {helper} from 'tiny'; export function main(n){return helper(n)+Math.random();}"
+              ],
+              "names": [],
+              "mappings": ";AAAA,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;AACT,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC"
+            }
           }
         }
       }

@@ -112,6 +112,11 @@ export interface EffectAnalyzerOptions {
    * its assumption fingerprints bind.
    */
   isDeterministicInvocation?: (node: ts.CallExpression | ts.NewExpression) => boolean;
+  /**
+   * "omit" leaves module initialization out of callable findings: development
+   * analysis attributes each initialization effect to what it can affect.
+   */
+  callableInitialization?: "report" | "omit";
 }
 
 export function createEffectAnalyzer(options: EffectAnalyzerOptions = {}) {
@@ -125,7 +130,7 @@ export function createEffectAnalyzer(options: EffectAnalyzerOptions = {}) {
   }
   function facts(sourceFile: ts.SourceFile): ModuleEffectFacts {
     let value = modules.get(sourceFile);
-    if (!value) { value = moduleEffectFacts(sourceFile, initializationNodes(sourceFile)); modules.set(sourceFile, value); }
+    if (!value) { value = moduleEffectFacts(sourceFile, options.callableInitialization === "omit" ? [] : initializationNodes(sourceFile)); modules.set(sourceFile, value); }
     return value;
   }
   return {
@@ -134,6 +139,10 @@ export function createEffectAnalyzer(options: EffectAnalyzerOptions = {}) {
     },
     analyzeModuleInitialization(options: { source: string; sourceFile: ts.SourceFile }): DirectEffectAnalysis {
       return analyzeInitialization(options, initializationNodes(options.sourceFile));
+    },
+    /** The module-scope calls, writes, awaits, and yields that run when the module loads. */
+    moduleInitializationNodes(sourceFile: ts.SourceFile): readonly ts.Node[] {
+      return initializationNodes(sourceFile);
     },
   };
 }
@@ -330,7 +339,9 @@ export function parseAndAnalyzeDirectEffects(
  * can be invoked.  The call-graph analyzer uses this for imported modules
  * that do not expose a callable of their own.  Initialization is deliberately
  * fail-closed: an authored call, assignment, await, yield, or delete is
- * evidence that the module is not a passive value declaration.
+ * evidence that the module is not a passive value declaration. Development
+ * analysis supplies its own deterministic-call predicate and attributes each
+ * such effect to what can observe it.
  */
 export function analyzeModuleInitialization(options: { source: string; sourceFile: ts.SourceFile }): DirectEffectAnalysis {
   return analyzeInitialization(options, effectfulModuleInitializations(options.sourceFile));
@@ -844,7 +855,7 @@ function isLocaleCall(name: string | undefined): boolean {
   );
 }
 
-function classifyKnownInvocation(name: string | undefined): DirectEffectReasonCode | undefined {
+export function classifyKnownInvocation(name: string | undefined): DirectEffectReasonCode | undefined {
   if (!name) return undefined;
   if (name === "eval" || name === "Function" || name === "globalThis.eval" || name === "globalThis.Function") {
     return "DYNAMIC_EVALUATION";

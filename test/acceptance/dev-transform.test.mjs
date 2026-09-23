@@ -227,10 +227,10 @@ export function entry(record: Record<string, number>, href: string) {
   try { assert.deepEqual(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1, b: 1 }, "https://example.test/a b")), original); }
   finally { Math.random = random; }
   const refused = [
-    [`import { entries } from "./entries"; const TABLE = new Map(entries as never); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
-    [`const TABLE = new Map([["a", Date.now()]]); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
-    [`const TABLE = JSON.parse("{}", (key, value) => value); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
-    [`const TABLE = Object.freeze({ get now() { return Date.now(); } }); export function entry(k: string) { return k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`import { entries } from "./entries"; const TABLE = new Map(entries as never); export function entry(k: string) { return TABLE.size + k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = new Map([["a", Date.now()]]); export function entry(k: string) { return TABLE.size + k.length; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = JSON.parse("{}", (key, value) => value); export function entry(k: string) { return TABLE + k; }`, "EFFECTFUL_INITIALIZATION"],
+    [`const TABLE = Object.freeze({ get now() { return Date.now(); } }); export function entry(k: string) { return TABLE.now + k.length; }`, "EFFECTFUL_INITIALIZATION"],
     [`export function entry(value: { a: number }) { const freeze = Object.freeze; return freeze(value); }`, "UNKNOWN_CALL"],
     [`export function entry(value: { a: number }) { return Object.freeze(value); }`, "ARGUMENT_MUTATION"],
     [`export function entry(text: string, keys: string[]) { return JSON.stringify(text, keys); }`, "UNKNOWN_CALL"],
@@ -311,7 +311,7 @@ export function entry(n: number) { return tag(double(n)); }`,
   const refused = [
     `import data from "./data.json"; export function entry() { return data.limit; }`,
     `import url from "./styles.css?url"; export function entry() { return url; }`,
-    `import Worker from "./lib/math.ts?worker"; export function entry() { return 1; }`,
+    `import Worker from "./lib/math.ts?worker"; export function entry() { return typeof Worker; }`,
     `import { missing } from "#lib/math"; export function entry() { return missing; }`,
     `import { value } from "#nothing/here"; export function entry() { return value; }`,
   ];
@@ -344,6 +344,65 @@ test("a replaced built-in blocks capture and fails replay instead of running nat
   Math.random = () => { throw new Error("native randomness during replay"); };
   try { assert.equal(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), original); }
   finally { Math.random = random; }
+});
+
+test("module initialization taints only what can observe it, and unobserved initializers replay offline", async (t) => {
+  const files = {
+    "package.json": '{"type":"module"}',
+    "node_modules/schema/package.json": '{"name":"schema","type":"module","exports":"./index.js"}',
+    "node_modules/schema/index.js": "const defaults = Object.freeze({ strict: true }); function create(kind) { return { kind, ...defaults }; } export const s = { object: () => create('object') };",
+    "clock.ts": "export const bootedAt = Date.now(); export const later = bootedAt + 1;",
+    "source.ts": `import { s } from "schema";
+import { later } from "./clock";
+import * as clock from "./clock";
+const boot = Date.now();
+export const userSchema = s.object();
+const { MODE } = process.env;
+export function entry(n: number) { return n * 2 + Math.random(); }
+export function readsBoot(n: number) { return n + boot; }
+export function readsSchema() { return userSchema.kind; }
+export function readsLater(n: number) { return n + later; }
+export function readsNamespace(n: number) { return n + clock.bootedAt; }
+export function readsMode() { return MODE ?? ""; }`,
+  };
+  const root = project(t, files);
+  const result = transform(root, "source.ts", { replay: true });
+  assert.deepEqual(names(result), ["entry"]);
+  for (const name of ["readsBoot", "readsSchema", "readsLater", "readsNamespace", "readsMode"]) {
+    assert.ok(result.diagnostics.some((item) => item.code === "EFFECTFUL_INITIALIZATION" && item.locator.namePath[0] === name), `${name}: ${JSON.stringify(result.diagnostics)}`);
+  }
+  // Initializers run natively when replay imports the module, but the case never observes them.
+  const replayRoot = project(t, { ...files, "source.ts": `import { s } from "schema";
+const boot = Date.now();
+export const userSchema = s.object();
+export function entry(n: number) { return n * 2 + Math.random(); }
+export function readsBoot(n: number) { return n + boot; }` });
+  const replayable = transform(replayRoot, "source.ts", { replay: true });
+  assert.deepEqual(names(replayable), ["entry"]);
+  const module = await load(replayRoot, replayable);
+  const { observations } = capture();
+  const original = module.entry(4);
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try { assert.equal(await replayDevTrace(observations[0].trace, () => module[replayable.targets[0].replayExport](4)), original); }
+  finally { Math.random = random; }
+  const global = [
+    `console.log("loaded"); export function entry(n: number) { return n; }`,
+    `setInterval(() => undefined, 1000); export function entry(n: number) { return n; }`,
+    `(Array.prototype as unknown as { x: number }).x = 1; export function entry(n: number) { return n; }`,
+    `(globalThis as unknown as { onerror: null }).onerror = null; export function entry(n: number) { return n; }`,
+    `import "./setup"; export function entry(n: number) { return n; }`,
+    `import { flag } from "./patch"; export function entry(n: number) { return n; }`,
+    `function register(name: string) { return name; } register("x"); export function entry(n: number) { return n; }`,
+  ];
+  for (const source of global) {
+    const blocked = project(t, { ...files, "source.ts": source, "setup.ts": `import { s } from "schema"; s.object(); export const ready = true;`, "patch.ts": `Object.defineProperty(Object.prototype, "x", { value: 1 }); export const flag = 1;` });
+    const refusal = transform(blocked, "source.ts", { replay: true });
+    assert.deepEqual(names(refusal), [], source);
+    assert.ok(refusal.diagnostics.some((item) => item.code === "EFFECTFUL_INITIALIZATION"), `${source}: ${JSON.stringify(refusal.diagnostics)}`);
+  }
+  const privateRegistration = project(t, { ...files, "source.ts": `(globalThis as unknown as { __version: string }).__version = "1"; export function entry(n: number) { return n; }` });
+  assert.deepEqual(names(transform(privateRegistration, "source.ts")), [], "an unbound statement still taints its own module");
 });
 
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {

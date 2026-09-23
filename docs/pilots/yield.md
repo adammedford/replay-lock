@@ -53,3 +53,17 @@ Resolving more packages can move a function from `UNKNOWN_MODULE` to `EFFECTFUL_
 ## P3b: built-in integrity guard
 
 Recording and replay now check that the built-ins analysis relies on are the engine's own: the properties of core prototypes, iterator prototypes, and the `Math`, `JSON`, `Object`, `Array`, `Number`, `String`, `Boolean`, `Date`, `Map`, `Set`, `RegExp`, `Promise`, `URL` and `URLSearchParams` objects, and the global bindings for them and the URI and number-parsing functions. A replaced, added, or removed property, or a non-native function when the runtime loads (Node's JavaScript `URL` classes excepted), blocks capture with `INTRINSIC_MODIFIED` and fails replay with exit `2`. `Math.random` and `Date.now` are exempt as traced effects. A full check costs about 20 µs on an Apple M4 Pro, so capture checks once per synchronous run; replay checks every case. Eligibility is unchanged.
+
+## P3c: reference-scoped module initialization
+
+Module initialization no longer taints every function in a module and everything importing it. A global effect (I/O, logging, timers and listeners, `import()`, top-level `await`, writes to built-ins, prototypes, or host globals, and side-effect imports of such modules) still does. An unbound statement taints its module and references to its bindings. An effect inside one declaration's initializer taints only references to that declaration, followed through other initializers, re-exports and namespace imports. Unresolved named imports taint only their references.
+
+Two decisions made here are recorded for review: writes to conventionally private global names (`window.__version`, `$RefreshReg$`) are module-wide rather than global, because capture targets cannot read uncatalogued globals; and a literal CommonJS `require("x")` is treated like a call to an imported function, so the required module's own initialization is not analyzed (it runs natively at verify, as the rest of module initialization does).
+
+| Project | Before (P3a) | After |
+|---|---|---|
+| Replay hazard fixtures (74 hazards, 12 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (33 callables) | 15 eligible | 18 eligible |
+| This repository (each realm) | 11 eligible | 14 eligible |
+
+The corpus gains `getUserImgSrc` beside a CommonJS UI library, `displayName` beside a schema definition, and `double` beside `const startedAt = Date.now()`. Their offline replay samples import those modules, whose initializers run natively without affecting the recorded completion.

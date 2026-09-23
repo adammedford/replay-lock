@@ -60,7 +60,7 @@ test('authored transformation keeps admission and overlays in the same fresh rea
 });
 
 
-test('selected callers retain transitive dependency effects and unconditional module initialization checks', async t => {
+test('selected callers retain transitive dependency effects and reference-scoped module initialization checks', async t => {
   const root=await fixture(t,{
     'src/main.js':"import {helper} from 'tiny'; export function main(n){return helper(n);}",
     'node_modules/tiny/package.json':'{"type":"module","exports":"./index.js"}',
@@ -73,11 +73,17 @@ test('selected callers retain transitive dependency effects and unconditional mo
   }
   await put(root,'node_modules/tiny/index.js','export function helper(n){return second(n);} function second(n){return n+1;} export function dormant(){return Date.now();}');
   for(const realm of ['node','browser']) assert.ok(names(cache.analyze(realm)).includes('src/main.js#main'));
+  // An initializer that the called helper never reads cannot affect it.
   await put(root,'node_modules/tiny/index.js','const initial=Date.now(); export function helper(n){return n+1;}');
-  for(const realm of ['node','browser']) {
-    const unsafe=cache.analyze(realm);
-    assert.ok(!names(unsafe).includes('src/main.js#main'));
-    assert.ok(unsafe.diagnostics.some(d=>d.code==='EFFECTFUL_INITIALIZATION'));
+  for(const realm of ['node','browser']) assert.ok(names(cache.analyze(realm)).includes('src/main.js#main'));
+  for(const dependency of ['const initial=Date.now(); export function helper(n){return n+initial;}','console.log("init"); export function helper(n){return n+1;}']) {
+    await put(root,'node_modules/tiny/index.js',dependency);
+    for(const realm of ['node','browser']) {
+      const unsafe=cache.analyze(realm);
+      assert.ok(!names(unsafe).includes('src/main.js#main'),dependency);
+      assert.ok(unsafe.diagnostics.some(d=>d.code==='EFFECTFUL_INITIALIZATION'));
+      assert.deepEqual(unsafe,analyzeDevProject(root,options,realm));
+    }
   }
 });
 
@@ -151,7 +157,7 @@ test('realm workers preserve fresh analysis, source maps, configuration and shut
 
 
 test('authored initialization exclusion stays current across source and dependency edits', async t => {
-  const unsafe='const created=Date.now(); export function a(n){return n+1;}';
+  const unsafe='console.log("created"); export function a(n){return n+1;}';
   const safe="import {helper} from 'tiny'; export function a(n){return helper(n);}";
   const root=await fixture(t,{'src/a.js':unsafe,'node_modules/tiny/package.json':'{"type":"module","exports":"./index.js"}','node_modules/tiny/index.js':'console.log("init");export function helper(n){return n+1;}'});
   const options=resolveDevOptions(),cache=createDevProjectCache(root,options);
