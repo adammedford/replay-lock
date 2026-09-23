@@ -110,7 +110,7 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
       const input = path.join(temporary, `input-${index}.json`);
       const runner = path.join(temporary, `runner-${index}.mjs`);
       await writeFile(input, JSON.stringify({ root, cases: group, options, temporary, index, phase }), { mode: 0o600 });
-      await writeFile(runner, `import { readFile } from 'node:fs/promises';\nimport { runDevVerificationWorker, reportDevVerificationError } from ${JSON.stringify(import.meta.url)};\ntry { process.exitCode = await runDevVerificationWorker(JSON.parse(await readFile(${JSON.stringify(input)}, 'utf8'))); } catch (error) { reportDevVerificationError(error); process.exitCode = 2; }\n`, { mode: 0o600 });
+      await writeFile(runner, `import { readFile } from 'node:fs/promises';\nimport { runDevVerificationWorker, reportDevVerificationError } from ${JSON.stringify(import.meta.url)};\ntry { process.exitCode = await runDevVerificationWorker(JSON.parse(await readFile(${JSON.stringify(input)}, 'utf8'))); } catch (error) { reportDevVerificationError(error); process.exitCode = 2; }\n// Project configuration can leave services open after Vitest closes.\nfor (const stream of [process.stdout, process.stderr]) await new Promise((resolve) => stream.write("", resolve));\nprocess.exit(process.exitCode);\n`, { mode: 0o600 });
       const runtime = group[0]!.provenance.runtimeProfile;
       const result = await new Promise<number>((resolve) => {
         const child = spawn(process.execPath, [runner], { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, TZ: runtime.timezone, LANG: `${runtime.locale.replaceAll("-", "_")}.UTF-8`, NO_COLOR: "1", FORCE_COLOR: "0" } });
@@ -171,6 +171,14 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   const plugin: Plugin = {
     name: "replaylock-isolated-v2-replay", enforce: "pre",
     configResolved(config) {
+      // Replay runs on ReplayLock's own Vitest. Browser Mode dedupes `vitest`
+      // to the project root, where an application's copy (another version, or
+      // one in an enclosing node_modules) would load a second runner and its
+      // tests would never register. Resolve it from each importer instead.
+      for (const resolve of [config.resolve, ...Object.values(config.environments).map((environment) => environment.resolve)]) {
+        const dedupe = resolve.dedupe as string[];
+        for (let index = dedupe.length - 1; index >= 0; index--) if (dedupe[index] === "vitest") dedupe.splice(index, 1);
+      }
       // Browser Mode adds nested dependency hints relative to the application.
       // Resolve its own hints from ReplayLock's dependency graph instead.
       const include = config.optimizeDeps.include;

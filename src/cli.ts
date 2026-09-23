@@ -820,15 +820,26 @@ function printUsage(): void {
   console.error("Usage: replaylock <record|review|verify|scan|report>");
 }
 
+/**
+ * Application configuration and its plugins run in this process and can leave
+ * services open after Vite closes. They must not keep a finished command alive.
+ */
+async function exitWith(status: number): Promise<void> {
+  await Promise.all([process.stdout, process.stderr].map((stream) => new Promise<void>((resolve) => stream.write("", () => resolve()))));
+  process.exit(status);
+}
+
 const scanWorker = process.argv[2] === scanWorkerArgument && typeof process.send === "function";
 (scanWorker ? scan(process.argv.slice(3)) : main(process.argv.slice(2))).then(
   async (status) => {
     process.exitCode = status;
     if (scanWorker) await finishScanWorker(status);
+    else await exitWith(status);
   },
   async (error: unknown) => {
     console.error(formatUnhandledDiagnostic(error));
     process.exitCode = 2;
     if (scanWorker) await finishScanWorker(2);
+    else await exitWith(2);
   },
 );
