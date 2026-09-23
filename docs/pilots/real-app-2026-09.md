@@ -45,17 +45,23 @@ Keep pilot workspaces outside this repository. Node resolution from an applicati
 
 The complete pilot report is 850 KB, of which 789 KB is Epic's scan listing. It is kept outside the repository, SHA-256 `93e2402f2093619540cb91b2407b45a96f432d5c8f4c5116a7175c363ab6d4e3`, and validates with `npm run pilot:dev -- --validate <report>`. [final.json](final.json) still holds the previous final run.
 
-## Browser latency budget: fails
+## Browser latency budget
 
 `scripts/bench-dev-browser.mjs` was run on the prepared Epic workspace from the pilot above: five alternating pairs, Vite cache removed before each run. `scripts/check-browser-budget.mjs` was checked against the [adopted budget](responsiveness-budget.json). Each figure is the median time the plugin adds:
 
-| Build | Cold page | Navigation | Visible HMR |
-|---|---|---|---|
-| Budget | 2,000 ms | 100 ms | 2,000 ms |
-| `3ab46b4`, before the analyzer-yield stack | 1,938 ms | 32 ms | 1,151 ms |
-| `2736a7e`, current `main` | **9,004 ms** | 36 ms | **3,426 ms** |
-| Pilot build above | **9,983 ms** | **2,870 ms** | **7,670 ms** |
+| Build | Cold page | Navigation | Visible HMR | Budget met |
+|---|---|---|---|---|
+| Budget | 2,000 ms | 100 ms | 2,000 ms | |
+| `3ab46b4`, before the analyzer-yield stack | 1,938 ms | 32 ms | 1,151 ms | yes |
+| `2736a7e`, current `main` | 9,004 ms | 36 ms | 3,426 ms | no |
+| Pilot build above | 9,983 ms | 2,870 ms | 7,670 ms | no |
+| `main` plus the latency fixes | 1,935 ms | 22 ms | 1,689 ms | yes |
+| Pilot build plus the latency fixes | **1,021 ms** | **58 ms** | **753 ms** | **yes** |
 
-The `3ab46b4` run reproduces the last recorded measurement (1,970 ms cold page), so the bench is still sound on this host.
+The last row is measured with capture active on the visited pages. The Epic pilot passes again on that build.
 
-The analyzer-yield stack (#87–#96) raised cold-page and HMR overhead on `main` without being measured. The pilot build adds navigation and HMR cost. The likely cause: Epic's visited pages now capture calls in both realms, while before these changes nothing on them was eligible. The budget has not yet measured recording cost with real observations. Both regressions need profiling before the budget can be met again.
+What caused the regression:
+
+- **Tailwind rescanned ReplayLock's working files.** Tailwind v4's source detection scans every file that isn't gitignored. ReplayLock wrote session state and reports under `.replaylock/`, which applications don't ignore, so each recording write made Tailwind rescan and regenerate CSS. That took 6.5 s of a 13 s cold page on the Vite thread. The analyzer-yield stack's larger session reports made it worse. ReplayLock now writes `.replaylock/.gitignore`, which ignores everything except `cases/`.
+- **Whole-project rebuilds for rewritten modules.** Epic lists `vite-env-only` and `react-router-devtools` as `pre` plugins ahead of ReplayLock. Their output differs from the file on disk, so each capture module rebuilt the whole project plan: about 1 s each, five times on one cold page. The development transform now runs with `order: "pre"`.
+- **Rebuilds re-parsed every file.** Every rebuild parsed and bound every source file. Unchanged files are now reused, so a rebuild takes about 1 s instead of about 1.9 s.
