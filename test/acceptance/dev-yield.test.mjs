@@ -74,14 +74,14 @@ test("every replay hazard stays ineligible for an expected reason in both realms
   }
 });
 
-test("eligible corpus samples replay offline to their live completion", async (t) => {
-  const root = materialize(t, "corpus");
+async function replaySamples(t, name, section) {
+  const root = materialize(t, name);
   t.after(() => configureDevRuntime(undefined));
   const modules = new Map();
   let outputs = 0;
-  for (const [sampled, calls] of Object.entries(expectations.corpus.samples)) {
-    assert.ok(expectations.corpus.eligible.node.includes(sampled), `${sampled} is not an eligible corpus function`);
-    const [module, name] = sampled.split("#");
+  for (const [sampled, calls] of Object.entries(section.samples)) {
+    assert.ok(section.eligible.node.includes(sampled), `${sampled} is not eligible`);
+    const [module, callable] = sampled.split("#");
     if (!modules.has(module)) {
       const id = path.join(root, module);
       const transformed = transformDevSource({ root, id, code: readFileSync(id, "utf8"), environment: "node", generation: "yield", options, runtimeImport, replay: true });
@@ -97,15 +97,20 @@ test("eligible corpus samples replay offline to their live completion", async (t
     for (const args of calls) {
       const observations = [], blocks = [];
       configureDevRuntime({ onObservation: (value) => observations.push(value), onBlock: (value) => blocks.push(value) });
-      const live = await completion(() => exports[name](...structuredClone(args)));
+      const live = await completion(() => exports[callable](...structuredClone(args)));
       configureDevRuntime(undefined);
       assert.deepEqual(blocks, [], `${sampled} blocked ${JSON.stringify(args)}`);
-      assert.equal(observations.length, 1, `${sampled} ${JSON.stringify(args)}`);
-      const replayed = await withoutNativeEffects(() => completion(() => replayDevTrace(observations[0].trace, () => exports[target.replayExport](...structuredClone(args)))));
+      const observation = observations.find((item) => locator(item.locator) === sampled);
+      assert.ok(observation, `${sampled} ${JSON.stringify(args)} was not observed`);
+      const replayed = await withoutNativeEffects(() => completion(() => replayDevTrace(observation.trace, () => exports[target.replayExport](...structuredClone(args)))));
       assert.deepEqual(replayed, live, `${sampled} ${JSON.stringify(args)}`);
     }
   }
-});
+}
+
+test("eligible corpus samples replay offline to their live completion", (t) => replaySamples(t, "corpus", expectations.corpus));
+
+test("effects inside callbacks are intercepted: hazards made eligible replay offline", (t) => replaySamples(t, "false-safe", expectations.falseSafe));
 
 test("this repository's own code meets its eligibility floor", () => {
   for (const environment of realms) {

@@ -6,7 +6,7 @@ import { DETERMINISTIC_INTRINSICS, expressionPath } from "./effect-analyzer.js";
  * shared V1 intrinsic catalog without changing it: V1 assumption fingerprints
  * bind `INTRINSIC_CATALOG_VERSION`, which this catalog never affects.
  */
-export const DEV_CATALOG_VERSION = "3" as const;
+export const DEV_CATALOG_VERSION = "4" as const;
 
 export const DEV_ERROR_CONSTRUCTORS: ReadonlySet<string> = new Set(["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "EvalError"]);
 export const DEV_CONVERSION_FUNCTIONS: ReadonlySet<string> = new Set(["Number", "String", "Boolean", "BigInt", "parseInt", "parseFloat", "isFinite", "isNaN"]);

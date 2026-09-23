@@ -29,8 +29,6 @@ export interface DevFunction extends DevTarget {
   references: Map<ts.Node, ts.Node>;
   /** Inline functions passed to allowed built-in methods, analyzed as part of this callable. */
   callbacks: Set<ts.Node>;
-  /** Project functions called from those callbacks, where effects are not intercepted. */
-  callbackCalls: Map<ts.CallExpression, DevFunction>;
   /** Calls built-ins that can invoke methods of their receiver or arguments. */
   implicitBuiltins: boolean;
 }
@@ -280,7 +278,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             locator, replayExport: `__replaylock_dev_${createHash("sha256").update(JSON.stringify(locator)).digest("hex").slice(0, 24)}`,
             node, module, name, asynchronous: hasModifier(node, ts.SyntaxKind.AsyncKeyword),
             instrument: module.selected && (options.capture.mode === "automatic" || policy.capture),
-            problems, effects: new Map(), calls: new Map(), references: new Map(), callbacks: new Set(), callbackCalls: new Map(), implicitBuiltins: false,
+            problems, effects: new Map(), calls: new Map(), references: new Map(), callbacks: new Set(), implicitBuiltins: false,
           };
           if (binding && bySymbol.has(binding)) { problems.add("AMBIGUOUS_CALLABLE"); bySymbol.get(binding)!.problems.add("AMBIGUOUS_CALLABLE"); }
           else if (binding) bySymbol.set(binding, candidate);
@@ -793,9 +791,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       }
       const effect = operation(child);
       if (effect) {
-        // Effects inside callbacks run outside interception.
-        if (callbackDepth > 0) problems.at("CALLBACK_EFFECT", child);
-        else if (!candidate.instrument) problems.at("UNINSTRUMENTED_EFFECT", child);
+        // Allowed callbacks run synchronously inside this invocation, so their
+        // effects are intercepted against its frame like the rest of its body.
+        if (!candidate.instrument) problems.at("UNINSTRUMENTED_EFFECT", child);
         else effects.set(child, effect);
       }
       if (ts.isCallExpression(child) || ts.isNewExpression(child)) {
@@ -805,7 +803,6 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         if (!effect) {
           if (target && ts.isCallExpression(child) && !child.questionDotToken && !ts.isCallChain(child)) {
             calls.set(child, target);
-            if (callbackDepth > 0) candidate.callbackCalls.set(child, target);
             reachableFunctions.add(target);
             asynchronous = target.asynchronous;
           } else if (name === "Promise.all" && ts.isCallExpression(child) && child.arguments.length === 1 && ts.isArrayLiteralExpression(unwrap(child.arguments[0]!))) {
@@ -848,21 +845,16 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       if (!covered) problems.at(finding.code, { module: candidate.locator.module, line: finding.line, column: finding.column });
     }
   }
-  // A project function called from a callback runs outside this invocation's
-  // interception, so it must have no traced effects, directly or transitively.
   // A callable whose built-ins may invoke methods of its values requires plain
   // values, and so does every callable that calls it.
-  const effectful = new Set([...reachableFunctions].filter((candidate) => candidate.effects.size > 0));
   const plain = new Set([...reachableFunctions].filter((candidate) => candidate.implicitBuiltins));
   for (let grew = true; grew;) {
     grew = false;
     for (const candidate of reachableFunctions) for (const target of candidate.calls.values()) {
-      if (effectful.has(target) && !effectful.has(candidate)) { effectful.add(candidate); grew = true; }
       if (plain.has(target) && !plain.has(candidate)) { plain.add(candidate); grew = true; }
     }
   }
   for (const candidate of reachableFunctions) {
-    for (const [call, target] of candidate.callbackCalls) if (effectful.has(target)) candidate.problems.at("CALLBACK_EFFECT", call);
     if (plain.has(candidate)) candidate.requires = ["plainValues"];
   }
   // Stable lexical locators must never silently pick one of two block-scoped names.

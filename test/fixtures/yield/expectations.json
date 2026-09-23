@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "3",
+  "catalogVersion": "4",
   "corpus": {
     "eligible": {
       "node": [
@@ -361,12 +361,20 @@
   "falseSafe": {
     "eligible": {
       "node": [
+        "src/callbacks.ts#randomComparator",
+        "src/callbacks.ts#randomInMap",
         "src/implicit.ts#randomText",
-        "src/methods.ts#noisy"
+        "src/methods.ts#effectfulCallee",
+        "src/methods.ts#noisy",
+        "src/methods.ts#randomReplacer"
       ],
       "browser": [
+        "src/callbacks.ts#randomComparator",
+        "src/callbacks.ts#randomInMap",
         "src/implicit.ts#randomText",
-        "src/methods.ts#noisy"
+        "src/methods.ts#effectfulCallee",
+        "src/methods.ts#noisy",
+        "src/methods.ts#randomReplacer"
       ]
     },
     "rejected": {
@@ -396,12 +404,6 @@
       ],
       "src/callbacks.ts#callbackParameter": [
         "UNKNOWN_CALL"
-      ],
-      "src/callbacks.ts#randomComparator": [
-        "CALLBACK_EFFECT"
-      ],
-      "src/callbacks.ts#randomInMap": [
-        "CALLBACK_EFFECT"
       ],
       "src/callbacks.ts#replacerFunction": [
         "FUNCTION_VALUE",
@@ -518,9 +520,6 @@
       "src/methods.ts#asyncCallback": [
         "FUNCTION_VALUE"
       ],
-      "src/methods.ts#effectfulCallee": [
-        "CALLBACK_EFFECT"
-      ],
       "src/methods.ts#forEachWrite": [
         "ARGUMENT_MUTATION"
       ],
@@ -539,9 +538,6 @@
       ],
       "src/methods.ts#parameterRegex": [
         "UNKNOWN_CALL"
-      ],
-      "src/methods.ts#randomReplacer": [
-        "CALLBACK_EFFECT"
       ],
       "src/methods.ts#receiverCallback": [
         "RECEIVER_DEPENDENCE"
@@ -634,6 +630,38 @@
       ],
       "src/worker-import.ts#workerName": [
         "UNKNOWN_MODULE"
+      ]
+    },
+    "samples": {
+      "src/callbacks.ts#randomInMap": [
+        [
+          [
+            1,
+            2
+          ]
+        ]
+      ],
+      "src/callbacks.ts#randomComparator": [
+        [
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      ],
+      "src/methods.ts#effectfulCallee": [
+        [
+          [
+            1,
+            2
+          ]
+        ]
+      ],
+      "src/methods.ts#randomReplacer": [
+        [
+          "banana"
+        ]
       ]
     }
   },

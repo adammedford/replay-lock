@@ -79,3 +79,13 @@ Built-in methods are allowed by name on data receivers, with mutating methods li
 | This repository (each realm) | 14 eligible | 36 eligible |
 
 The corpus gained seven ordinary list and string helpers in this change; all are eligible. The four remaining corpus exclusions are a function that reads a clock-initialized binding, a React-style hook that passes a function to library code, a meta arrow with a destructured parameter, and a helper that calls into a router package with module-wide initialization.
+
+## P4b: traced effects inside callbacks (development catalog 4)
+
+Allowed callbacks run synchronously inside their caller, so the transform now intercepts their effects, and calls to project functions from them, against the caller's frame. `CALLBACK_EFFECT` is retired. Four former hazards (`Math.random` in a map callback or sort comparator, an effectful replacer, a callback calling an effectful helper) are eligible and must replay offline with native randomness and clocks disabled; the conformance idiom family replays them in Node and Chromium.
+
+| Project | Before (P4a) | After |
+|---|---|---|
+| Replay hazard fixtures | 86 rejected | 82 rejected, 4 intercepted and replayed offline |
+| Ordinary code corpus (40 callables) | 36 eligible | 36 eligible |
+| This repository (each realm) | 36 eligible | 36 eligible |
