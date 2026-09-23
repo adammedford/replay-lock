@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Plugin } from "vite";
 import type { DevCase, DevEnvironment, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 import { devArtifactJson, parseDevCase } from "./dev-artifacts.js";
@@ -198,10 +198,15 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   if (realm === "browser") {
     try {
       const require = createRequire(import.meta.url);
-      const providerPath = require.resolve("@vitest/browser-playwright");
-      const { playwright } = await import(providerPath) as { playwright: (options: unknown) => NonNullable<NonNullable<typeof browser>["provider"]> };
+      // A resolved path is not an import specifier on Windows (`D:\...`).
+      const providerUrl = pathToFileURL(require.resolve("@vitest/browser-playwright")).href;
+      const { playwright } = await import(providerUrl) as { playwright: (options: unknown) => NonNullable<NonNullable<typeof browser>["provider"]> };
       browser = { enabled: true, headless: true, api: { host: "127.0.0.1", port: 0 }, provider: playwright({ contextOptions: { timezoneId: runtime.timezone, locale: runtime.locale } }), instances: [{ browser: "chromium" }], screenshotFailures: false };
-    } catch { console.error("BROWSER_PROVIDER_MISSING: install @vitest/browser-playwright and Playwright Chromium"); return 2; }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      console.error(code === "MODULE_NOT_FOUND" || code === "ERR_MODULE_NOT_FOUND" ? "BROWSER_PROVIDER_MISSING: install @vitest/browser-playwright and Playwright Chromium" : `BROWSER_PROVIDER_FAILED: ${(error as Error).message}`);
+      return 2;
+    }
   }
   const { startVitest } = await import("vitest/node");
   let infrastructure = false;
