@@ -467,16 +467,47 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   };
   const mutationApis = new Set(["Object.assign", "Object.defineProperty", "Object.defineProperties", "Object.setPrototypeOf", "Object.freeze", "Object.seal", "Object.preventExtensions", "Reflect.set", "Reflect.deleteProperty", "Reflect.defineProperty", "Reflect.setPrototypeOf"]);
   const knownReads = new Set(["Math.random", "crypto.randomUUID", "Date", "Date.now", "performance.now"]);
+  // Key readers that run no getters, so reading a built-in object only
+  // computes the declaration's value (`Object.getOwnPropertyNames(Object.prototype)`).
+  const keyReaders = new Set(["Object.keys", "Object.getOwnPropertyNames", "Object.hasOwn", "Object.isFrozen"]);
+  // Literals whose creation and definition run no code: no accessors,
+  // methods, spreads or computed keys.
+  const plainLiteral = (node: ts.Expression): node is ts.ObjectLiteralExpression => ts.isObjectLiteralExpression(node)
+    && node.properties.every((property) => (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) && !ts.isComputedPropertyName(property.name));
+  const literalKey = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)) return true;
+    return ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Symbol" && undeclared(node.expression);
+  };
+  const definitionApis = new Set(["Object.defineProperty", "Object.defineProperties", "Object.freeze", "Object.seal", "Object.preventExtensions"]);
+  /**
+   * Defining, freezing or sealing properties of the object the expression
+   * itself creates changes nothing else. Bundlers emit this for namespace
+   * objects: `Object.freeze(Object.defineProperty({ __proto__: null, ... },
+   * Symbol.toStringTag, { value: "Module" }))`.
+   */
+  const ownedDefinition = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    if (plainLiteral(node)) return true;
+    if (ts.isArrayLiteralExpression(node)) return !node.elements.some(ts.isSpreadElement);
+    if (!ts.isCallExpression(node)) return false;
+    const name = identity(unwrap(node.expression));
+    const [target, key, descriptor] = node.arguments.map(unwrap);
+    if (!name || !definitionApis.has(name) || !target || !ownedDefinition(target)) return false;
+    if (name === "Object.defineProperty") return node.arguments.length === 3 && literalKey(key!) && plainLiteral(descriptor!);
+    if (name === "Object.defineProperties") return node.arguments.length === 2 && plainLiteral(key!) && key.properties.every((property) => ts.isPropertyAssignment(property) && plainLiteral(unwrap(property.initializer)));
+    return node.arguments.length === 1;
+  };
   const callTier = (node: ts.CallExpression | ts.NewExpression): Tier => {
     const callee = unwrap(node.expression);
     const args = node.arguments ?? [];
     if (callee.kind === ts.SyntaxKind.ImportKeyword) return globalTier;
     const name = identity(callee);
     if (ts.isIdentifier(callee) && callee.text === "require" && undeclared(callee)) return args.length === 1 && ts.isStringLiteral(args[0]!) ? containingTier(node) : globalTier;
-    if (name && mutationApis.has(name) && args[0]) return writeTier(args[0]);
+    if (name && mutationApis.has(name) && args[0]) return ownedDefinition(node) ? containingTier(node) : writeTier(args[0]);
     const known = classifyKnownInvocation(expressionPath(callee) ?? name);
     if (known === "DYNAMIC_EVALUATION" || known === "IO" || known === "LOGGING") return globalTier;
-    if (name && knownReads.has(name)) return containingTier(node);
+    if (name && (knownReads.has(name) || (keyReaders.has(name) && !args.some(ts.isSpreadElement)))) return containingTier(node);
     if (args.some(builtinObject)) return globalTier;
     let base: ts.Expression = callee;
     let member: string | undefined;

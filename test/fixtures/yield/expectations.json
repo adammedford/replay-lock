@@ -10,6 +10,7 @@
         "src/arrays.ts#sum",
         "src/arrays.ts#unique",
         "src/boot.ts#double",
+        "src/classes.ts#initial",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
@@ -52,6 +53,7 @@
         "src/arrays.ts#sum",
         "src/arrays.ts#unique",
         "src/boot.ts#double",
+        "src/classes.ts#initial",
         "src/errors.ts#requirePositive",
         "src/imports.ts#parityLabel",
         "src/json.ts#encodePath",
@@ -143,6 +145,14 @@
       "src/boot.ts#double": [
         [
           2
+        ]
+      ],
+      "src/classes.ts#initial": [
+        [
+          "ada"
+        ],
+        [
+          ""
         ]
       ],
       "src/errors.ts#requirePositive": [
@@ -550,10 +560,26 @@
       "src/implicit.ts#writeInToString": [
         "FUNCTION_VALUE"
       ],
+      "src/init/assign-getter.ts#besideAssign": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
       "src/init/console-init.ts#logged": [
         "EFFECTFUL_INITIALIZATION"
       ],
+      "src/init/define-accessor.ts#besideAccessorDefinition": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/define-descriptor.ts#besideDescriptorBinding": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
       "src/init/global-install.ts#afterInstall": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/global-values.ts#besideGlobalValues": [
+        "EFFECTFUL_INITIALIZATION"
+      ],
+      "src/init/host-keys.ts#hostKeyCount": [
+        "AMBIENT_STATE",
         "EFFECTFUL_INITIALIZATION"
       ],
       "src/init/host-write.ts#afterHostWrite": [
@@ -739,7 +765,7 @@
     }
   },
   "selfFloor": {
-    "node": 38,
-    "browser": 38
+    "node": 114,
+    "browser": 114
   }
 }
