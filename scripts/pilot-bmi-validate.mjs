@@ -15,8 +15,8 @@ const guard = fileURLToPath(new URL('./pilot-offline-guard.mjs', import.meta.url
 const source = path.join(root, 'src/utils/bmiCalculator.ts');
 const original = await readFile(source, 'utf8');
 const cases = await Promise.all((await readdir(path.join(root, '.replaylock/cases'))).filter(name => name.endsWith('.json')).map(async name => JSON.parse(await readFile(path.join(root, '.replaylock/cases', name), 'utf8'))));
-assert.equal(cases.length, 2);
-assert.deepEqual(cases.map(item => item.locator.namePath.at(-1)).sort(), ['getBMICategory', 'getHealthSuggestions']);
+// calculateBMI became capturable with the P1-P6 analyzer changes.
+assert.deepEqual(cases.map(item => item.locator.namePath.at(-1)).sort(), ['calculateBMI', 'getBMICategory', 'getHealthSuggestions']);
 assert.ok(cases.every(item => item.environment === 'browser' && item.trace.length === 0));
 assert.ok(cases.every(item => item.arguments.kind === 'array' && item.eligibility.verdict === 'replayable'));
 
@@ -26,18 +26,18 @@ function verify() {
     let transcript = '';
     child.stdout.on('data', data => { transcript += data; });
     child.stderr.on('data', data => { transcript += data; });
-    child.on('close', code => resolve({ exitCode: code, verifiedTwo: /Verified 2 V2 case\(s\)/.test(transcript), outputMismatch: /OUTPUT_MISMATCH/.test(transcript), outputTail: transcript.slice(-1000) }));
+    child.on('close', code => resolve({ exitCode: code, verifiedAll: transcript.includes(`Verified ${cases.length} V2 case(s)`), outputMismatch: /OUTPUT_MISMATCH/.test(transcript), outputTail: transcript.slice(-1000) }));
   });
 }
 const report = { schemaVersion: 1, generatedAt: new Date().toISOString(), runnerSha256: sha256(await readFile(fileURLToPath(import.meta.url))), guardSha256: sha256(await readFile(guard)), cases: cases.map(item => ({ caseId: item.caseId, locator: item.locator, environment: item.environment, input: item.arguments, trace: item.trace, completion: item.completion })), originalSourceSha256: sha256(original) };
 try {
   report.offlineReplay = await verify();
   assert.equal(report.offlineReplay.exitCode, 0);
-  assert.equal(report.offlineReplay.verifiedTwo, true);
+  assert.equal(report.offlineReplay.verifiedAll, true);
   await writeFile(source, '// Behavior-preserving pilot comment\n' + original);
   report.benignEditReplay = await verify();
   assert.equal(report.benignEditReplay.exitCode, 0);
-  assert.equal(report.benignEditReplay.verifiedTwo, true);
+  assert.equal(report.benignEditReplay.verifiedAll, true);
   assert.ok(original.includes('if (bmi < 24.9)'));
   await writeFile(source, original.replace('if (bmi < 24.9)', 'if (bmi < 24.0)'));
   report.seededRegression = await verify();

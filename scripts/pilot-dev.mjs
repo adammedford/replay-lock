@@ -46,7 +46,10 @@ async function probeRecord(request){
       await page.goto(`${manifest.url}users/kody`);await page.locator('a[href="/users/kody/notes"]').waitFor();result.workflows.push({id:'profile-navigation',status:'passed',assertion:'Seeded profile renders a notes link.'});await page.locator('a[href="/users/kody/notes"]').click();await page.waitForURL(/notes/);result.workflows.push({id:'notes-navigation',status:'passed',assertion:'Existing notes navigation reaches seeded notes.'});
     }
     const stopped=await command(manifest,'stop');result.observations=stopped.observations;result.candidates=stopped.candidates;result.session=stopped.session;result.recordingBlocks=stopped.recordingBlocks;
-    assert.ok(stopped.candidates>0,'NO_WORKFLOW_CANDIDATES');assert.equal(stopped.recordingBlocks,0,'PARTIAL_CAPTURE');
+    // A value block leaves one observation out of an otherwise sound session; integrity blocks do not.
+    const reported=(await execute([process.execPath,cli,'report','--session',stopped.session,'--json'],root,60000)).output;result.blocks=JSON.parse(reported.slice(reported.indexOf('{'))).blocks;
+    const integrity=Object.keys(result.blocks).filter(code=>!/^(?:UNSUPPORTED_VALUE|UNSUPPORTED_EFFECT|SENSITIVE_VALUE|OVERSIZED_OBSERVATION|MUTATED_INPUT|VALUE_ADAPTER_[A-Z_]+)$/.test(code));
+    assert.ok(stopped.candidates>0,'NO_WORKFLOW_CANDIDATES');assert.deepEqual(integrity,[],'PARTIAL_CAPTURE');
     await writeFile(output,JSON.stringify(result));console.log('PILOT WORKLOAD RECORDED');
   }catch(error){result.code=error.message;await writeFile(path.join(path.dirname(output),'record-startup.log'),transcript);console.error(transcript.slice(-5000));console.error(error.message);process.exitCode=2;}
   finally{

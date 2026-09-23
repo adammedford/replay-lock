@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-13T02:02:02.542Z",
+  "generatedAt": "2026-09-23T18:53:19.049Z",
   "sourceRevision": "5b32cf94ed51ab00c43a2d98ffb410270bbeebd4",
   "source": {
     "packageJsonSha256": "c7c895e812ffa46c06d65766e01e82397fbcac48bc35f28f1f4230804b397198",
     "lockfileSha256": "88da2115c10d3147f76e603ab25660382103543b24d5a68201d92721570488b5"
   },
   "artifact": {
-    "tarballSha256": "55ee7eb14f7a574d77988e2a2c11a702052d8ece7a612c3861f0d6b168f26bc0",
-    "installedDevServerSha256": "485e39f29367f9338a91623340f7f181b9d0c9ed1f71dd28be27a73a2267a817"
+    "tarballSha256": "84b2097db05b15247e9df66929d3bfb84a4b4d12a3b61078f3738f4d91cd94c2",
+    "installedDevServerSha256": "7aa646276e434bcd902f3544cefff981554b00b8acb07f8ae44b97b17eb504bb"
   },
   "environment": {
     "node": "22.19.0",
@@ -33,10 +33,10 @@
     ]
   },
   "recording": {
-    "observations": 21,
-    "candidates": 2,
-    "recordingBlocks": 14,
-    "session": "2d7eed19-4aa4-414d-b3c5-decd40589453"
+    "observations": 24,
+    "candidates": 3,
+    "recordingBlocks": 17,
+    "session": "eaf5b8df-45f5-4baa-9e71-b02bb76dfed2"
   },
   "cleanup": {
     "controllerExited": true,
@@ -49,5 +49,5 @@
   },
   "captureStatus": "partial",
   "status": "passed",
-  "transcriptTail": "\n> smartvk-bmi-calculator@0.0.0 dev\n> vite --host 127.0.0.1 --port 43187 --strictPort\n\nReplayLock: 4 eligible environment targets; 132 skipped findings\nReplayLock RECORDING 2d7eed19-4aa4-414d-b3c5-decd40589453\nRe-optimizing dependencies because lockfile has changed\n\n  VITE v5.4.11  ready in 981 ms\n\n  ➜  Local:   http://127.0.0.1:43187/smartvk-bmi-calculator/\nReplayLock attached to http://127.0.0.1:43187/smartvk-bmi-calculator/; press Ctrl-C to stop recording\nBrowserslist: caniuse-lite is outdated. Please run:\n  npx update-browserslist-db@latest\n  Why you should do it regularly: https://github.com/browserslist/update-db#readme\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-runtime.js\" points to missing source files\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-client.js\" points to missing source files\nSourcemap for \"/private/tmp/replaylock70-consumer/node_modules/replaylock/dist/dev-values.js\" points to missing source files\nReplayLock UNSUPPORTED_VALUE\nReplayLock INCOMPLETE_OBSERVATION\nReplayLock: recorded 21 completed observations; 2 pending candidates\nRecorded 21 observation(s); 2 pending candidate(s)\n"
+  "transcriptTail": "\n> smartvk-bmi-calculator@0.0.0 dev\n> vite --host 127.0.0.1 --port 43187 --strictPort\n\nReplayLock: 8 eligible environment targets; 128 skipped findings\nReplayLock RECORDING eaf5b8df-45f5-4baa-9e71-b02bb76dfed2\n\n  VITE v5.4.11  ready in 924 ms\n\n  ➜  Local:   http://127.0.0.1:43187/smartvk-bmi-calculator/\nReplayLock attached to http://127.0.0.1:43187/smartvk-bmi-calculator/; press Ctrl-C to stop recording\nBrowserslist: caniuse-lite is outdated. Please run:\n  npx update-browserslist-db@latest\n  Why you should do it regularly: https://github.com/browserslist/update-db#readme\nSourcemap for \"/private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/bmi-outside/consumer/node_modules/replaylock/dist/dev-client.js\" points to missing source files\nSourcemap for \"/private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/bmi-outside/consumer/node_modules/replaylock/dist/dev-runtime.js\" points to missing source files\nSourcemap for \"/private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/bmi-outside/consumer/node_modules/replaylock/dist/dev-values.js\" points to missing source files\nSourcemap for \"/private/var/folders/bn/ngcdmw4j1j166l49m89lf5f00000gn/T/bmi-outside/consumer/node_modules/replaylock/dist/dev-intrinsics.js\" points to missing source files\nReplayLock UNSUPPORTED_VALUE\nReplayLock INCOMPLETE_OBSERVATION\nReplayLock: recorded 24 completed observations; 3 pending candidates\nRecorded 24 observation(s); 3 pending candidate(s)\n"
 }
