@@ -338,25 +338,31 @@ export function devRecordingPlugin(): Plugin {
     transformIndexHtml() {
       return recording ? [{ tag: "script", attrs: { type: "module" }, children: `import ${JSON.stringify(`/@id/__x00__${virtualRuntime}`)};`, injectTo: "head-prepend" as const }] : [];
     },
-    async transform(code, rawId, transformOptions) {
-      if (!recording) return null;
-      const id = rawId.split("?", 1)[0]!;
-      if (id.startsWith("\0") || id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
-      if (root !== packageRoot && (id === packageRoot || id.startsWith(`${packageRoot}/`))) return null;
-      const environment = transformOptions?.ssr || this.environment?.name === "ssr" ? "node" : "browser";
-      // Only authored, source-qualified modules are capture candidates. Other
-      // plugins' generated overlays must not trigger whole-project analysis for
-      // excluded modules or introduce new recording targets behind discovery.
-      const currentGeneration = String(generation).padStart(10, "0");
-      const result = await project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" }).catch(error => {
-        if (!recording || currentGeneration !== String(generation).padStart(10, "0")) return null;
-        throw error;
-      });
-      if (!result || currentGeneration !== String(generation).padStart(10, "0") || !recording) return null;
-      if (result.targets.length) instrumentedFiles.add(id);
-      report?.discover(result, environment, currentGeneration);
-      for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
-      return { code: result.code, map: result.map as null };
+    // Instrument authored source before other plugins rewrite it. Their output
+    // (Babel macros, framework route transforms) differs from the file, and
+    // analyzing that overlay rebuilds the whole project plan for each module.
+    transform: {
+      order: "pre",
+      async handler(code, rawId, transformOptions) {
+        if (!recording) return null;
+        const id = rawId.split("?", 1)[0]!;
+        if (id.startsWith("\0") || id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
+        if (root !== packageRoot && (id === packageRoot || id.startsWith(`${packageRoot}/`))) return null;
+        const environment = transformOptions?.ssr || this.environment?.name === "ssr" ? "node" : "browser";
+        // Only authored, source-qualified modules are capture candidates. Other
+        // plugins' generated overlays must not trigger whole-project analysis for
+        // excluded modules or introduce new recording targets behind discovery.
+        const currentGeneration = String(generation).padStart(10, "0");
+        const result = await project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" }).catch(error => {
+          if (!recording || currentGeneration !== String(generation).padStart(10, "0")) return null;
+          throw error;
+        });
+        if (!result || currentGeneration !== String(generation).padStart(10, "0") || !recording) return null;
+        if (result.targets.length) instrumentedFiles.add(id);
+        report?.discover(result, environment, currentGeneration);
+        for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
+        return { code: result.code, map: result.map as null };
+      },
     },
     async handleHotUpdate(context) {
       if (context.file.includes("/.replaylock/")) return [];
