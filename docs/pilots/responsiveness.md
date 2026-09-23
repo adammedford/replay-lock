@@ -48,3 +48,7 @@ npm run verify:dogfood
 ```
 
 Use the repository Node 22 toolchain. Full local and hosted verification status is tracked in [implementation progress](../plans/development-responsiveness-progress.md) and [PR #80](https://github.com/adammedford/replay-lock/pull/80). Timing budgets remain explicitly invoked, outside ordinary CI.
+
+## Addendum, 2026-09-22: reference-scoped initialization
+
+The statement above that "import initialization remains unconditional" describes the measured implementation. Development analysis now attributes each module-scope effect to what can observe it (global, module-wide, or one declaration; see [development recording](../development-recording.md)). The authored exclusion shortcut applies only to modules whose own initialization taints every function in them. The measurements above were not repeated for this change.

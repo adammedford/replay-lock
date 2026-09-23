@@ -7,3 +7,5 @@ These synthetic expectations were generated using the unmodified built analyzer 
 `project-baseline.json` retains complete analyses, transformations, source maps and graph digests for both realms across unsafe dependency, safe transitive helper and effectful initialization stages. Absolute fixture roots are normalized to `$root`; source contents and digest inputs are otherwise unchanged. The current cache is exercised across the stages, including shifted-source overlays.
 
 Do not regenerate these expectations from the optimized analyzer merely to make a failing test pass. Investigate any changed decision or evidence against the recorded base and any separately approved semantic change.
+
+Approved semantic change (reference-scoped module initialization, 2026-09-22): stage 3's dependency initializes `const initial=Date.now()`, which `helper` never reads. Module initialization now taints only what can observe it, so `main` is eligible in stage 3. Only stage 3's `realms` were regenerated, from the implementation that made this change; stages 1 and 2 and every source input were verified byte-identical before writing.

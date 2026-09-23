@@ -3,10 +3,10 @@ import { readdirSync, realpathSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import path from "node:path";
 import ts from "typescript";
-import { createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
+import { classifyKnownInvocation, createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
-import { DEV_AMBIENT_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devCatalogInvocation, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
+import { DEV_AMBIENT_GLOBALS, DEV_BUILTIN_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devCatalogInvocation, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
 export type DevCallable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
@@ -25,15 +25,33 @@ export interface DevFunction extends DevTarget {
   problems: DevProblems;
   effects: Map<ts.Node, DevOperation>;
   calls: Map<ts.CallExpression, DevFunction>;
+  /** Top-level declarations (or namespace-imported modules) this callable references, with a referencing node. */
+  references: Map<ts.Node, ts.Node>;
 }
+/**
+ * Module initialization runs whenever a module is imported, including when
+ * verify imports a case's module. Each initialization effect taints what it
+ * can affect: a global effect taints the module and every module importing it;
+ * an unbound statement taints every function in the module and every reference
+ * to a binding it declares; an effect in one declaration's initializer taints
+ * only references to that declaration.
+ */
 export interface DevModule {
   file: string;
   sourceFile: ts.SourceFile;
   selected: boolean;
-  hasDirectInitializationEffects: boolean;
+  /** Authored initialization alone taints every function in this module. */
+  initializationTaintsModule: boolean;
   dependencies: Set<string>;
   dependencyNodes: Map<string, ts.Node>;
+  /** Dependencies imported only for their side effects. */
+  bareDependencies: Set<string>;
+  /** Global: this module and, transitively, every module importing it. */
   problems: DevProblems;
+  /** Module-wide: every function here and every reference to a binding declared here. */
+  moduleProblems: DevProblems;
+  /** Per top-level declaration (or unresolved import binding): references to it. */
+  bindings: Map<ts.Node, DevProblems>;
 }
 export interface DevProject {
   analysis: DevAnalysis;
@@ -83,8 +101,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   const inputs = createDevInputTracker();
   // This syntactic pass runs before bindings resolve, so it accepts any
   // identifier argument; the binding-aware initialization pass below is strict.
-  const { analyzeDirectEffects, analyzeModuleInitialization } = createEffectAnalyzer({
+  const { analyzeDirectEffects, moduleInitializationNodes } = createEffectAnalyzer({
     isDeterministicInvocation: (node) => devInertInitialization(node, { name: expressionPath, inertIdentifier: () => true }),
+    callableInitialization: "omit",
   });
   const { isFile, read } = inputs;
   inputs.track(rootInput);
@@ -168,7 +187,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const text = sources.get(file)!;
     const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, typescriptScriptKind(file));
     const dependencies = new Set<string>();
+    const bareDependencies = new Set<string>();
     const problems = new DevProblems(root, sourceFile, sourceFile);
+    const bindings = new Map<ts.Node, DevProblems>();
     const dependencyNodes = new Map<string, ts.Node>();
     if (options.resolveAliases?.some((entry) => typeof entry.find !== "string" || typeof entry.replacement !== "string" || !entry.find)) problems.add("UNKNOWN_MODULE");
     const relative = posix(path.relative(root, file));
@@ -181,16 +202,29 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       if (!specifier || !ts.isStringLiteral(specifier)) { problems.at("UNKNOWN_MODULE", statement); continue; }
       if (builtins.has(applyAlias(specifier.text, options).replace(/^node:/, ""))) continue;
       if (inertAsset(file, specifier.text)) continue;
+      const bare = ts.isImportDeclaration(statement) && !statement.importClause;
       const dependency = resolve(file, specifier.text);
-      if (!dependency) { problems.at("UNKNOWN_MODULE", specifier); continue; }
+      if (!dependency) {
+        // Unknown code imported only for its effects taints everything; an
+        // unresolved binding taints only the code that references it.
+        if (bare) problems.at("UNKNOWN_MODULE", specifier);
+        else for (const binding of importBindings(statement)) {
+          const unresolved = new DevProblems(root, sourceFile, binding);
+          unresolved.at("UNKNOWN_MODULE", specifier);
+          bindings.set(binding, unresolved);
+        }
+        continue;
+      }
+      if (bare) bareDependencies.add(dependency);
       dependencies.add(dependency);
       dependencyNodes.set(dependency, specifier);
       if (!sources.has(dependency)) sources.set(dependency, read(dependency));
       reachable.add(dependency);
     }
-    const initializationFindings = analyzeModuleInitialization({ source: relative, sourceFile }).findings;
-    for (const finding of initializationFindings) problems.at("EFFECTFUL_INITIALIZATION", { module: relative, line: finding.line, column: finding.column });
-    modules.set(file, { file, sourceFile, selected, hasDirectInitializationEffects: initializationFindings.length > 0, dependencies, dependencyNodes, problems });
+    modules.set(file, {
+      file, sourceFile, selected, initializationTaintsModule: false, dependencies, dependencyNodes, bareDependencies,
+      problems, moduleProblems: new DevProblems(root, sourceFile, sourceFile), bindings,
+    });
   }
   const compilerOptions: ts.CompilerOptions = { noLib: true, allowJs: true, checkJs: true, target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler };
   const host = ts.createCompilerHost(compilerOptions);
@@ -240,7 +274,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             locator, replayExport: `__replaylock_dev_${createHash("sha256").update(JSON.stringify(locator)).digest("hex").slice(0, 24)}`,
             node, module, name, asynchronous: hasModifier(node, ts.SyntaxKind.AsyncKeyword),
             instrument: module.selected && (options.capture.mode === "automatic" || policy.capture),
-            problems, effects: new Map(), calls: new Map(),
+            problems, effects: new Map(), calls: new Map(), references: new Map(),
           };
           if (binding && bySymbol.has(binding)) { problems.add("AMBIGUOUS_CALLABLE"); bySymbol.get(binding)!.problems.add("AMBIGUOUS_CALLABLE"); }
           else if (binding) bySymbol.set(binding, candidate);
@@ -354,9 +388,112 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       return inertBindings.get(declaration)!;
     },
   };
-  // Module execution must be safe independently of capture selection. In
-  // particular, an environment snapshot in a dependency is not a traced read.
+  // Module execution must be safe independently of capture selection. Each
+  // module-scope effect is attributed to what it can affect (see DevModule);
+  // an environment snapshot in a dependency is not a traced read.
+  const moduleOf = new Map<ts.SourceFile, DevModule>([...modules.values()].map((module) => [module.sourceFile, module]));
+  const bindingProblems = (module: DevModule, declaration: ts.Node): DevProblems => {
+    let problems = module.bindings.get(declaration);
+    if (!problems) module.bindings.set(declaration, problems = new DevProblems(root, module.sourceFile, declaration));
+    return problems;
+  };
+  const undeclared = (node: ts.Identifier): boolean => !checker.getSymbolAtLocation(node)?.declarations?.length;
+  /** The top-level declaration a binding belongs to, keyed as module bindings are. */
+  const topLevelDeclaration = (declaration: ts.Node | undefined): ts.Node | undefined => {
+    let node = declaration;
+    while (node && (ts.isBindingElement(node) || ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node))) node = node.parent;
+    if (!node) return undefined;
+    if (ts.isVariableDeclaration(node)) return ts.isVariableStatement(node.parent.parent) && ts.isSourceFile(node.parent.parent.parent) ? node : undefined;
+    return (ts.isClassDeclaration(node) || ts.isFunctionDeclaration(node) || ts.isEnumDeclaration(node) || ts.isExportAssignment(node)) && ts.isSourceFile(node.parent) ? node : undefined;
+  };
+  /** A referenced top-level declaration, namespace-imported module, or unresolved import binding. */
+  const referenceTarget = (node: ts.Identifier): ts.Node | undefined => {
+    const own = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
+    const local = own?.declarations?.[0];
+    if (!own || !local) return undefined;
+    if (!(own.flags & ts.SymbolFlags.Alias)) return topLevelDeclaration(own.valueDeclaration ?? local);
+    const target = checker.getAliasedSymbol(own);
+    const declaration = target.valueDeclaration ?? target.declarations?.[0];
+    if (!declaration) return moduleOf.get(local.getSourceFile())?.bindings.has(local) ? local : undefined;
+    if (ts.isSourceFile(declaration)) return moduleOf.has(declaration) ? declaration : undefined;
+    return topLevelDeclaration(declaration);
+  };
+  type Tier = { kind: "global" } | { kind: "module" } | { kind: "binding"; declaration: ts.Node };
+  const globalTier: Tier = { kind: "global" }, moduleTier: Tier = { kind: "module" };
+  const globalObject = (name: string): boolean => name === "globalThis" || name === "window" || name === "self";
+  /** An effect outside any declaration is unbound; inside one, it taints that declaration. */
+  const containingTier = (node: ts.Node): Tier => {
+    let statement = node;
+    while (statement.parent && !ts.isSourceFile(statement.parent)) statement = statement.parent;
+    if (ts.isVariableStatement(statement)) {
+      const declaration = statement.declarationList.declarations.find((item) => descendantOf(node, item));
+      if (declaration) return { kind: "binding", declaration };
+    }
+    return ts.isClassDeclaration(statement) || ts.isExportAssignment(statement) ? { kind: "binding", declaration: statement } : moduleTier;
+  };
+  /** A write taints what it writes. */
+  const writeTier = (target: ts.Expression): Tier => {
+    let node = unwrap(target);
+    let member: string | undefined;
+    while (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) { member = memberName(node); node = unwrap(node.expression); }
+    if (node.kind === ts.SyntaxKind.ThisKeyword) return moduleTier;
+    if (!ts.isIdentifier(node)) return globalTier;
+    if (undeclared(node)) {
+      if (node.text === "module" || node.text === "exports") return moduleTier;
+      // A conventionally private global registration (`window.__version`)
+      // cannot be read by a capture target; host and built-in globals can.
+      return globalObject(node.text) && member !== undefined && /^[_$]/.test(member) ? moduleTier : globalTier;
+    }
+    const own = checker.getSymbolAtLocation(node)!;
+    if (own.flags & ts.SymbolFlags.Alias) return moduleTier;
+    const declaration = topLevelDeclaration(own.valueDeclaration ?? own.declarations?.[0]);
+    return declaration ? { kind: "binding", declaration } : moduleTier;
+  };
+  /** The global object, a built-in global, or a built-in prototype passed where unknown code can change it. */
+  const builtinObject = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    if (ts.isIdentifier(node)) return undeclared(node) && (globalObject(node.text) || DEV_BUILTIN_GLOBALS.has(node.text));
+    if (!ts.isPropertyAccessExpression(node)) return false;
+    const base = unwrap(node.expression);
+    return ts.isIdentifier(base) && undeclared(base) && (globalObject(base.text) || (node.name.text === "prototype" && DEV_BUILTIN_GLOBALS.has(base.text)));
+  };
+  const mutationApis = new Set(["Object.assign", "Object.defineProperty", "Object.defineProperties", "Object.setPrototypeOf", "Object.freeze", "Object.seal", "Object.preventExtensions", "Reflect.set", "Reflect.deleteProperty", "Reflect.defineProperty", "Reflect.setPrototypeOf"]);
+  const knownReads = new Set(["Math.random", "crypto.randomUUID", "Date", "Date.now", "performance.now"]);
+  const callTier = (node: ts.CallExpression | ts.NewExpression): Tier => {
+    const callee = unwrap(node.expression);
+    const args = node.arguments ?? [];
+    if (callee.kind === ts.SyntaxKind.ImportKeyword) return globalTier;
+    const name = identity(callee);
+    if (ts.isIdentifier(callee) && callee.text === "require" && undeclared(callee)) return args.length === 1 && ts.isStringLiteral(args[0]!) ? containingTier(node) : globalTier;
+    if (name && mutationApis.has(name) && args[0]) return writeTier(args[0]);
+    const known = classifyKnownInvocation(expressionPath(callee) ?? name);
+    if (known === "DYNAMIC_EVALUATION" || known === "IO" || known === "LOGGING") return globalTier;
+    if (name && knownReads.has(name)) return containingTier(node);
+    if (args.some(builtinObject)) return globalTier;
+    let base: ts.Expression = callee;
+    let member: string | undefined;
+    while (ts.isPropertyAccessExpression(base) || ts.isElementAccessExpression(base) || ts.isCallExpression(base)) {
+      if (!ts.isCallExpression(base)) member = memberName(base);
+      base = unwrap(base.expression);
+    }
+    if (ts.isIdentifier(base) && undeclared(base)) {
+      // Host APIs (timers, listeners, storage, network, logging) act globally;
+      // built-ins only compute values.
+      const global = globalObject(base.text) ? member : base.text;
+      return global !== undefined && DEV_BUILTIN_GLOBALS.has(global) ? containingTier(node) : globalTier;
+    }
+    return containingTier(node);
+  };
+  const initializationTier = (node: ts.Node): Tier => {
+    if (ts.isAwaitExpression(node) || ts.isYieldExpression(node) || ts.isForOfStatement(node)) return globalTier;
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) return callTier(node);
+    if (ts.isBinaryExpression(node)) return writeTier(node.left);
+    if (ts.isDeleteExpression(node)) return writeTier(node.expression);
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) return writeTier(node.operand);
+    return containingTier(node);
+  };
   for (const module of modules.values()) {
+    const findings = new Set<ts.Node>(moduleInitializationNodes(module.sourceFile));
     const initialization = (child: ts.Node): void => {
       if (ts.isFunctionLike(child)) {
         if (child.name && ts.isComputedPropertyName(child.name)) initialization(child.name.expression);
@@ -365,15 +502,42 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       if (ts.isTypeNode(child) || ts.isImportDeclaration(child) || ts.isExportDeclaration(child)) return;
       if (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) {
         const name = identity(child);
-        if (name === "process.env" || name?.startsWith("process.env.") || name === "import.meta.env" || name?.startsWith("import.meta.env.")) module.problems.at("EFFECTFUL_INITIALIZATION", child);
+        if (name === "process.env" || name?.startsWith("process.env.") || name === "import.meta.env" || name?.startsWith("import.meta.env.")) findings.add(child);
       }
-      if ((ts.isCallExpression(child) || ts.isNewExpression(child)) && !devInertInitialization(child, initializationContext)) module.problems.at("EFFECTFUL_INITIALIZATION", child);
+      if ((ts.isCallExpression(child) || ts.isNewExpression(child)) && !devInertInitialization(child, initializationContext)) findings.add(child);
+      if (ts.isForOfStatement(child) && child.awaitModifier) findings.add(child);
       ts.forEachChild(child, initialization);
     };
     initialization(module.sourceFile);
+    for (const finding of findings) {
+      const tier = initializationTier(finding);
+      const problems = tier.kind === "global" ? module.problems : tier.kind === "module" ? module.moduleProblems : bindingProblems(module, tier.declaration);
+      problems.at("EFFECTFUL_INITIALIZATION", finding);
+    }
+    // Resolution-independent: the transform may rely on this before analysis.
+    module.initializationTaintsModule = module.problems.has("EFFECTFUL_INITIALIZATION") || module.problems.has("UNSUPPORTED_SOURCE") || module.moduleProblems.size > 0;
+  }
+  // References made while a declaration initializes carry its dependencies' taint.
+  const declarationReferences = new Map<ts.Node, Map<ts.Node, ts.Node>>();
+  for (const module of modules.values()) for (const statement of module.sourceFile.statements) {
+    const declarations: ts.Node[] = ts.isVariableStatement(statement) ? [...statement.declarationList.declarations] : ts.isClassDeclaration(statement) || ts.isExportAssignment(statement) ? [statement] : [];
+    for (const declaration of declarations) {
+      const references = new Map<ts.Node, ts.Node>();
+      const visit = (child: ts.Node): void => {
+        if (child !== declaration && ts.isFunctionLike(child)) return;
+        if (ts.isTypeNode(child)) return;
+        if (ts.isIdentifier(child) && referenceIdentifier(child)) {
+          const target = referenceTarget(child);
+          if (target && target !== declaration && !references.has(target)) references.set(target, child);
+        }
+        ts.forEachChild(child, visit);
+      };
+      visit(declaration);
+      if (references.size) declarationReferences.set(declaration, references);
+    }
   }
   // Unselected dependency callables contribute only when reached by a selected
-  // callable. Module initialization above remains unconditional for every import.
+  // callable. Global initialization effects above apply to every importer.
   const reachableFunctions = new Set(functions.filter(candidate => candidate.instrument));
   // Every function body a target can reach is either analyzed as its own
   // callable or excluded. An unanalyzed function value can run implicitly
@@ -470,7 +634,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     return !!statement && ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && builtins.has(applyAlias(statement.moduleSpecifier.text, options).replace(/^node:/, "")) && canonical(root) === undefined;
   };
   for (const candidate of reachableFunctions) {
-    const { node, module, problems, effects, calls } = candidate;
+    const { node, module, problems, effects, calls, references } = candidate;
     const inspect = (child: ts.Node): void => {
       if (child !== node && ts.isFunctionLike(child)) {
         if (ts.isGetAccessorDeclaration(child) || ts.isSetAccessorDeclaration(child)) problems.at("UNKNOWN_CALL", child);
@@ -493,10 +657,13 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             if (!owner && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker) && !immutableTable(declaration)) problems.at("AMBIENT_STATE", child);
           }
         }
+        const target = referenceTarget(child);
+        if (target && !references.has(target)) references.set(target, child);
         // A function is safe only where it is called and analyzed as a call.
         if (!calleePosition(child) && (bySymbol.has(binding!) || (declaration && functionDeclaration(declaration)))) problems.at("FUNCTION_VALUE", child);
-        // An unresolved import already taints its module, with a cause chain.
-        if (!module.problems.has("UNKNOWN_MODULE") && unresolvedImport(child)) problems.at("UNKNOWN_MODULE", child);
+        // An unresolved module is inherited below with its cause chain; this
+        // covers missing exports and values bound by inert asset imports.
+        if (!module.problems.has("UNKNOWN_MODULE") && !(target && module.bindings.has(target)) && unresolvedImport(child)) problems.at("UNKNOWN_MODULE", child);
         if (!declaration && child.text === "arguments") problems.at("UNSUPPORTED_CALLABLE", child);
         if (!declaration && !DEV_AMBIENT_GLOBALS.has(child.text)) problems.at("UNKNOWN_REFERENCE", child);
       }
@@ -575,25 +742,47 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     if (previous) { previous.problems.add("AMBIGUOUS_CALLABLE"); candidate.problems.add("AMBIGUOUS_CALLABLE"); }
     locators.set(key, candidate);
   }
+  const inheritAll = (problems: DevProblems, source: DevProblems | undefined, via: ts.Node): boolean => {
+    let changed = false;
+    if (source) for (const code of source) if (!problems.has(code)) { problems.inherit(code, source, via); changed = true; }
+    return changed;
+  };
+  /** Inherit what a reference to `target` can observe: its binding and, from another module, that module's unbound effects. */
+  const inheritReference = (problems: DevProblems, from: DevModule, target: ts.Node, via: ts.Node): boolean => {
+    const owner = moduleOf.get(target.getSourceFile());
+    if (!owner) return false;
+    let changed = owner !== from && inheritAll(problems, owner.moduleProblems, via);
+    if (ts.isSourceFile(target)) for (const binding of owner.bindings.values()) changed = inheritAll(problems, binding, via) || changed;
+    else changed = inheritAll(problems, owner.bindings.get(target), via) || changed;
+    return changed;
+  };
   let changed = true;
   while (changed) {
     changed = false;
     for (const module of modules.values()) for (const dependency of module.dependencies) {
-      const inherited = modules.get(dependency)?.problems;
-      if (inherited) for (const code of inherited) if (!module.problems.has(code)) {
-        module.problems.inherit(code, inherited, module.dependencyNodes.get(dependency)!); changed = true;
+      const imported = modules.get(dependency);
+      if (!imported) continue;
+      const via = module.dependencyNodes.get(dependency)!;
+      changed = inheritAll(module.problems, imported.problems, via) || changed;
+      // A side-effect import runs the whole module for its effects.
+      if (module.bareDependencies.has(dependency)) changed = inheritAll(module.problems, imported.moduleProblems, via) || changed;
+    }
+    for (const [declaration, targets] of declarationReferences) {
+      const module = moduleOf.get(declaration.getSourceFile())!;
+      for (const [target, via] of targets) {
+        const owner = moduleOf.get(target.getSourceFile());
+        const tainted = owner && (owner !== module && owner.moduleProblems.size > 0 || (ts.isSourceFile(target) ? [...owner.bindings.values()].some((binding) => binding.size > 0) : !!owner.bindings.get(target)?.size));
+        if (tainted) changed = inheritReference(bindingProblems(module, declaration), module, target, via) || changed;
       }
     }
     // Unreached dependency functions cannot contribute diagnostics to a selected
-    // callable. Keep module propagation unconditional, but avoid constructing
+    // callable. Keep global propagation to every importer, but avoid constructing
     // unused per-callable cause chains for the rest of the dependency graph.
     for (const candidate of reachableFunctions) {
-      for (const code of candidate.module.problems) if (!candidate.problems.has(code)) {
-        candidate.problems.inherit(code, candidate.module.problems, candidate.node); changed = true;
-      }
-      for (const [call, target] of candidate.calls) for (const code of target.problems) if (!candidate.problems.has(code)) {
-        candidate.problems.inherit(code, target.problems, call); changed = true;
-      }
+      changed = inheritAll(candidate.problems, candidate.module.problems, candidate.node) || changed;
+      changed = inheritAll(candidate.problems, candidate.module.moduleProblems, candidate.node) || changed;
+      for (const [call, target] of candidate.calls) changed = inheritAll(candidate.problems, target.problems, call) || changed;
+      for (const [target, via] of candidate.references) changed = inheritReference(candidate.problems, candidate.module, target, via) || changed;
     }
   }
   const diagnostics: DevDiagnostic[] = [];
@@ -643,6 +832,17 @@ function selectedSource(file: string, options: ResolvedDevOptions): boolean {
 function applyAlias(specifier: string, options: ResolvedDevOptions): string {
   const alias = options.resolveAliases?.find((entry) => typeof entry.find === "string" && typeof entry.replacement === "string" && entry.find.length > 0 && (specifier === entry.find || specifier.startsWith(`${entry.find}/`)));
   return alias ? alias.replacement + specifier.slice(alias.find.length) : specifier;
+}
+/** The local bindings a runtime import declares: default, namespace, and non-type named imports. */
+function importBindings(node: ts.ImportDeclaration | ts.ExportDeclaration): ts.Node[] {
+  const clause = ts.isImportDeclaration(node) ? node.importClause : undefined;
+  if (!clause || clause.isTypeOnly) return [];
+  const named = clause.namedBindings;
+  return [
+    ...(clause.name ? [clause] : []),
+    ...(named && ts.isNamespaceImport(named) ? [named] : []),
+    ...(named && ts.isNamedImports(named) ? named.elements.filter((element) => !element.isTypeOnly) : []),
+  ];
 }
 function runtimeImport(node: ts.Statement): node is ts.ImportDeclaration | ts.ExportDeclaration {
   if (ts.isExportDeclaration(node)) return !!node.moduleSpecifier && !node.isTypeOnly;

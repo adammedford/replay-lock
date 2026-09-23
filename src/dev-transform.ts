@@ -38,7 +38,7 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
       // This proof depends on authored syntax alone, not import resolution or
       // dependency contents. Re-read the actual source before rejecting; every
       // other admission decision still validates the complete input snapshot.
-      if (snapshot?.key === JSON.stringify(options.options) && authored?.hasDirectInitializationEffects) {
+      if (snapshot?.key === JSON.stringify(options.options) && authored?.initializationTaintsModule) {
         try { if (readFileSync(file, "utf8") === authored.sourceFile.text) return null; }
         catch { /* Fall back to complete validation when the source is unavailable. */ }
       }
