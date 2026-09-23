@@ -360,6 +360,32 @@ test("a replaced built-in blocks capture and fails replay instead of running nat
   finally { Math.random = random; }
 });
 
+test("members a library adds to a built-in namespace neither block capture nor fail replay", async (t) => {
+  const root = project(t, { "source.ts": `export function entry(value: { a: number }) { return JSON.stringify(value) + Math.random(); }` });
+  const result = transform(root, "source.ts", { replay: true });
+  const module = await load(root, result);
+  const { observations, blocks } = capture();
+  // reflect-metadata, loaded by tsyringe, NestJS and TypeORM applications.
+  const registry = Symbol("@reflect-metadata:registry");
+  Reflect.defineMetadata = () => {};
+  Reflect[registry] = new WeakMap();
+  Math.clampTo = (value) => value;
+  try {
+    const original = module.entry({ a: 1 });
+    assert.deepEqual(blocks.map((item) => item.code), []);
+    assert.equal(observations.length, 1);
+    assert.equal(await replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), original);
+    // A well-known symbol changes built-in behavior (`x instanceof Object`).
+    Object.defineProperty(Object, Symbol.hasInstance, { value: () => true, configurable: true });
+    try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+    finally { delete Object[Symbol.hasInstance]; }
+    const getMetadata = Reflect.getOwnPropertyDescriptor;
+    Reflect.getOwnPropertyDescriptor = () => undefined;
+    try { await assert.rejects(replayDevTrace(observations[0].trace, () => module[result.targets[0].replayExport]({ a: 1 })), /INTRINSIC_MODIFIED/); }
+    finally { Reflect.getOwnPropertyDescriptor = getMetadata; }
+  } finally { delete Reflect.defineMetadata; delete Reflect[registry]; delete Math.clampTo; }
+});
+
 test("module initialization taints only what can observe it, and unobserved initializers replay offline", async (t) => {
   const files = {
     "package.json": '{"type":"module"}',
