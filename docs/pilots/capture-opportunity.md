@@ -43,3 +43,7 @@ Two further observed-source opportunities were checked but rank below the above:
 ## Subsequent application decision
 
 The Epic assessment above was accurate at the time it was written. The subsequent [BMI pilot](bmi-journey.md) selected a pinned existing Vite application with two browser-reachable pure helpers and demonstrated two useful accepted cases. This resolves the application-selection gate for #68 without claiming Epic's skipped helper became supported. The BMI run is partial because initial invalid form states trigger value blocks; the Epic helper-isolation idea remains a separate potential analyzer follow-up, not a prerequisite for this pilot.
+
+## Outcome (2026-09-23)
+
+`getUserImgSrc` meets the acceptance checks above. After the analyzer-yield changes (#87–#98), it is eligible in both realms. Its remaining blockers were library initializers: tailwind-merge's namespace objects, react-router's `Object.prototype` key snapshot, and react-router's private `window.__reactRouterVersion` registration. None of them can observe the helper, and none of them makes it observe anything. The existing workflows record `getUserImgSrc("user/kody.png")`, and the case passes review, offline replay, a comment-only edit and a seeded regression. `getNoteImgSrc`, `getDomainUrl`, `getReferrerRoute`, `isUser`, `parsePermissionString`, `userHasPermission` and `userHasRole` became eligible with it. See [real-app-2026-09.md](real-app-2026-09.md).
