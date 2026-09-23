@@ -1,13 +1,13 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfigFromFile, normalizePath, type Plugin, type ViteDevServer } from "vite";
-import { atomicWrite } from "./model.js";
+import { atomicWrite, makeStateDirectory } from "./model.js";
 import { projectLockfileDigest, readProjectLockfile } from "./project-lockfile.js";
 import { developmentAliases, loadDevConfiguration } from "./dev-options.js";
 import { createDevAnalysisClient } from "./dev-analysis-client.js";
@@ -159,7 +159,7 @@ export function devRecordingPlugin(): Plugin {
     requireOpenHost();
     report = createDevSessionReport(session);
     sessionDirectory = path.join(root, ".replaylock", "observations", "dev-sessions", session);
-    await mkdir(sessionDirectory, { recursive: true, mode: 0o700 });
+    await makeStateDirectory(sessionDirectory);
     await atomicWrite(path.join(sessionDirectory, "metadata.json"), JSON.stringify({ lockfileDigest, profiles, pid: process.pid, retention: retention.policy }));
     requireOpenHost();
     stored = 0; blocks = 0; completed = undefined; knownMetadata.clear(); diagnostics.clear(); acknowledged.clear(); appliedCounts.clear(); appliedObservations.clear(); clientWrites.clear(); activeClients.clear();

@@ -3,7 +3,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
-  mkdir,
   readFile,
   readdir,
   unlink,
@@ -32,6 +31,7 @@ import {
   type Observation,
   type SourceDiagnostic,
   type ToleranceComparison,
+  makeStateDirectory,
 } from "./model.js";
 import {
   acceptReviewedCandidate,
@@ -162,7 +162,7 @@ async function record(arguments_: string[]): Promise<number> {
   let sessionUsable = false;
 
   try {
-    await mkdir(sessionDirectory, { recursive: true, mode: 0o700 });
+    await makeStateDirectory(sessionDirectory);
     sessionReady = true;
   } catch (error) {
     console.error(`STORE_WRITE_FAILED SESSION_SETUP_FAILED: ${errorMessage(error)}`);
@@ -252,7 +252,7 @@ async function record(arguments_: string[]): Promise<number> {
       }
       observations = retainedObservations;
       const pendingDirectory = path.join(root, ".replaylock", "observations", "pending");
-      await mkdir(pendingDirectory, { recursive: true, mode: 0o700 });
+      await makeStateDirectory(pendingDirectory);
       const acceptedCases = await readAcceptedCases(root);
       const observedCandidates = observations.map((observation) =>
         createCandidate(observation, lockfileDigest, partialRecording ? "partial" : "complete")

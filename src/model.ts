@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { mkdir, open, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   decodeCanonicalCompletion,
@@ -387,13 +387,39 @@ export interface AtomicWriteOptions {
  * Replace one file in place. The scratch file is always cleaned up when the
  * write or rename fails, so a failure cannot litter the directory it targeted.
  */
+/**
+ * Recording state, scratch files and the reviewed cases share `.replaylock/`.
+ * Its own ignore file keeps all but `cases/` out of Git, as recorded values
+ * must never be committed by accident, and out of tools that scan the
+ * project: Tailwind's source detection otherwise rescans every recording
+ * write. An existing file, possibly edited by the user, is kept.
+ */
+const STATE_GITIGNORE = "# Written by ReplayLock: recording state and scratch files stay out of Git.\n# Reviewed cases in cases/ are meant to be committed.\n/*\n!/.gitignore\n!/cases/\n";
+const ignoredStates = new Set<string>();
+async function ignoreState(directory: string): Promise<void> {
+  const parts = directory.split(path.sep);
+  const index = parts.lastIndexOf(".replaylock");
+  if (index < 0) return;
+  const state = parts.slice(0, index + 1).join(path.sep);
+  if (ignoredStates.has(state)) return;
+  try { await writeFile(path.join(state, ".gitignore"), STATE_GITIGNORE, { flag: "wx", mode: 0o644 }); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+  ignoredStates.add(state);
+}
+
+/** Create a directory under `.replaylock/`, owner-only, with the state ignore file. */
+export async function makeStateDirectory(directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await ignoreState(directory);
+}
+
 export async function atomicWrite(
   filePath: string,
   contents: string,
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   const directory = path.dirname(filePath);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await makeStateDirectory(directory);
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
   try {
     const handle = await open(temporaryPath, "w", 0o600);

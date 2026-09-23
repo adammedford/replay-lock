@@ -100,6 +100,24 @@ test("strict schema rejects unknown fields, forged IDs, malformed traces, paths 
   assert.throws(() => parseDevCandidate(devArtifactJson({ ...candidate(), replacesCaseId: "b".repeat(64) })));
 });
 
+test("recorded state is ignored by Git and project scanners while reviewed cases are not", async t => {
+  const project = await fixture(t);
+  spawnSync("git", ["init", "-q"], { cwd: project });
+  // Tailwind's source detection rescanned every recording write in Epic Stack.
+  await persistDevObservations(project, [observation()], digest, profiles);
+  await writeCases(project, [toDevCase(candidate())]);
+  const ignored = file => spawnSync("git", ["check-ignore", "-q", file], { cwd: project }).status === 0;
+  const [pending] = await pendingFiles(project);
+  assert.ok(ignored(`.replaylock/observations/pending-v2/${pending.name}`));
+  assert.ok(ignored(".replaylock/dev/server.json") && ignored(".replaylock/verify/run/replay-0.test.mjs"));
+  const [accepted] = await acceptedFiles(project);
+  assert.ok(!ignored(`.replaylock/cases/${accepted.name}`) && !ignored(".replaylock/.gitignore"));
+  // An edited ignore file is the user's.
+  await writeFile(path.join(project, ".replaylock/.gitignore"), "/observations/\n");
+  await persistDevObservations(project, [observation({ arguments: encodeDevValue([5]) })], digest, profiles);
+  assert.equal(await readFile(path.join(project, ".replaylock/.gitignore"), "utf8"), "/observations/\n");
+});
+
 test("privacy validation covers input, result, trace, binary and metadata before persistence", async t => {
   const project = await fixture(t);
   const sensitive = { kind: "record", entries: [{ key: "password", value: { kind: "string", value: "seeded-value" } }] };
