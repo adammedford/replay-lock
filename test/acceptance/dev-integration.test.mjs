@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { createServer, build } from "vite";
+import { createServer, build, normalizePath } from "vite";
 import { chromium } from "playwright";
 import { replaylock } from "../../dist/vite-plugin.js";
 
@@ -351,8 +351,8 @@ test("full reload refreshes old and newly eligible capture modules while retaini
     vite = await createServer({ root: directory, configFile: false, plugins: [replaylock({ dev: true }), {
       name: "count-unrelated-transforms",
       transform(_code, id) {
-        if (id.split("?")[0] === path.join(directory, "src/unrelated.js")) unrelatedTransforms++;
-        if (id.split("?")[0] === path.join(directory, "src/stateful.js")) statefulTransforms++;
+        if (id.split("?")[0] === normalizePath(path.join(directory, "src/unrelated.js"))) unrelatedTransforms++;
+        if (id.split("?")[0] === normalizePath(path.join(directory, "src/stateful.js"))) statefulTransforms++;
       },
     }], server: { host: "127.0.0.1", port: 0, fs: { allow: [directory, root] } } });
     await vite.listen();
@@ -403,7 +403,7 @@ test("stop reports missing browser acknowledgements and keeps sealed observation
   } finally { await browser?.close(); await vite?.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("browser queue overflow reaches the collector as a partial-capture diagnostic", { timeout: 120000 }, async () => {
+test("browser queue overflow reaches the collector as a partial-capture diagnostic", { timeout: 210000 }, async () => {
   const directory = await fixture(); let browser, vite;
   try {
     await writeFile(path.join(directory, "src/calculation.js"), "export function echo(value) { return value; }");
@@ -418,8 +418,9 @@ test("browser queue overflow reaches the collector as a partial-capture diagnost
     disconnected = false;
     // The diagnostic follows up to 1,000 sequential uploads. A controlled 40 ms
     // transport delay takes about 59 seconds to drain; this checks delivery,
-    // not a development-latency budget. Keep a bounded allowance for CI.
-    await until(async () => (await control(manifest, "status")).body.blocks > 0, 90000);
+    // not a development-latency budget. Keep a bounded allowance for CI;
+    // Windows runners took over 90 seconds.
+    await until(async () => (await control(manifest, "status")).body.blocks > 0, 180000);
     const stopped = await control(manifest, "stop");
     assert.equal(stopped.status, 200); assert.ok(stopped.body.recordingBlocks > 0);
     assert.ok(stopped.body.observations < 1001); assert.equal(stopped.body.candidates, 1);
@@ -445,7 +446,10 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
     const active = (await control(manifest, "status")).body;
     if (mode === "recover") {
       process.kill(manifest.pid, "SIGKILL");
-      const crashed = await recorder.completed; assert.equal(crashed.status, 2, crashed.output);
+      // A failed wrapped command's status stays primary. Windows has no signal
+      // status, and a forcibly terminated process exits 1 there.
+      const crashed = await recorder.completed; assert.equal(crashed.status, process.platform === "win32" ? 1 : 2, crashed.output);
+      assert.match(crashed.output, /SESSION_PARTIAL/);
       const recovered = await command(directory, ["record", "--recover", active.session]);
       assert.equal(recovered.status, 0, recovered.output); assert.match(recovered.output, /SESSION_PARTIAL/);
     } else {

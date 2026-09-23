@@ -1,6 +1,6 @@
 # Development capture yield fixtures
 
-`corpus/` is a small application written the way ordinary TypeScript is written: string, array and number helpers, lookup tables, JSON and URL helpers, a schema library, a CommonJS UI library, a router package with custom export conditions, `#` subpath imports, a stylesheet import and module-scope state. `corpus/packages/` is installed as the fixture's `node_modules` at test time.
+`corpus/` is a small application written the way ordinary TypeScript is written: string, array and number helpers, lookup tables, JSON and URL helpers, a schema library, a CommonJS UI library, a router package with custom export conditions, a bundled class-merging library with namespace objects, `#` subpath imports, a stylesheet import and module-scope state. `corpus/packages/` is installed as the fixture's `node_modules` at test time.
 
 `false-safe/` holds one replay hazard per export: effects hidden in implicitly invoked functions or callbacks, untraced host state, mutable or accessor-backed tables, environment snapshots, prototype patching, and effectful module initialization.
 
