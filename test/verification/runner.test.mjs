@@ -269,7 +269,9 @@ function runFixture(project, options = [], entrypoint = "run-verification.mjs") 
   const result = spawnSync(process.execPath, [path.join(project, "scripts", entrypoint), ...options], {
     cwd: project,
     encoding: "utf8",
-    timeout: 60_000,
+    // A complete fixture builds, packs and installs the package: 52-58 s on
+    // Windows runners. The limit only stops a hung run.
+    timeout: 180_000,
     env,
   });
   assert.equal(result.error, undefined);
