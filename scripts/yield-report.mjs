@@ -45,3 +45,6 @@ else {
     for (const item of report.eligible) console.log(`  eligible ${item}`);
   }
 }
+// Application configuration plugins can leave services open after Vite closes.
+await new Promise(resolve => process.stdout.write('', resolve));
+process.exit(0);

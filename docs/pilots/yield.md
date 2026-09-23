@@ -101,3 +101,21 @@ Destructuring parameters and inert literal defaults are supported. Function decl
 | This repository (each realm) | 36 eligible | 38 eligible |
 
 The three remaining corpus exclusions each observe module-scope effects or pass a function to library code.
+
+## P6: namespace objects and built-in key readers
+
+The first Epic Stack scan after P5 (2026-09-23) still skipped `getUserImgSrc` for `EFFECTFUL_INITIALIZATION`, and its diagnostic named two library initializers. Both were read as global effects, so they tainted every module importing the library:
+
+- tailwind-merge 3 builds namespace objects as `Object.freeze(Object.defineProperty({ __proto__: null, ... }, Symbol.toStringTag, { value: "Module" }))`. Defining, freezing or sealing properties of an object the expression itself creates now taints only that declaration. The object and descriptors must be plain literals, keys literals or well-known symbols, so no getter or setter runs. `Object.assign` and descriptors held in bindings stay global.
+- react-router 7 snapshots `Object.getOwnPropertyNames(Object.prototype)`. `Object.keys`, `getOwnPropertyNames`, `hasOwn` and `isFrozen` run no getters, so reading a built-in object with them taints only that declaration, as `Date.now()` does. `Object.values` and `entries` of a built-in object stay global.
+
+| Project | Before (P5) | After |
+|---|---|---|
+| Replay hazard fixtures (90 rejected, 5 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (45 callables) | 40 of 43 eligible | 41 of 45 eligible |
+| This repository (each realm, `--defaults`) | 38 eligible | 114 eligible |
+| Epic Stack at `8473afd` (each realm) | 9 eligible | 19 eligible |
+
+This repository gains most: frozen limit records such as `Object.freeze({ bytes: 256 * 1024 })` are not flat literal tables, so they had tainted every importer. The corpus gains a helper beside a tailwind-merge-like package; its `cn` wrapper stays excluded.
+
+On Epic, the private-global decision from P3c (D2) accounts for all ten new callables: react-router writes `window.__reactRouterVersion`, and with that write treated as global Epic stays at 9. None of the ten reads the global, which capture targets cannot do. The new callables are `getUserImgSrc`, `getNoteImgSrc`, `getDomainUrl` and `getReferrerRoute` (`misc.tsx`), `isUser`, `parsePermissionString`, `userHasPermission` and `userHasRole` (`user.ts`), the marketing `meta` export and `getWebAuthnConfig`.

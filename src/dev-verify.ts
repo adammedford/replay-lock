@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Plugin } from "vite";
 import type { DevCase, DevEnvironment, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 import { devArtifactJson, parseDevCase } from "./dev-artifacts.js";
@@ -110,7 +110,7 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
       const input = path.join(temporary, `input-${index}.json`);
       const runner = path.join(temporary, `runner-${index}.mjs`);
       await writeFile(input, JSON.stringify({ root, cases: group, options, temporary, index, phase }), { mode: 0o600 });
-      await writeFile(runner, `import { readFile } from 'node:fs/promises';\nimport { runDevVerificationWorker, reportDevVerificationError } from ${JSON.stringify(import.meta.url)};\ntry { process.exitCode = await runDevVerificationWorker(JSON.parse(await readFile(${JSON.stringify(input)}, 'utf8'))); } catch (error) { reportDevVerificationError(error); process.exitCode = 2; }\n`, { mode: 0o600 });
+      await writeFile(runner, `import { readFile } from 'node:fs/promises';\nimport { runDevVerificationWorker, reportDevVerificationError } from ${JSON.stringify(import.meta.url)};\ntry { process.exitCode = await runDevVerificationWorker(JSON.parse(await readFile(${JSON.stringify(input)}, 'utf8'))); } catch (error) { reportDevVerificationError(error); process.exitCode = 2; }\n// Project configuration can leave services open after Vitest closes.\nfor (const stream of [process.stdout, process.stderr]) await new Promise((resolve) => stream.write("", resolve));\nprocess.exit(process.exitCode);\n`, { mode: 0o600 });
       const runtime = group[0]!.provenance.runtimeProfile;
       const result = await new Promise<number>((resolve) => {
         const child = spawn(process.execPath, [runner], { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, TZ: runtime.timezone, LANG: `${runtime.locale.replaceAll("-", "_")}.UTF-8`, NO_COLOR: "1", FORCE_COLOR: "0" } });
@@ -171,6 +171,14 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   const plugin: Plugin = {
     name: "replaylock-isolated-v2-replay", enforce: "pre",
     configResolved(config) {
+      // Replay runs on ReplayLock's own Vitest. Browser Mode dedupes `vitest`
+      // to the project root, where an application's copy (another version, or
+      // one in an enclosing node_modules) would load a second runner and its
+      // tests would never register. Resolve it from each importer instead.
+      for (const resolve of [config.resolve, ...Object.values(config.environments).map((environment) => environment.resolve)]) {
+        const dedupe = resolve.dedupe as string[];
+        for (let index = dedupe.length - 1; index >= 0; index--) if (dedupe[index] === "vitest") dedupe.splice(index, 1);
+      }
       // Browser Mode adds nested dependency hints relative to the application.
       // Resolve its own hints from ReplayLock's dependency graph instead.
       const include = config.optimizeDeps.include;
@@ -198,10 +206,15 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   if (realm === "browser") {
     try {
       const require = createRequire(import.meta.url);
-      const providerPath = require.resolve("@vitest/browser-playwright");
-      const { playwright } = await import(providerPath) as { playwright: (options: unknown) => NonNullable<NonNullable<typeof browser>["provider"]> };
+      // A resolved path is not an import specifier on Windows (`D:\...`).
+      const providerUrl = pathToFileURL(require.resolve("@vitest/browser-playwright")).href;
+      const { playwright } = await import(providerUrl) as { playwright: (options: unknown) => NonNullable<NonNullable<typeof browser>["provider"]> };
       browser = { enabled: true, headless: true, api: { host: "127.0.0.1", port: 0 }, provider: playwright({ contextOptions: { timezoneId: runtime.timezone, locale: runtime.locale } }), instances: [{ browser: "chromium" }], screenshotFailures: false };
-    } catch { console.error("BROWSER_PROVIDER_MISSING: install @vitest/browser-playwright and Playwright Chromium"); return 2; }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      console.error(code === "MODULE_NOT_FOUND" || code === "ERR_MODULE_NOT_FOUND" ? "BROWSER_PROVIDER_MISSING: install @vitest/browser-playwright and Playwright Chromium" : `BROWSER_PROVIDER_FAILED: ${(error as Error).message}`);
+      return 2;
+    }
   }
   const { startVitest } = await import("vitest/node");
   let infrastructure = false;
@@ -240,7 +253,11 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   const loaded = await loadConfigFromFile({ command: "serve", mode: "test" }, undefined, root, "silent");
   const projectConfig = loaded?.config ?? {};
   projectConfig.plugins = await replayPlugins(projectConfig.plugins ?? []);
-  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin], resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
+  // The harness imports targets dynamically, where Vite's dependency scan
+  // cannot see them. Scan them up front: a dependency discovered mid-run makes
+  // Vite re-optimize and reload the page under a running case.
+  const optimizeDeps = { entries: [...new Set(cases.map((artifact) => artifact.locator.module))] };
+  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin], optimizeDeps, resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
   // Browser Mode starts a separate Vite server from project options. An explicit
   // project carries the same source transforms and aliases into that realm.
   const replayProject = { ...viteOptions, test: { ...testOptions, name: "replaylock-v2" } };
