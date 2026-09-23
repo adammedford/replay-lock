@@ -101,7 +101,11 @@ export function analyzeDevProject(root: string, options: ResolvedDevOptions, env
 
 /** Shared analysis/rewrite plan. Each covered finding has an actual AST rewrite. */
 export function buildDevProject(rootInput: string, options: ResolvedDevOptions, environment: DevEnvironment, overlay?: { id: string; code: string }): DevProject {
-  const root = realpathSync(rootInput);
+  // Development paths use the physical spelling, as Vite module ids and
+  // `fs/promises.realpath` do. `realpathSync` keeps each component's input
+  // spelling (`C:\Users\RUNNER~1`, or other letter case), so an alias or
+  // root spelled another way would fall outside the project.
+  const root = realpathSync.native(rootInput);
   const inputs = createDevInputTracker();
   // This syntactic pass runs before bindings resolve, so it accepts any
   // identifier argument; the binding-aware initialization pass below is strict.
@@ -125,7 +129,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   };
   walk(root);
   let overlayFile = overlay ? path.resolve(root, overlay.id.split("?", 1)[0]!) : undefined;
-  if (overlayFile && isFile(overlayFile)) overlayFile = realpathSync(overlayFile);
+  if (overlayFile && isFile(overlayFile)) overlayFile = realpathSync.native(overlayFile);
   if (overlay && overlayFile && inside(root, overlayFile) && sourceFilename(overlayFile) && physicalInside(root, overlayFile)) {
     sources.set(overlayFile, overlay.code);
     if (!overlayFile.split(path.sep).includes("node_modules")) rootFiles.add(overlayFile);
@@ -155,7 +159,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       // a declaration file standing in for executable dependency behavior.
       resolved = resolvePackageSource(from, requested, environment, metadata, inputs, conditions);
     }
-    if (resolved && isFile(resolved)) resolved = realpathSync(resolved);
+    if (resolved && isFile(resolved)) resolved = realpathSync.native(resolved);
     if (resolved && (!inside(root, resolved) || !sourceFilename(resolved))) resolved = undefined;
     if (resolved) {
       let directory = path.dirname(resolved);
@@ -179,7 +183,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const file = request.startsWith(".") || path.isAbsolute(request) ? path.resolve(path.dirname(from), request)
       : request.startsWith("#") ? resolveSubpathImport(root, from, request, environment, conditions, metadata, inputs)
       : resolvePackageSource(from, request, environment, metadata, inputs, conditions);
-    return !!file && isFile(file) && inside(root, realpathSync(file));
+    return !!file && isFile(file) && inside(root, realpathSync.native(file));
   };
   const modules = new Map<string, DevModule>();
   // Excluded tests/configuration are fingerprinted but are not discovery roots.
@@ -463,16 +467,47 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   };
   const mutationApis = new Set(["Object.assign", "Object.defineProperty", "Object.defineProperties", "Object.setPrototypeOf", "Object.freeze", "Object.seal", "Object.preventExtensions", "Reflect.set", "Reflect.deleteProperty", "Reflect.defineProperty", "Reflect.setPrototypeOf"]);
   const knownReads = new Set(["Math.random", "crypto.randomUUID", "Date", "Date.now", "performance.now"]);
+  // Key readers that run no getters, so reading a built-in object only
+  // computes the declaration's value (`Object.getOwnPropertyNames(Object.prototype)`).
+  const keyReaders = new Set(["Object.keys", "Object.getOwnPropertyNames", "Object.hasOwn", "Object.isFrozen"]);
+  // Literals whose creation and definition run no code: no accessors,
+  // methods, spreads or computed keys.
+  const plainLiteral = (node: ts.Expression): node is ts.ObjectLiteralExpression => ts.isObjectLiteralExpression(node)
+    && node.properties.every((property) => (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) && !ts.isComputedPropertyName(property.name));
+  const literalKey = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)) return true;
+    return ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Symbol" && undeclared(node.expression);
+  };
+  const definitionApis = new Set(["Object.defineProperty", "Object.defineProperties", "Object.freeze", "Object.seal", "Object.preventExtensions"]);
+  /**
+   * Defining, freezing or sealing properties of the object the expression
+   * itself creates changes nothing else. Bundlers emit this for namespace
+   * objects: `Object.freeze(Object.defineProperty({ __proto__: null, ... },
+   * Symbol.toStringTag, { value: "Module" }))`.
+   */
+  const ownedDefinition = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    if (plainLiteral(node)) return true;
+    if (ts.isArrayLiteralExpression(node)) return !node.elements.some(ts.isSpreadElement);
+    if (!ts.isCallExpression(node)) return false;
+    const name = identity(unwrap(node.expression));
+    const [target, key, descriptor] = node.arguments.map(unwrap);
+    if (!name || !definitionApis.has(name) || !target || !ownedDefinition(target)) return false;
+    if (name === "Object.defineProperty") return node.arguments.length === 3 && literalKey(key!) && plainLiteral(descriptor!);
+    if (name === "Object.defineProperties") return node.arguments.length === 2 && plainLiteral(key!) && key.properties.every((property) => ts.isPropertyAssignment(property) && plainLiteral(unwrap(property.initializer)));
+    return node.arguments.length === 1;
+  };
   const callTier = (node: ts.CallExpression | ts.NewExpression): Tier => {
     const callee = unwrap(node.expression);
     const args = node.arguments ?? [];
     if (callee.kind === ts.SyntaxKind.ImportKeyword) return globalTier;
     const name = identity(callee);
     if (ts.isIdentifier(callee) && callee.text === "require" && undeclared(callee)) return args.length === 1 && ts.isStringLiteral(args[0]!) ? containingTier(node) : globalTier;
-    if (name && mutationApis.has(name) && args[0]) return writeTier(args[0]);
+    if (name && mutationApis.has(name) && args[0]) return ownedDefinition(node) ? containingTier(node) : writeTier(args[0]);
     const known = classifyKnownInvocation(expressionPath(callee) ?? name);
     if (known === "DYNAMIC_EVALUATION" || known === "IO" || known === "LOGGING") return globalTier;
-    if (name && knownReads.has(name)) return containingTier(node);
+    if (name && (knownReads.has(name) || (keyReaders.has(name) && !args.some(ts.isSpreadElement)))) return containingTier(node);
     if (args.some(builtinObject)) return globalTier;
     let base: ts.Expression = callee;
     let member: string | undefined;
@@ -936,7 +971,7 @@ function freezeAnalysis(value: object): void {
 function sourceFilename(file: string): boolean { return isTypeScriptSourceFilename(file) && !/\.d\.[cm]?ts$/.test(file); }
 function isFile(file: string): boolean { try { return statSync(file).isFile(); } catch { return false; } }
 function inside(root: string, file: string): boolean { const relative = path.relative(root, file); return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); }
-function physicalInside(root: string, file: string): boolean { try { return inside(root, realpathSync(file)); } catch { return inside(root, realpathSync(path.dirname(file))); } }
+function physicalInside(root: string, file: string): boolean { try { return inside(root, realpathSync.native(file)); } catch { return inside(root, realpathSync.native(path.dirname(file))); } }
 function posix(file: string): string { return file.split(path.sep).join("/"); }
 function selectedSource(file: string, options: ResolvedDevOptions): boolean {
   const match = (pattern: string): boolean => {
