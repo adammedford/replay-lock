@@ -99,6 +99,26 @@ export function analyzeDevProject(root: string, options: ResolvedDevOptions, env
   return buildDevProject(root, options, environment).analysis;
 }
 
+/**
+ * Source files parsed by earlier builds in this process. A build reuses one
+ * whose text is unchanged, so an edit or a transform overlay re-parses only
+ * that file, and TypeScript binds each file once (it skips files that are
+ * already bound). Binding depends on the compiler options, which every build
+ * shares. Two versions per file keep a transform overlay and the file on disk
+ * from evicting each other.
+ */
+const parsedSources = new Map<string, ts.SourceFile[]>();
+function parsedSource(file: string, text: string): ts.SourceFile {
+  const kind = typescriptScriptKind(file);
+  const key = `${kind}\0${file}`;
+  const versions = parsedSources.get(key) ?? [];
+  const cached = versions.find((sourceFile) => sourceFile.text === text);
+  if (cached) return cached;
+  const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+  parsedSources.set(key, [sourceFile, ...versions].slice(0, 2));
+  return sourceFile;
+}
+
 /** Shared analysis/rewrite plan. Each covered finding has an actual AST rewrite. */
 export function buildDevProject(rootInput: string, options: ResolvedDevOptions, environment: DevEnvironment, overlay?: { id: string; code: string }): DevProject {
   const root = realpathSync(rootInput);
@@ -189,7 +209,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   const reachable = new Set([...rootFiles].filter((file) => selectedSource(posix(path.relative(root, file)), options)));
   for (const file of reachable) {
     const text = sources.get(file)!;
-    const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, typescriptScriptKind(file));
+    const sourceFile = parsedSource(file, text);
     const dependencies = new Set<string>();
     const bareDependencies = new Set<string>();
     const problems = new DevProblems(root, sourceFile, sourceFile);
