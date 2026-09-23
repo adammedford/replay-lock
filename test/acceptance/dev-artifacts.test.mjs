@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -343,6 +344,19 @@ test("Vite aliases and custom transforms survive replay while live capture plugi
   };`);
   const aliasOptions = { ...options, resolveAliases: [{ find: "@source", replacement: path.join(project, "src") }] };
   const artifact = toDevCase(candidate({ trace: [], completion: { kind: "return", value: encodeDevValue(4) } }));
+  const verified = runVerify(project, [artifact], aliasOptions); assert.equal(verified.status, 0, output(verified));
+});
+
+test("an alias spelled differently from its physical path still resolves inside the project", async t => {
+  const project = await fixture(t, `import { offset } from '@source/offset.mjs'; export function target(value) { return value + offset; }`);
+  await writeFile(path.join(project, "src/offset.mjs"), `export const offset = 1;`);
+  // Windows runners spell temporary directories with 8.3 names (`RUNNER~1`);
+  // letter case exercises the same spelling mismatch on case-insensitive disks.
+  const replacement = path.join(project, "src").toUpperCase();
+  if (!existsSync(replacement)) { t.skip("case-sensitive file system"); return; }
+  await writeFile(path.join(project, "vite.config.mjs"), `export default { resolve: { alias: { '@source': ${JSON.stringify(replacement)} } } };`);
+  const aliasOptions = { ...options, resolveAliases: [{ find: "@source", replacement }] };
+  const artifact = toDevCase(candidate({ trace: [], completion: { kind: "return", value: encodeDevValue(3) } }));
   const verified = runVerify(project, [artifact], aliasOptions); assert.equal(verified.status, 0, output(verified));
 });
 

@@ -262,6 +262,10 @@ function runFixture(project, options = [], entrypoint = "run-verification.mjs") 
   const env = { ...process.env, REPLAYLOCK_RUNNER_EVENTS: path.join(project, "runner-events.jsonl") };
   // The CLI launches a new test runner, not a descendant test inside this runner's isolation context.
   delete env.NODE_TEST_CONTEXT;
+  // The fixture's descendants run copied scripts and an installed tarball, which
+  // coverage excludes; instrumenting them only pushes the build past the timeout.
+  delete env.NODE_V8_COVERAGE;
+  delete env.NODE_OPTIONS;
   const result = spawnSync(process.execPath, [path.join(project, "scripts", entrypoint), ...options], {
     cwd: project,
     encoding: "utf8",

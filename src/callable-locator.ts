@@ -37,7 +37,7 @@ export function resolveCallableModuleLocator(
   }
 
   try {
-    const physicalRelative = path.relative(realpathSync(absoluteRoot), realpathSync(absoluteModule));
+    const physicalRelative = path.relative(realpathSync.native(absoluteRoot), realpathSync.native(absoluteModule));
     normalizeModuleLocator(physicalRelative);
   } catch {
     return { ok: false, source, message: "callable module is outside the project root" };

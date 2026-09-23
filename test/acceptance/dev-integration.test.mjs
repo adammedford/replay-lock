@@ -445,7 +445,10 @@ for (const mode of ["launch", "attach", "recover"]) test(`CLI ${mode} records a 
     const active = (await control(manifest, "status")).body;
     if (mode === "recover") {
       process.kill(manifest.pid, "SIGKILL");
-      const crashed = await recorder.completed; assert.equal(crashed.status, 2, crashed.output);
+      // A failed wrapped command's status stays primary. Windows has no signal
+      // status, and a forcibly terminated process exits 1 there.
+      const crashed = await recorder.completed; assert.equal(crashed.status, process.platform === "win32" ? 1 : 2, crashed.output);
+      assert.match(crashed.output, /SESSION_PARTIAL/);
       const recovered = await command(directory, ["record", "--recover", active.session]);
       assert.equal(recovered.status, 0, recovered.output); assert.match(recovered.output, /SESSION_PARTIAL/);
     } else {
