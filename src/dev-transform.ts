@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import MagicString from "magic-string";
 import ts from "typescript";
-import { buildDevProject, type DevProject, type DevFunction, type DevOperation } from "./dev-analysis.js";
+import { buildDevProject, patternArrow, type DevProject, type DevFunction, type DevOperation } from "./dev-analysis.js";
 import type { DevEnvironment, ResolvedDevOptions, DevTransformOptions, DevTransformResult } from "./dev-contract.js";
 
 export { analyzeDevProject } from "./dev-analysis.js";
@@ -105,19 +105,41 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
       : `${context}(${frame}, () => ${native})`;
     return `((${binding}, ${args}) => ${call})(${receiver}, [${argumentsText}])`;
   };
+  // An arrow has no `arguments`, so its wrapper records its parameters. An
+  // arrow with patterns or defaults takes synthetic parameters (preserving
+  // `length`) and rebinds the original ones inside the wrapper.
+  const signature = (candidate: DevFunction): { parameters: string; args: string; prologue: string } => {
+    const { node } = candidate;
+    if (!ts.isArrowFunction(node)) return { parameters: node.parameters.map((parameter) => parameter.getText()).join(", "), args: "[...arguments]", prologue: "" };
+    if (!patternArrow(node)) {
+      const names = node.parameters.map((parameter) => `${parameter.dotDotDotToken ? "..." : ""}${parameter.name.getText()}`).join(", ");
+      return { parameters: node.parameters.map((parameter) => parameter.getText()).join(", "), args: `[${names}]`, prologue: "" };
+    }
+    const leading = node.parameters.findIndex((parameter) => !!parameter.initializer || !!parameter.dotDotDotToken);
+    const count = leading < 0 ? node.parameters.length : leading;
+    const synthetic = Array.from({ length: count }, (_, index) => `${prefix}_p${index}`);
+    const rest = count < node.parameters.length ? `${prefix}_rest` : undefined;
+    const patterns = node.parameters.map((parameter) => `${parameter.dotDotDotToken ? "..." : ""}${parameter.name.getText()}${parameter.initializer ? ` = ${parameter.initializer.getText()}` : ""}`).join(", ");
+    const args = `[${[...synthetic, ...(rest ? [`...${rest}`] : [])].join(", ")}]`;
+    return { parameters: [...synthetic, ...(rest ? [`...${rest}`] : [])].join(", "), args, prologue: `var [${patterns}] = ${args}; ` };
+  };
   const wrapBody = (candidate: DevFunction): string => {
     const { node } = candidate;
-    const parameters = node.parameters.map((parameter) => `${parameter.dotDotDotToken ? "..." : ""}${parameter.name.getText()}`).join(", ");
-    const args = ts.isArrowFunction(node) ? `[${parameters}]` : "[...arguments]";
+    const { args, prologue } = signature(candidate);
     const metadata = JSON.stringify({ locator: candidate.locator, sourceGraphDigest: analysis.sourceGraphDigest, generation: options.generation, environment: options.environment });
     const body = render(node.body!, candidate);
-    const callbackBody = ts.isBlock(node.body!) ? body : `{ return ${body}; }`;
+    const callbackBody = ts.isBlock(node.body!) ? (prologue ? `{ ${prologue}${body.slice(1)}` : body) : `{ ${prologue}return ${body}; }`;
     const policy = candidate.requires?.includes("plainValues") ? ", { plainValues: true }" : "";
     return `{ return ${observe}(${metadata}, ${args}, ${candidate.asynchronous ? "async " : ""}(${frames.get(candidate)}) => ${callbackBody}, ${candidate.asynchronous}${policy}); }`;
   };
   const render = (node: ts.Node, active?: DevFunction): string => {
     const callable = byNode.get(node as DevFunction["node"]);
-    if (callable) return options.code.slice(node.getStart(), callable.node.body!.getStart()) + wrapBody(callable);
+    if (callable) {
+      const target = callable.node;
+      if (!patternArrow(target)) return options.code.slice(node.getStart(), target.body!.getStart()) + wrapBody(callable);
+      const typeParameters = target.typeParameters?.length ? `<${target.typeParameters.map((parameter) => parameter.getText()).join(", ")}>` : "";
+      return `${hasAsync(target) ? "async " : ""}${typeParameters}(${signature(callable).parameters})${target.type ? `: ${target.type.getText()}` : ""} => ${wrapBody(callable)}`;
+    }
     if (active) {
       const operation = active.effects.get(node);
       if (operation?.kind === "environment") {
@@ -163,7 +185,7 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
         const node = candidate.node;
         // A named function expression preserves self recursion without looking
         // up the owner's lexical scope. No owner invocation or closure factory.
-        const parameters = node.parameters.map((parameter) => parameter.getText()).join(", ");
+        const { parameters } = signature(candidate);
         const typeParameters = node.typeParameters?.length ? `<${node.typeParameters.map((parameter) => parameter.getText()).join(", ")}>` : "";
         const returnType = node.type ? `: ${node.type.getText()}` : "";
         const selfName = ts.isFunctionExpression(node) && node.name ? node.name.text : candidate.name;
@@ -172,4 +194,8 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
     }
   }
   return { ...analysis, code: edits.toString(), map: edits.generateMap({ source: options.id, includeContent: true, hires: true }) };
+}
+
+function hasAsync(node: ts.Node): boolean {
+  return ts.canHaveModifiers(node) && !!ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword);
 }

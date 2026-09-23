@@ -477,6 +477,46 @@ export function entry(values: number[]) { return [values.map((value) => value + 
   }
 });
 
+test("destructured and literal-default parameters keep their semantics and replay offline", async (t) => {
+  const root = project(t, { "source.ts": `
+export const meta = ({ title }: { title: string }) => [{ title: title + " | Notes" }];
+export const scaled = ([a, b]: number[], factor = 2, ...rest: number[]) => (a + b) * factor + rest.length + Math.random();
+export function page({ page = 1, size = 20 } = {}, offset = 0) { return [(page - 1) * size + offset, Math.random()]; }
+export function owner(n: number) { const inner = ({ x = 1 }: { x?: number }, y = 3) => x + y + n; return 0; }
+export function outer() { const nested = ({ v = 1 }: { v?: number }) => v * 2; return nested({}); }` });
+  const result = transform(root, "source.ts", { replay: true });
+  for (const name of ["meta", "scaled", "page", "outer", "outer.nested"]) assert.ok(names(result).includes(name), `${name}: ${JSON.stringify(result.diagnostics)}`);
+  const module = await load(root, result);
+  assert.equal(module.scaled.length, 1);
+  assert.equal(module.page.length, 0);
+  const { observations } = capture();
+  const cases = [["meta", [{ title: "A", other: 1 }]], ["scaled", [[1, 2], undefined, 7, 8]], ["page", [{ size: 5 }]], ["page", []]];
+  const originals = cases.map(([name, args]) => module[name](...args));
+  assert.deepEqual(originals[0], [{ title: "A | Notes" }]);
+  const random = Math.random;
+  Math.random = () => { throw new Error("native randomness during replay"); };
+  try {
+    for (const [index, [name, args]] of cases.entries()) {
+      const observation = observations.filter((item) => item.locator.namePath.join(".") === name)[cases.slice(0, index).filter(([other]) => other === name).length];
+      const target = result.targets.find((item) => item.locator.namePath.join(".") === name);
+      assert.deepEqual(await replayDevTrace(observation.trace, () => module[target.replayExport](...args)), originals[index], name);
+    }
+  } finally { Math.random = random; }
+  const nested = result.targets.find((item) => item.locator.namePath.join(".") === "outer.nested");
+  assert.equal(module[nested.replayExport]({}), 2);
+  assert.equal(module[nested.replayExport]({ v: 4 }), 8);
+  for (const source of [
+    `export function entry(value = Date.now()) { return value; }`,
+    `const LIMIT = { max: 1 }; export function entry(value = LIMIT.max) { return value; }`,
+    `export const entry = ({ at = Date.now() }: { at?: number }) => at;`,
+    `export function entry({ [String(Math.random())]: value }: Record<string, number>) { return value; }`,
+  ]) {
+    const blocked = transform(project(t, { "source.ts": source }), "source.ts");
+    assert.ok(!names(blocked).includes("entry"), source);
+    assert.ok(blocked.diagnostics.some((item) => item.code === "UNSUPPORTED_CALLABLE"), source);
+  }
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */
