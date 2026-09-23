@@ -364,6 +364,75 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   // callable or excluded. An unanalyzed function value can run implicitly
   // (toString, valueOf, iterators, callbacks) outside effect interception.
   const discovered = new Set<ts.Node>(functions.map((candidate) => candidate.node));
+  // A module-private constant holding flat literal data that no code in its
+  // module can mutate or leak is a lookup table: every read yields a primitive
+  // fixed at initialization, so reading it is as safe as reading a scalar.
+  const identifierIndex = new Map<ts.SourceFile, Map<string, ts.Identifier[]>>();
+  const namedIdentifiers = (sourceFile: ts.SourceFile, name: string): ts.Identifier[] => {
+    let index = identifierIndex.get(sourceFile);
+    if (!index) {
+      const built = new Map<string, ts.Identifier[]>();
+      const visit = (node: ts.Node): void => {
+        if (ts.isIdentifier(node)) { const list = built.get(node.text); if (list) list.push(node); else built.set(node.text, [node]); }
+        ts.forEachChild(node, visit);
+      };
+      visit(sourceFile);
+      identifierIndex.set(sourceFile, index = built);
+    }
+    return index.get(name) ?? [];
+  };
+  const flatTable = (expression: ts.Expression): boolean => {
+    const node = unwrap(expression);
+    const scalar = (element: ts.Expression): boolean => !ts.isSpreadElement(element) && !ts.isOmittedExpression(element) && immutableScalar(element, checker);
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.every((property) => ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNumericLiteral(property.name)) && property.name.text !== "__proto__" && scalar(property.initializer));
+    }
+    if (ts.isArrayLiteralExpression(node)) return node.elements.every(scalar);
+    const [argument, ...rest] = (ts.isCallExpression(node) || ts.isNewExpression(node)) ? node.arguments ?? [] : [];
+    if (!argument || rest.length) return false;
+    if (ts.isCallExpression(node)) {
+      const literal = unwrap(argument);
+      return expressionPath(node.expression) === "Object.freeze" && identity(node.expression) === "Object.freeze" && (ts.isObjectLiteralExpression(literal) || ts.isArrayLiteralExpression(literal)) && flatTable(literal);
+    }
+    const entries = unwrap(argument);
+    if (!ts.isNewExpression(node) || !ts.isArrayLiteralExpression(entries)) return false;
+    const constructor = identity(node.expression);
+    if (constructor === "Set") return entries.elements.every(scalar);
+    return constructor === "Map" && entries.elements.every((entry) => { const pair = unwrap(entry as ts.Expression); return ts.isArrayLiteralExpression(pair) && pair.elements.length === 2 && pair.elements.every(scalar); });
+  };
+  const tableReaders = new Set(["Object.keys", "Object.values", "Object.entries", "Object.hasOwn", "Object.getOwnPropertyNames", "JSON.stringify", "Array.from"]);
+  /** A use that reads the table without mutating it or letting a reference escape. */
+  const tableRead = (reference: ts.Identifier): boolean => {
+    if (ts.isTypeQueryNode(reference.parent)) return true;
+    const site = expressionSite(reference);
+    const parent = site.parent;
+    if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === site) {
+      if (["__proto__", "constructor", "prototype"].includes(memberName(parent) ?? "")) return false;
+      let top: ts.Node = parent;
+      while (top.parent && (((ts.isPropertyAccessExpression(top.parent) || ts.isElementAccessExpression(top.parent)) && top.parent.expression === top) || ts.isParenthesizedExpression(top.parent) || ts.isAsExpression(top.parent) || ts.isTypeAssertionExpression(top.parent) || ts.isNonNullExpression(top.parent) || ts.isSatisfiesExpression(top.parent))) top = top.parent;
+      return !calleePosition(parent) && !writtenExpression(top);
+    }
+    if (ts.isTypeOfExpression(parent) || (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.InKeyword && parent.right === site)) return true;
+    if ((ts.isForOfStatement(parent) || ts.isForInStatement(parent)) && parent.expression === site) return true;
+    if (ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent)) return !writtenExpression(parent.parent);
+    return ts.isCallExpression(parent) && parent.arguments[0] === site && tableReaders.has(identity(parent.expression) ?? "") && expressionPath(parent.expression) === identity(parent.expression);
+  };
+  const tables = new Map<ts.VariableDeclaration, boolean>();
+  const immutableTable = (declaration: ts.VariableDeclaration): boolean => {
+    let result = tables.get(declaration);
+    if (result !== undefined) return result;
+    const statement = declaration.parent.parent;
+    result = ts.isIdentifier(declaration.name) && !!declaration.initializer && constantDeclaration(declaration)
+      && ts.isVariableStatement(statement) && ts.isSourceFile(statement.parent) && !hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+      && flatTable(declaration.initializer);
+    if (result) {
+      const name = declaration.name as ts.Identifier;
+      const binding = symbol(name);
+      result = namedIdentifiers(declaration.getSourceFile(), name.text).every((reference) => reference === name || symbol(reference) !== binding || tableRead(reference));
+    }
+    tables.set(declaration, result);
+    return result;
+  };
   // A binding imported from a Node builtin that has no effect identity
   // (for example `os` or `child_process`) is ambient host state.
   const builtinImportRoot = (expression: ts.Expression): boolean => {
@@ -396,7 +465,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             // Objects in module scope can carry getters or be mutated by an
             // unrelated export. Only immutable scalar values and resolved
             // callable/builtin aliases are proven safe ambient bindings.
-            if (!owner && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker)) problems.at("AMBIENT_STATE", child);
+            if (!owner && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker) && !immutableTable(declaration)) problems.at("AMBIENT_STATE", child);
           }
         }
         // A function is safe only where it is called and analyzed as a call.
@@ -407,7 +476,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       if (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child)) {
         const binding = symbol(ts.isPropertyAccessExpression(child) ? child.name : child);
         const declaration = binding?.valueDeclaration;
-        if (declaration && ts.isVariableDeclaration(declaration) && !descendantOf(declaration, node) && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker)) problems.at("AMBIENT_STATE", child);
+        if (declaration && ts.isVariableDeclaration(declaration) && !descendantOf(declaration, node) && !bySymbol.has(binding!) && !identity(child) && declaration.initializer && !immutableScalar(declaration.initializer, checker) && !immutableTable(declaration)) problems.at("AMBIENT_STATE", child);
         if (declaration && (ts.isGetAccessorDeclaration(declaration) || ts.isSetAccessorDeclaration(declaration))) problems.at("UNKNOWN_CALL", child);
         if (binding && bySymbol.has(binding) && !calleePosition(child)) problems.at("FUNCTION_VALUE", child);
         const name = identity(child);
@@ -623,6 +692,16 @@ function valueReference(node: ts.Node): boolean {
   if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === site) return false;
   if (calleePosition(node) || ts.isTypeOfExpression(parent)) return false;
   return !(ts.isVariableDeclaration(parent) && parent.initializer === site && constantDeclaration(parent));
+}
+/** Whether an expression is written: assigned, deleted, updated, or a destructuring or loop target. */
+function writtenExpression(node: ts.Node): boolean {
+  let current = node;
+  while (current.parent && (ts.isParenthesizedExpression(current.parent) || ts.isArrayLiteralExpression(current.parent) || ts.isObjectLiteralExpression(current.parent) || ts.isSpreadElement(current.parent) || ts.isSpreadAssignment(current.parent) || ts.isShorthandPropertyAssignment(current.parent) || (ts.isPropertyAssignment(current.parent) && current.parent.initializer === current))) current = current.parent;
+  const parent = current.parent;
+  if (ts.isBinaryExpression(parent)) return parent.left === current && parent.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && parent.operatorToken.kind <= ts.SyntaxKind.LastAssignment;
+  if ((ts.isForOfStatement(parent) || ts.isForInStatement(parent)) && parent.initializer === current) return true;
+  if (current !== node) return false;
+  return ts.isDeleteExpression(parent) || ((ts.isPrefixUnaryExpression(parent) || ts.isPostfixUnaryExpression(parent)) && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(parent.operator));
 }
 function descendantOf(node: ts.Node, ancestor: ts.Node): boolean { for (let current: ts.Node | undefined = node; current; current = current.parent) if (current === ancestor) return true; return false; }
 function enclosingFunction(node: ts.Node): ts.Node | undefined { for (let current = node.parent; current; current = current.parent) if (ts.isFunctionLike(current)) return current; return undefined; }

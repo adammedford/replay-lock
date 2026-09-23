@@ -27,3 +27,13 @@ Development analysis accepts `JSON`, `Object` and `Array` statics, `Date.UTC`, U
 | This repository (818 callables, each realm) | 6 eligible | 11 eligible |
 
 Reading a module table from a function still reports `AMBIENT_STATE`; immutable tables are the next change.
+
+## P2: immutable lookup tables
+
+A function may read a module-private constant that holds flat literal data (a record or array of primitives, `Object.freeze` of one, or a `Map` or `Set` of primitives) when every reference in the module only reads it: member reads that are not written, called, or taken through `__proto__`, `constructor` or `prototype`; `in`; iteration; spreads; and the `Object` key/value readers, `JSON.stringify` and `Array.from`. Returning, passing, aliasing, exporting, or writing the table, including through a cast or destructuring, still reports `AMBIENT_STATE`. `Map` and `Set` tables become readable once their methods are supported.
+
+| Project | Before (P1) | After |
+|---|---|---|
+| Replay hazard fixtures (57 hazards, 14 new) | 0 eligible | 0 eligible |
+| Ordinary code corpus (33 callables) | 12 eligible | 14 eligible |
+| This repository (each realm) | 11 eligible | 11 eligible |

@@ -15,7 +15,9 @@
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
         "src/strings.ts#greeting",
-        "src/tables.ts#isPositive"
+        "src/tables.ts#isPositive",
+        "src/tables.ts#statusLabel",
+        "src/tables.ts#toKg"
       ],
       "browser": [
         "src/arrays.ts#first",
@@ -29,7 +31,9 @@
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
         "src/strings.ts#greeting",
-        "src/tables.ts#isPositive"
+        "src/tables.ts#isPositive",
+        "src/tables.ts#statusLabel",
+        "src/tables.ts#toKg"
       ]
     },
     "samples": {
@@ -125,6 +129,24 @@
         ],
         [
           -1
+        ]
+      ],
+      "src/tables.ts#statusLabel": [
+        [
+          "draft"
+        ],
+        [
+          "published"
+        ]
+      ],
+      "src/tables.ts#toKg": [
+        [
+          2,
+          "lb"
+        ],
+        [
+          3,
+          "kg"
         ]
       ]
     }
@@ -252,6 +274,48 @@
       "src/shadowed-json.ts#shadowedJson": [
         "AMBIENT_STATE",
         "UNKNOWN_CALL"
+      ],
+      "src/table-escapes.ts#aliasedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#assignedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#castTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#defaultTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#destructuredTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#methodTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#nestedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#objectValueTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#passesTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#protoTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#prototypeReadTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#pushedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#returnsTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/table-escapes.ts#specifierTable": [
+        "AMBIENT_STATE"
       ],
       "src/tables.ts#bumpTable": [
         "AMBIENT_MUTATION",
