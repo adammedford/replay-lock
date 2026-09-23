@@ -177,6 +177,34 @@ test("blocked syntax is never rewritten into apparent effect coverage", (t) => {
   }
 });
 
+test("implicitly invoked functions and untraced host reads cannot hide effects", (t) => {
+  const fixtures = [
+    [`export function entry(n: number) { return String({ toString() { return String(Math.random()); } }) + n; }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { return n + ({ valueOf() { return Date.now(); } } as unknown as number); }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { return \`\${{ toString: () => String(Math.random()) }}\${n}\`; }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { let t = n; for (const x of { *[Symbol.iterator]() { yield Math.random(); } } as unknown as number[]) t += x; return t; }`, "FUNCTION_VALUE"],
+    [`import { writeFileSync } from "node:fs"; export function entry(n: number) { return String({ toString() { writeFileSync("x", "y"); return "s"; } }) + n; }`, "FUNCTION_VALUE"],
+    [`function helper() { return String(Math.random()); } export function entry(n: number) { return String({ toString: helper }) + n; }`, "FUNCTION_VALUE"],
+    [`function helper() { return String(Math.random()); } export function entry(n: number) { return helper.call(null) + n; }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { return String({ toString: Math.random }) + n; }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { const now = Date.now; return String({ toString: now }) + n; }`, "FUNCTION_VALUE"],
+    [`export function entry(n: number) { return String({ toString: process.exit }) + n; }`, "AMBIENT_STATE"],
+    [`import os from "node:os"; export function entry(n: number) { return String({ toString: os.hostname }) + n; }`, "AMBIENT_STATE"],
+    [`export function entry(n: number) { return process.argv.length + n; }`, "AMBIENT_STATE"],
+    [`export function entry(n: number) { return (Math as unknown as { patched: number }).patched + n; }`, "AMBIENT_STATE"],
+    [`export function entry(n: number, key: string) { return (Math as unknown as Record<string, number>)[key] ?? n; }`, "AMBIENT_STATE"],
+  ];
+  for (const [source, code] of fixtures) {
+    const root = project(t, { "source.ts": source });
+    const result = transform(root, "source.ts", { replay: true });
+    assert.deepEqual(result.targets.filter((target) => target.locator.namePath[0] === "entry"), [], source);
+    assert.ok(result.diagnostics.some((item) => item.code === code && item.locator.namePath[0] === "entry"), `${code}: ${JSON.stringify(result.diagnostics)}`);
+  }
+  const root = project(t, { "source.ts": `function helper(n: number) { return n + Math.random(); }
+export function entry(n: number) { const now = Date.now; function inner(x: number) { return x * Math.PI; } return helper(inner(n)) + now() + Number.MAX_SAFE_INTEGER + (typeof window === "undefined" ? 0 : 1) + (n === undefined ? NaN : 0); }` });
+  assert.deepEqual(names(transform(root, "source.ts")), ["helper", "entry", "entry.inner"]);
+});
+
 test("source policies, selection, and disabled effects cannot be bypassed by callers", (t) => {
   const root = project(t, {
     "source.ts": `/** @replaylock exclude hidden effects */

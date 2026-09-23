@@ -229,7 +229,7 @@ test(${JSON.stringify(`fixture case: ${name}`)}, async () => {
 
 async function acceptanceNames() {
   const names = (await readdir(path.join(root, "test", "acceptance"))).filter((name) => name.endsWith(".test.mjs")).sort();
-  assert.equal(names.length, 46, "the acceptance manifest contains 36 V1 and ten development recording files");
+  assert.equal(names.length, 47, "the acceptance manifest contains 36 V1 and eleven development recording files");
   return names;
 }
 

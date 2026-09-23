@@ -43,6 +43,8 @@ Review shows the explicit arguments, full external trace, completion, and proven
 
 Automatic selection includes supported module exports, private module functions, and named nested functions whose behavior does not depend on an enclosing invocation. Private replay locators use lexical names, so moving lines does not invalidate a case. A nested function is replayed without calling its enclosing owner. Captured enclosing variables, `this`, generators, unknown callbacks, timers, detached work, writes, streams, mutable module state, and unsafe module initialization remain ineligible.
 
+A function is eligible only when every function it can run is analyzed as a call. Anonymous functions and methods in its body, and project or built-in functions used as values rather than called, report `FUNCTION_VALUE`: a `toString`, `valueOf`, iterator, or callback can be invoked implicitly, outside effect interception. Reading host state that is not a traced effect, such as `process.argv`, `process.platform`, an unknown member of `Math`, or a Node builtin other than the traced `fs`, `crypto`, and `perf_hooks` reads, reports `AMBIENT_STATE`.
+
 Ordinary `async`/`await`, analyzed local calls, and supported `Promise.all` calls retain their own invocation context. Nested traces include their children's reads. Parent and child observations can each become independent cases. Browser execution and Node execution produce separate cases.
 
 Configuration belongs in `replaylock.config.ts` (or a supported JavaScript configuration extension):

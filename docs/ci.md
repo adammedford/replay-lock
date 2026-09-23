@@ -22,7 +22,7 @@ The example pins Node 22.19.0, npm 11.5.2, and reviewed Action commits. It grant
 
 ## Developing ReplayLock itself
 
-The required `verify` job uses `.nvmrc` and the pinned npm version, installs Chromium, then runs type checking and `npm run verify`. Full verification runs CLI-runner regression tests, builds and checks the package contract, installs a real packed tarball into a clean temporary consumer, and runs every file in the locked 45-file acceptance suite. The installed consumer exercises public imports and the executable CLI through natural Vitest and development recording, explicit review, successful V1/V2 replay, and a seeded behavioral mismatch; its accepted bytes must never change during verification.
+The required `verify` job uses `.nvmrc` and the pinned npm version, installs Chromium, then runs type checking and `npm run verify`. Full verification runs CLI-runner regression tests, builds and checks the package contract, installs a real packed tarball into a clean temporary consumer, and runs every file in the locked acceptance manifest. The installed consumer exercises public imports and the executable CLI through natural Vitest and development recording, explicit review, successful V1/V2 replay, and a seeded behavioral mismatch; its accepted bytes must never change during verification.
 
 Acceptance files run with bounded concurrency two by default. Reproduce serially or request readable output with:
 

@@ -67,6 +67,7 @@
     "verify:dogfood": "node scripts/verify-dogfood.mjs",
     "coverage": "node scripts/run-coverage.mjs",
     "bench:dev": "node scripts/bench-dev.mjs",
+    "yield:dev": "node scripts/yield-report.mjs",
     "pilot:dev": "node scripts/pilot-dev.mjs",
     "conformance:dev": "node scripts/dev-conformance.mjs"
   },
