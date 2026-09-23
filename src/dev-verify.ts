@@ -46,6 +46,7 @@ export async function preflightDevCases(root: string, cases: readonly DevCase[],
       const diagnostic = analysis.diagnostics.find((entry) => entry.locator && identity({ locator: entry.locator }) === identity(artifact));
       failure(diagnostic ? "REPLAY_SAFETY_REGRESSION" : "ORPHANED_CALLABLE", `${target}${diagnostic ? ` (${diagnostic.code})` : ""}`);
     }
+    if (discovered.requires?.includes("plainValues") && containsAdapter(artifact)) failure("REPLAY_SAFETY_REGRESSION", `${target} (UNSUPPORTED_VALUE)`);
     const transformed = project.transform({ root, id: absolute, code: await readFile(absolute, "utf8"), environment: artifact.environment, generation: "verify", options, replay: true });
     if (!transformed.targets.some((entry) => identity(entry) === identity(artifact) && entry.replayExport === discovered.replayExport)) failure("REPLAY_SAFETY_REGRESSION", target);
     if (artifact.environment === "node" && !/^v?22\./.test(process.version)) failure("RUNTIME_PROFILE_MISMATCH", "Node 22 is required");

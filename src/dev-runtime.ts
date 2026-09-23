@@ -133,7 +133,14 @@ export function withDevContext<T>(frame: RuntimeFrame | undefined, invoke: () =>
   try { return invoke(); } finally { state.current = previous; }
 }
 
-export function observeDevCall<T>(metadata: DevMetadata, args: readonly unknown[], invoke: (frame: RuntimeFrame | undefined) => T, asynchronous = false): T {
+/** Capture requirements analysis attaches to a target. */
+export interface DevCallPolicy { plainValues?: boolean }
+function adapted(value: DevValue | undefined): boolean {
+  if (!value || typeof value !== "object") return false;
+  if ((value as { kind?: unknown }).kind === "adapted") return true;
+  return Object.values(value).some((item) => adapted(item as DevValue));
+}
+export function observeDevCall<T>(metadata: DevMetadata, args: readonly unknown[], invoke: (frame: RuntimeFrame | undefined) => T, asynchronous = false, policy?: DevCallPolicy): T {
   const inherited = state.current && state.frames.get(state.current);
   if (inherited?.mode === "replay") {
     if (inherited.closed) throw latch(inherited);
@@ -177,6 +184,8 @@ export function observeDevCall<T>(metadata: DevMetadata, args: readonly unknown[
   state.pending.add(capture);
   if (parent) parent.children++;
   guarded(capture, () => { capture.arguments = encodeDevValue(args, configuration); });
+  // Built-ins in this target may call methods of an adapted instance natively.
+  if (policy?.plainValues && adapted(capture.arguments)) block(capture, "UNSUPPORTED_VALUE");
   let result: T;
   try { result = withDevContext(frame, () => invoke(frame)); }
   catch (error) { finish(capture, args, "throw", error); throw error; }

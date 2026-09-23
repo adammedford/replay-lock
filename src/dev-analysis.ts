@@ -6,7 +6,7 @@ import ts from "typescript";
 import { classifyKnownInvocation, createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
-import { DEV_AMBIENT_GLOBALS, DEV_BUILTIN_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_GLOBAL_OBJECT_MEMBERS, devCatalogInvocation, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
+import { DEV_AMBIENT_GLOBALS, DEV_BUILTIN_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_FRESH_CONSTRUCTORS, DEV_FRESH_METHODS, DEV_FRESH_STATICS, DEV_GLOBAL_OBJECT_MEMBERS, DEV_IMPLICIT_CALLERS, DEV_METHODS, devCatalogInvocation, devMutatingStatic, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
 export type DevCallable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
@@ -27,6 +27,12 @@ export interface DevFunction extends DevTarget {
   calls: Map<ts.CallExpression, DevFunction>;
   /** Top-level declarations (or namespace-imported modules) this callable references, with a referencing node. */
   references: Map<ts.Node, ts.Node>;
+  /** Inline functions passed to allowed built-in methods, analyzed as part of this callable. */
+  callbacks: Set<ts.Node>;
+  /** Project functions called from those callbacks, where effects are not intercepted. */
+  callbackCalls: Map<ts.CallExpression, DevFunction>;
+  /** Calls built-ins that can invoke methods of their receiver or arguments. */
+  implicitBuiltins: boolean;
 }
 /**
  * Module initialization runs whenever a module is imported, including when
@@ -274,7 +280,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             locator, replayExport: `__replaylock_dev_${createHash("sha256").update(JSON.stringify(locator)).digest("hex").slice(0, 24)}`,
             node, module, name, asynchronous: hasModifier(node, ts.SyntaxKind.AsyncKeyword),
             instrument: module.selected && (options.capture.mode === "automatic" || policy.capture),
-            problems, effects: new Map(), calls: new Map(), references: new Map(),
+            problems, effects: new Map(), calls: new Map(), references: new Map(), callbacks: new Set(), callbackCalls: new Map(), implicitBuiltins: false,
           };
           if (binding && bySymbol.has(binding)) { problems.add("AMBIGUOUS_CALLABLE"); bySymbol.get(binding)!.problems.add("AMBIGUOUS_CALLABLE"); }
           else if (binding) bySymbol.set(binding, candidate);
@@ -587,9 +593,14 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const parent = site.parent;
     if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === site) {
       if (["__proto__", "constructor", "prototype"].includes(memberName(parent) ?? "")) return false;
+      if (calleePosition(parent)) {
+        // Reading methods only; a callback would receive the table itself.
+        const spec = DEV_METHODS.get(memberName(parent) ?? "");
+        return !!spec && !spec.mutating && !spec.callbacks && !spec.regex;
+      }
       let top: ts.Node = parent;
       while (top.parent && (((ts.isPropertyAccessExpression(top.parent) || ts.isElementAccessExpression(top.parent)) && top.parent.expression === top) || ts.isParenthesizedExpression(top.parent) || ts.isAsExpression(top.parent) || ts.isTypeAssertionExpression(top.parent) || ts.isNonNullExpression(top.parent) || ts.isSatisfiesExpression(top.parent))) top = top.parent;
-      return !calleePosition(parent) && !writtenExpression(top);
+      return !writtenExpression(top);
     }
     if (ts.isTypeOfExpression(parent) || (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.InKeyword && parent.right === site)) return true;
     if ((ts.isForOfStatement(parent) || ts.isForInStatement(parent)) && parent.expression === site) return true;
@@ -633,13 +644,107 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     while (statement && !ts.isImportDeclaration(statement)) statement = statement.parent;
     return !!statement && ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && builtins.has(applyAlias(statement.moduleSpecifier.text, options).replace(/^node:/, "")) && canonical(root) === undefined;
   };
+  /** A value this invocation created and owns, so mutating it affects nothing else. */
+  const freshValue = (expression: ts.Expression, owner: ts.Node, seen = new Set<ts.Node>()): boolean => {
+    const node = unwrap(expression);
+    if (seen.has(node)) return false;
+    seen.add(node);
+    if (ts.isArrayLiteralExpression(node) || ts.isObjectLiteralExpression(node)) return true;
+    if (ts.isNewExpression(node)) return DEV_FRESH_CONSTRUCTORS.has(identity(node.expression) ?? "");
+    if (ts.isCallExpression(node)) {
+      const callee = unwrap(node.expression);
+      const name = identity(callee);
+      if (name !== undefined) return DEV_FRESH_STATICS.has(name);
+      return (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) && DEV_FRESH_METHODS.has(memberName(callee) ?? "");
+    }
+    if (!ts.isIdentifier(node)) return false;
+    const declaration = symbol(node)?.valueDeclaration;
+    if (!declaration || !ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name) || !declaration.initializer || !descendantOf(declaration, owner) || !freshValue(declaration.initializer, owner, seen)) return false;
+    if (constantDeclaration(declaration)) return true;
+    // A reassigned local stays owned only if every value assigned to it is.
+    const binding = symbol(declaration.name);
+    return namedIdentifiers(owner.getSourceFile(), declaration.name.text).every((reference) => {
+      if (reference === declaration.name || symbol(reference) !== binding) return true;
+      const site = expressionSite(reference);
+      const parent = site.parent;
+      if (ts.isBinaryExpression(parent) && parent.left === site && parent.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && parent.operatorToken.kind <= ts.SyntaxKind.LastAssignment) return parent.operatorToken.kind === ts.SyntaxKind.EqualsToken && freshValue(parent.right, owner, seen);
+      return !writtenExpression(site);
+    });
+  };
+  /** A regular expression whose `test`/`exec` cannot depend on `lastIndex`. */
+  const statelessRegex = (expression: ts.Expression, owner: ts.Node): boolean => {
+    const node = unwrap(expression);
+    if (ts.isRegularExpressionLiteral(node)) return !/[gy]/.test(node.text.slice(node.text.lastIndexOf("/") + 1));
+    if (ts.isNewExpression(node)) {
+      const flags = node.arguments?.[1];
+      return identity(node.expression) === "RegExp" && (!flags || (ts.isStringLiteral(flags) && !/[gy]/.test(flags.text)));
+    }
+    if (!ts.isIdentifier(node)) return false;
+    const declaration = symbol(node)?.valueDeclaration;
+    return !!declaration && ts.isVariableDeclaration(declaration) && !!declaration.initializer && constantDeclaration(declaration) && descendantOf(declaration, owner) && statelessRegex(declaration.initializer, owner);
+  };
+  /** An inline, synchronous function, or a readable built-in, passed as a callback. */
+  const callbackArgument = (argument: ts.Expression): boolean => {
+    const callback = unwrap(argument);
+    if (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) return !callback.asteriskToken && !hasModifier(callback, ts.SyntaxKind.AsyncKeyword);
+    // A position that also accepts data, such as `replace`'s replacement string.
+    if (literalValue(callback) || ts.isNoSubstitutionTemplateLiteral(callback) || ts.isTemplateExpression(callback)) return true;
+    const name = identity(callback);
+    return name !== undefined && devReadableBuiltin(name);
+  };
+  /** A catalogued method called on data, registering its inline callbacks for analysis. */
+  const builtinMethod = (call: ts.CallExpression, candidate: DevFunction): boolean => {
+    const callee = unwrap(call.expression);
+    if (!ts.isPropertyAccessExpression(callee) && !ts.isElementAccessExpression(callee)) return false;
+    const spec = DEV_METHODS.get(memberName(callee) ?? "");
+    if (!spec || call.arguments.some(ts.isSpreadElement)) return false;
+    const receiver = unwrap(callee.expression);
+    if (receiver.kind === ts.SyntaxKind.ThisKeyword || receiver.kind === ts.SyntaxKind.SuperKeyword) return false;
+    // An ambient path names a static or host API, never a data receiver.
+    if (identity(callee) !== undefined) return false;
+    if (spec.regex && !statelessRegex(receiver, candidate.node)) return false;
+    if (spec.mutating && !freshValue(receiver, candidate.node)) return false;
+    const callbacks = (spec.callbacks ?? []).map((index) => call.arguments[index]).filter((argument): argument is ts.Expression => !!argument);
+    if (!callbacks.every(callbackArgument)) return false;
+    for (const argument of callbacks) {
+      const callback = unwrap(argument);
+      if (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) candidate.callbacks.add(callback);
+    }
+    return true;
+  };
+  /** A write inside a callback may only change the invocation's own locals or owned values. */
+  const callbackWrite = (target: ts.Expression, owner: ts.Node): string | undefined => {
+    let node = unwrap(target);
+    if (ts.isIdentifier(node)) {
+      const declaration = symbol(node)?.valueDeclaration;
+      return declaration && descendantOf(declaration, owner) ? undefined : "AMBIENT_MUTATION";
+    }
+    if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return "ARGUMENT_MUTATION";
+    while (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) node = unwrap(node.expression);
+    if (freshValue(node, owner)) return undefined;
+    const declaration = ts.isIdentifier(node) ? symbol(node)?.valueDeclaration : undefined;
+    return declaration && !descendantOf(declaration, owner) ? "AMBIENT_MUTATION" : "ARGUMENT_MUTATION";
+  };
   for (const candidate of reachableFunctions) {
     const { node, module, problems, effects, calls, references } = candidate;
+    let callbackDepth = 0;
     const inspect = (child: ts.Node): void => {
       if (child !== node && ts.isFunctionLike(child)) {
-        if (ts.isGetAccessorDeclaration(child) || ts.isSetAccessorDeclaration(child)) problems.at("UNKNOWN_CALL", child);
+        if (candidate.callbacks.has(child)) {
+          // Allowed callbacks run synchronously inside this invocation.
+          callbackDepth++;
+          ts.forEachChild(child, inspect);
+          callbackDepth--;
+        } else if (ts.isGetAccessorDeclaration(child) || ts.isSetAccessorDeclaration(child)) problems.at("UNKNOWN_CALL", child);
         else if (runtimeFunction(child) && !discovered.has(child)) problems.at("FUNCTION_VALUE", child);
         return;
+      }
+      if (callbackDepth > 0) {
+        const written = ts.isBinaryExpression(child) && child.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && child.operatorToken.kind <= ts.SyntaxKind.LastAssignment ? child.left
+          : ts.isDeleteExpression(child) ? child.expression
+          : (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) && (child.operator === ts.SyntaxKind.PlusPlusToken || child.operator === ts.SyntaxKind.MinusMinusToken) ? child.operand : undefined;
+        const code = written && callbackWrite(written, node);
+        if (code) problems.at(code, child);
       }
       if (ts.isTypeNode(child)) return;
       if (child.kind === ts.SyntaxKind.ThisKeyword || child.kind === ts.SyntaxKind.SuperKeyword || (ts.isMetaProperty(child) && child.keywordToken === ts.SyntaxKind.NewKeyword)) problems.at("RECEIVER_DEPENDENCE", child);
@@ -688,7 +793,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       }
       const effect = operation(child);
       if (effect) {
-        if (!candidate.instrument) problems.at("UNINSTRUMENTED_EFFECT", child);
+        // Effects inside callbacks run outside interception.
+        if (callbackDepth > 0) problems.at("CALLBACK_EFFECT", child);
+        else if (!candidate.instrument) problems.at("UNINSTRUMENTED_EFFECT", child);
         else effects.set(child, effect);
       }
       if (ts.isCallExpression(child) || ts.isNewExpression(child)) {
@@ -698,6 +805,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         if (!effect) {
           if (target && ts.isCallExpression(child) && !child.questionDotToken && !ts.isCallChain(child)) {
             calls.set(child, target);
+            if (callbackDepth > 0) candidate.callbackCalls.set(child, target);
             reachableFunctions.add(target);
             asynchronous = target.asynchronous;
           } else if (name === "Promise.all" && ts.isCallExpression(child) && child.arguments.length === 1 && ts.isArrayLiteralExpression(unwrap(child.arguments[0]!))) {
@@ -706,7 +814,13 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
             // Only immediate values; assimilating an unknown thenable would run hidden work.
             if (child.arguments[0] && !literalValue(child.arguments[0])) problems.at("UNKNOWN_CALL", child);
             asynchronous = true;
-          } else if (!(name && devCatalogInvocation(child, name, expressionPath(child.expression)))) {
+          } else if (name && devCatalogInvocation(child, name, expressionPath(child.expression))) {
+            if (DEV_IMPLICIT_CALLERS.has(name) && child.arguments?.length) candidate.implicitBuiltins = true;
+            // Direct mutation analysis does not descend into callbacks.
+            if (callbackDepth > 0 && devMutatingStatic(name) && !(child.arguments?.[0] && freshValue(child.arguments[0], node))) problems.at("ARGUMENT_MUTATION", child);
+          } else if (ts.isCallExpression(child) && builtinMethod(child, candidate)) {
+            candidate.implicitBuiltins = true;
+          } else {
             problems.at("UNKNOWN_CALL", child);
           }
         }
@@ -733,6 +847,23 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       const covered = coveredFindingCodes.has(finding.code) && [...effects.keys()].some((effectNode) => position === effectNode.getStart() || ((ts.isCallExpression(effectNode) || ts.isNewExpression(effectNode)) && position === effectNode.expression.getStart()));
       if (!covered) problems.at(finding.code, { module: candidate.locator.module, line: finding.line, column: finding.column });
     }
+  }
+  // A project function called from a callback runs outside this invocation's
+  // interception, so it must have no traced effects, directly or transitively.
+  // A callable whose built-ins may invoke methods of its values requires plain
+  // values, and so does every callable that calls it.
+  const effectful = new Set([...reachableFunctions].filter((candidate) => candidate.effects.size > 0));
+  const plain = new Set([...reachableFunctions].filter((candidate) => candidate.implicitBuiltins));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const candidate of reachableFunctions) for (const target of candidate.calls.values()) {
+      if (effectful.has(target) && !effectful.has(candidate)) { effectful.add(candidate); grew = true; }
+      if (plain.has(target) && !plain.has(candidate)) { plain.add(candidate); grew = true; }
+    }
+  }
+  for (const candidate of reachableFunctions) {
+    for (const [call, target] of candidate.callbackCalls) if (effectful.has(target)) candidate.problems.at("CALLBACK_EFFECT", call);
+    if (plain.has(candidate)) candidate.requires = ["plainValues"];
   }
   // Stable lexical locators must never silently pick one of two block-scoped names.
   const locators = new Map<string, DevFunction>();
@@ -789,7 +920,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   const targets: DevTarget[] = [];
   for (const candidate of functions) {
     if (!candidate.instrument) continue;
-    if (candidate.problems.size === 0) targets.push({ locator: candidate.locator, replayExport: candidate.replayExport });
+    if (candidate.problems.size === 0) targets.push({ locator: candidate.locator, replayExport: candidate.replayExport, ...(candidate.requires ? { requires: candidate.requires } : {}) });
     else for (const code of [...candidate.problems].sort()) diagnostics.push({ code, locator: candidate.locator, ...candidate.problems.origins.get(code), message: `${candidate.locator.module}#${candidate.locator.namePath.join(".")}: ${code}` });
   }
   const hash = createHash("sha256");

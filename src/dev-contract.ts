@@ -93,7 +93,9 @@ export interface DevRuntimeConfiguration extends DevCodecOptions {
 }
 export interface DevSourcePosition { module: string; line: number; column: number }
 export interface DevDiagnostic { code: string; locator?: DevLocator; message: string; position?: DevSourcePosition; causes?: { code: string; position: DevSourcePosition }[] }
-export interface DevTarget { locator: DevLocator; replayExport: string }
+/** `plainValues`: the target's built-ins may invoke methods of its values, so adapted instances are refused. */
+export type DevTargetRequirement = "plainValues";
+export interface DevTarget { locator: DevLocator; replayExport: string; requires?: DevTargetRequirement[] }
 export interface DevAnalysis {
   targets: DevTarget[];
   diagnostics: DevDiagnostic[];
