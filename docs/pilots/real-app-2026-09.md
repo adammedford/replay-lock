@@ -55,8 +55,8 @@ The complete pilot report is 850 KB, of which 789 KB is Epic's scan listing. It 
 | `3ab46b4`, before the analyzer-yield stack | 1,938 ms | 32 ms | 1,151 ms | yes |
 | `2736a7e`, current `main` | 9,004 ms | 36 ms | 3,426 ms | no |
 | Pilot build above | 9,983 ms | 2,870 ms | 7,670 ms | no |
-| `main` plus the latency fixes | 1,935 ms | 22 ms | 1,689 ms | yes |
-| Pilot build plus the latency fixes | **1,021 ms** | **58 ms** | **753 ms** | **yes** |
+| `main` plus the latency fixes ([#102](https://github.com/adammedford/replay-lock/pull/102)) | 1,935 ms | 22 ms | 1,689 ms | yes |
+| Pilot build plus #102 | **1,021 ms** | **58 ms** | **753 ms** | **yes** |
 
 The last row is measured with capture active on the visited pages. The Epic pilot passes again on that build.
 
