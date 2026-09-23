@@ -1,27 +1,35 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1",
+  "catalogVersion": "2",
   "corpus": {
     "eligible": {
       "node": [
         "src/arrays.ts#first",
+        "src/arrays.ts#unique",
         "src/errors.ts#requirePositive",
+        "src/json.ts#encodePath",
+        "src/json.ts#roundTrip",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
-        "src/strings.ts#greeting"
+        "src/strings.ts#greeting",
+        "src/tables.ts#isPositive"
       ],
       "browser": [
         "src/arrays.ts#first",
+        "src/arrays.ts#unique",
         "src/errors.ts#requirePositive",
+        "src/json.ts#encodePath",
+        "src/json.ts#roundTrip",
         "src/numbers.ts#bmi",
         "src/numbers.ts#clamp",
         "src/numbers.ts#isEven",
         "src/numbers.ts#percent",
         "src/routes.ts#heading",
-        "src/strings.ts#greeting"
+        "src/strings.ts#greeting",
+        "src/tables.ts#isPositive"
       ]
     },
     "samples": {
@@ -36,12 +44,33 @@
           []
         ]
       ],
+      "src/arrays.ts#unique": [
+        [
+          [
+            "a",
+            "b",
+            "a"
+          ]
+        ]
+      ],
       "src/errors.ts#requirePositive": [
         [
           2
         ],
         [
           -1
+        ]
+      ],
+      "src/json.ts#encodePath": [
+        [
+          "a b/c?d"
+        ]
+      ],
+      "src/json.ts#roundTrip": [
+        [
+          {
+            "a": 1
+          }
         ]
       ],
       "src/numbers.ts#bmi": [
@@ -89,6 +118,14 @@
         [
           "Ada"
         ]
+      ],
+      "src/tables.ts#isPositive": [
+        [
+          3
+        ],
+        [
+          -1
+        ]
       ]
     }
   },
@@ -102,22 +139,36 @@
       ]
     },
     "rejected": {
-      "src/ambient.ts#patchedMath": [
+      "src/ambient.ts#argvLength": [
         "AMBIENT_STATE"
       ],
       "src/ambient.ts#dynamicMathMember": [
         "AMBIENT_STATE"
       ],
-      "src/ambient.ts#argvLength": [
+      "src/ambient.ts#globalFlag": [
+        "AMBIENT_STATE"
+      ],
+      "src/ambient.ts#patchedMath": [
         "AMBIENT_STATE"
       ],
       "src/ambient.ts#platformName": [
         "AMBIENT_STATE"
       ],
-      "src/ambient.ts#globalFlag": [
-        "AMBIENT_STATE"
+      "src/callbacks.ts#anyReceiver": [
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#callbackParameter": [
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#randomComparator": [
+        "FUNCTION_VALUE",
+        "UNKNOWN_CALL"
       ],
       "src/callbacks.ts#randomInMap": [
+        "FUNCTION_VALUE",
+        "UNKNOWN_CALL"
+      ],
+      "src/callbacks.ts#replacerFunction": [
         "FUNCTION_VALUE",
         "UNKNOWN_CALL"
       ],
@@ -125,18 +176,26 @@
         "ARGUMENT_MUTATION",
         "UNKNOWN_CALL"
       ],
-      "src/callbacks.ts#randomComparator": [
+      "src/catalog.ts#aliasedFreeze": [
+        "UNKNOWN_CALL"
+      ],
+      "src/catalog.ts#freezeArgument": [
+        "ARGUMENT_MUTATION"
+      ],
+      "src/catalog.ts#globalFreeze": [
+        "UNKNOWN_CALL"
+      ],
+      "src/catalog.ts#mapWithoutNew": [
+        "UNKNOWN_CALL"
+      ],
+      "src/catalog.ts#mappedFrom": [
         "FUNCTION_VALUE",
         "UNKNOWN_CALL"
       ],
-      "src/callbacks.ts#callbackParameter": [
+      "src/catalog.ts#parenthesizedFreeze": [
         "UNKNOWN_CALL"
       ],
-      "src/callbacks.ts#replacerFunction": [
-        "FUNCTION_VALUE",
-        "UNKNOWN_CALL"
-      ],
-      "src/callbacks.ts#anyReceiver": [
+      "src/catalog.ts#replacerParameter": [
         "UNKNOWN_CALL"
       ],
       "src/defaults.ts#withClockDefault": [
@@ -148,20 +207,17 @@
       "src/env.ts#token": [
         "EFFECTFUL_INITIALIZATION"
       ],
+      "src/implicit.ts#clockAliasAsValue": [
+        "FUNCTION_VALUE"
+      ],
       "src/implicit.ts#coerceToString": [
         "FUNCTION_VALUE"
       ],
       "src/implicit.ts#coerceValueOf": [
         "FUNCTION_VALUE"
       ],
-      "src/implicit.ts#templateToString": [
-        "FUNCTION_VALUE"
-      ],
-      "src/implicit.ts#iteratorRandom": [
-        "FUNCTION_VALUE"
-      ],
-      "src/implicit.ts#writeInToString": [
-        "FUNCTION_VALUE"
+      "src/implicit.ts#exitAsValue": [
+        "AMBIENT_STATE"
       ],
       "src/implicit.ts#helperAsToString": [
         "FUNCTION_VALUE"
@@ -169,17 +225,20 @@
       "src/implicit.ts#helperCall": [
         "FUNCTION_VALUE"
       ],
+      "src/implicit.ts#hostnameAsValue": [
+        "AMBIENT_STATE"
+      ],
+      "src/implicit.ts#iteratorRandom": [
+        "FUNCTION_VALUE"
+      ],
       "src/implicit.ts#randomAsValue": [
         "FUNCTION_VALUE"
       ],
-      "src/implicit.ts#clockAliasAsValue": [
+      "src/implicit.ts#templateToString": [
         "FUNCTION_VALUE"
       ],
-      "src/implicit.ts#exitAsValue": [
-        "AMBIENT_STATE"
-      ],
-      "src/implicit.ts#hostnameAsValue": [
-        "AMBIENT_STATE"
+      "src/implicit.ts#writeInToString": [
+        "FUNCTION_VALUE"
       ],
       "src/module-fetch.ts#increment": [
         "EFFECTFUL_INITIALIZATION"
@@ -187,20 +246,27 @@
       "src/module-fetch.ts#pending": [
         "EFFECTFUL_INITIALIZATION"
       ],
-      "src/tables.ts#clockTable": [
-        "AMBIENT_STATE"
+      "src/random-table.ts#randomTableRead": [
+        "EFFECTFUL_INITIALIZATION"
       ],
-      "src/tables.ts#mutatedTable": [
-        "AMBIENT_STATE"
+      "src/shadowed-json.ts#shadowedJson": [
+        "AMBIENT_STATE",
+        "UNKNOWN_CALL"
       ],
       "src/tables.ts#bumpTable": [
         "AMBIENT_MUTATION",
         "AMBIENT_STATE"
       ],
-      "src/tables.ts#statefulRegex": [
+      "src/tables.ts#clockTable": [
         "AMBIENT_STATE"
       ],
       "src/tables.ts#exportedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#mutatedTable": [
+        "AMBIENT_STATE"
+      ],
+      "src/tables.ts#statefulRegex": [
         "AMBIENT_STATE"
       ],
       "src/timer.ts#triple": [
@@ -212,7 +278,7 @@
     }
   },
   "selfFloor": {
-    "node": 6,
-    "browser": 6
+    "node": 11,
+    "browser": 11
   }
 }

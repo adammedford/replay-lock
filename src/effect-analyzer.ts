@@ -105,12 +105,22 @@ interface ModuleEffectFacts {
 }
 
 /** A build owns this context; source identity prevents facts crossing edits or overlays. */
-export function createEffectAnalyzer() {
+export interface EffectAnalyzerOptions {
+  /**
+   * Development analysis supplies its own catalog of module-scope calls that
+   * run no user code. V1 omits it and keeps the shared intrinsic catalog, which
+   * its assumption fingerprints bind.
+   */
+  isDeterministicInvocation?: (node: ts.CallExpression | ts.NewExpression) => boolean;
+}
+
+export function createEffectAnalyzer(options: EffectAnalyzerOptions = {}) {
+  const deterministic = options.isDeterministicInvocation ?? isDeterministicIntrinsicInvocation;
   const modules = new WeakMap<ts.SourceFile, ModuleEffectFacts>();
   const initializations = new WeakMap<ts.SourceFile, readonly ts.Node[]>();
   function initializationNodes(sourceFile: ts.SourceFile): readonly ts.Node[] {
     let nodes = initializations.get(sourceFile);
-    if (!nodes) { nodes = effectfulModuleInitializations(sourceFile); initializations.set(sourceFile, nodes); }
+    if (!nodes) { nodes = effectfulModuleInitializations(sourceFile, deterministic); initializations.set(sourceFile, nodes); }
     return nodes;
   }
   function facts(sourceFile: ts.SourceFile): ModuleEffectFacts {
@@ -533,35 +543,37 @@ function isProcessEnvironmentPath(name: string | undefined): boolean {
   return name === "process.env" || !!name?.startsWith("process.env.") || name === "Deno.env" || !!name?.startsWith("Deno.env.");
 }
 
-function effectfulModuleInitializations(sourceFile: ts.SourceFile): ts.Node[] {
+type DeterministicInvocation = (node: ts.CallExpression | ts.NewExpression) => boolean;
+
+function effectfulModuleInitializations(sourceFile: ts.SourceFile, deterministic: DeterministicInvocation = isDeterministicIntrinsicInvocation): ts.Node[] {
   const effects: ts.Node[] = [];
   for (const statement of sourceFile.statements) {
     if (ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement) || ts.isExportDeclaration(statement)) continue;
-    visitInitializationNode(statement, effects);
+    visitInitializationNode(statement, effects, deterministic);
   }
   return effects;
 }
 
-function visitInitializationNode(node: ts.Node, effects: ts.Node[]): void {
+function visitInitializationNode(node: ts.Node, effects: ts.Node[], deterministic: DeterministicInvocation): void {
   if (isFunctionLike(node)) return;
   if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
     for (const member of node.members) {
-      if (ts.isClassStaticBlockDeclaration(member)) visitInitializationNode(member, effects);
+      if (ts.isClassStaticBlockDeclaration(member)) visitInitializationNode(member, effects, deterministic);
       else if (ts.isPropertyDeclaration(member) && hasStaticModifier(member) && member.initializer) {
-        visitInitializationNode(member.initializer, effects);
+        visitInitializationNode(member.initializer, effects, deterministic);
       }
     }
     return;
   }
-  if (isInitializationEffect(node)) {
+  if (isInitializationEffect(node, deterministic)) {
     effects.push(node);
     return;
   }
-  ts.forEachChild(node, (child) => visitInitializationNode(child, effects));
+  ts.forEachChild(node, (child) => visitInitializationNode(child, effects, deterministic));
 }
 
-function isInitializationEffect(node: ts.Node): boolean {
-  if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && !isDeterministicIntrinsicInvocation(node)) return true;
+function isInitializationEffect(node: ts.Node, deterministic: DeterministicInvocation): boolean {
+  if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && !deterministic(node)) return true;
   return (
     ts.isAwaitExpression(node) ||
     ts.isYieldExpression(node) ||
@@ -787,7 +799,8 @@ function containsSuper(node: ts.Node): boolean {
   return found;
 }
 
-function expressionPath(expression: ts.Expression): string | undefined {
+/** The literal dotted path an expression spells, without resolving bindings or unwrapping. */
+export function expressionPath(expression: ts.Expression): string | undefined {
   if (ts.isIdentifier(expression)) return expression.text;
   if (expression.kind === ts.SyntaxKind.ThisKeyword) return "this";
   if (ts.isMetaProperty(expression)) return `${expression.keywordToken === ts.SyntaxKind.ImportKeyword ? "import" : "new"}.${expression.name.text}`;
