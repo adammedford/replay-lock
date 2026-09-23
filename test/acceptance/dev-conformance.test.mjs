@@ -7,6 +7,6 @@ test('32 fixed seeds in Node and Chromium preserve completions, order, mutation 
 });
 test('idiomatic built-ins, tables, callbacks and initializers replay offline in Node and Chromium',{timeout:120000},async()=>{
   const result=await runConformance({family:'idioms'});assert.equal(result.seeds.length,32);
-  for(const realm of ['node','browser']){const r=result.realms[realm];assert.equal(r.executed,96);assert.equal(r.replayed,66);assert.equal(r.excluded,30);assert.equal(r.throws,3);}
+  for(const realm of ['node','browser']){const r=result.realms[realm];assert.equal(r.executed,96);assert.equal(r.replayed,84);assert.equal(r.excluded,12);assert.equal(r.throws,3);}
 });
 test('one seed reruns independently',async()=>{const result=await runConformance({seed:3,realm:'node'});assert.deepEqual(result.seeds,[3]);assert.equal(result.realms.node.replayed,3);});

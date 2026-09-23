@@ -405,7 +405,7 @@ export function readsBoot(n: number) { return n + boot; }` });
   assert.deepEqual(names(transform(privateRegistration, "source.ts")), [], "an unbound statement still taints its own module");
 });
 
-test("built-in methods and pure callbacks replay offline; their targets refuse adapted values", async (t) => {
+test("built-in methods and callbacks replay offline with traced callback effects; their targets refuse adapted values", async (t) => {
   const root = project(t, { "source.ts": `
 export function entry(path: string, values: number[], record: Record<string, number>) {
   const parts = path.trim().split(":").map((part) => part.length);
@@ -442,9 +442,22 @@ export function echo(value: unknown) { return value; }` });
   module.echo(new Amount(1));
   assert.equal(adapted.observations.length, 1);
   assert.equal(adapted.observations[0].locator.namePath[0], "echo");
+  // Effects inside callbacks, and in project functions they call, are traced against the caller's frame.
+  const traced = project(t, { "source.ts": `function noisy(value: number) { return value + Date.now(); }
+export function entry(values: number[]) { return [values.map((value) => value + Math.random()), values.map((value) => noisy(value)), [...values].sort(() => Math.random() - 0.5)]; }` });
+  const tracedResult = transform(traced, "source.ts", { replay: true });
+  assert.deepEqual(tracedResult.diagnostics, []);
+  const tracedModule = await load(traced, tracedResult);
+  const tracedCapture = capture();
+  const tracedOriginal = tracedModule.entry([1, 2, 3]);
+  const entryObservation = tracedCapture.observations.find((item) => item.locator.namePath[0] === "entry");
+  assert.deepEqual(ops(entryObservation).slice(0, 6), ["Math.random", "Math.random", "Math.random", "Date.now", "Date.now", "Date.now"]);
+  assert.ok(ops(entryObservation).slice(6).every((operation) => operation === "Math.random"));
+  const saved = { random: Math.random, now: Date.now };
+  Math.random = Date.now = () => { throw new Error("native effect during replay"); };
+  try { assert.deepEqual(await replayDevTrace(entryObservation.trace, () => tracedModule[tracedResult.targets.find((item) => item.locator.namePath[0] === "entry").replayExport]([1, 2, 3])), tracedOriginal); }
+  finally { Math.random = saved.random; Date.now = saved.now; }
   const refused = [
-    [`export function entry(values: number[]) { return values.map((value) => value + Math.random()); }`, "CALLBACK_EFFECT"],
-    [`function noisy(value: number) { return value + Date.now(); } export function entry(values: number[]) { return values.map((value) => noisy(value)); }`, "CALLBACK_EFFECT"],
     [`export function entry(values: { n: number }[]) { values.forEach((value) => { value.n++; }); return 0; }`, "ARGUMENT_MUTATION"],
     [`let total = 0; export function entry(values: number[]) { values.forEach((value) => { total += value; }); return 0; }`, "AMBIENT_MUTATION"],
     [`export function entry(values: number[]) { return values.sort(); }`, "ARGUMENT_MUTATION"],

@@ -128,7 +128,9 @@ function transformProject(project: DevProject, options: DevTransformOptions): De
     }
     // A blocked owner may still contain an independently safe stateless child.
     // Its authored body remains untouched except that child's own wrapper.
-    const nextActive = ts.isFunctionLike(node) ? undefined : active;
+    // An allowed callback runs synchronously inside its owner's invocation and
+    // shares its frame; any other function runs outside it.
+    const nextActive = ts.isFunctionLike(node) && !active?.callbacks.has(node) ? undefined : active;
     const start = node.getStart();
     let position = start;
     let result = "";

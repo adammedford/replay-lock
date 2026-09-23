@@ -28,9 +28,9 @@ export function generatedIdiomProgram(seed) {
     [`const boot=Date.now();export function main(n){return n+(boot>0?${constant}:0);}`,false],
     [`export function main(n){return String(n*${constant}).split('').map(d=>Number(d)).reduce((a,b)=>a+b,0)+Math.random();}`,true],
     [`export function main(n){const counts={};[n%3,${constant}%3,n%3].forEach(k=>{counts[k]=(counts[k]??0)+1;});return [counts,[...[n,${constant},1]].sort((a,b)=>a-b),Date.now()];}`,true],
-    [`export function main(n){const r=Math.random();return [1,2,3].map(x=>{if(x===2&&n%2===1)throw new RangeError('stop');return x+r;});}`,true],
-    [`export function main(n){return [n,${constant}].map(x=>x+Math.random());}`,false],
-    [`export function main(n){return [n,${constant},3].sort(()=>Math.random()-0.5);}`,false],
+    [`export function main(n){return [1,2,3].map(x=>{const r=Math.random();if(x===2&&n%2===1)throw new RangeError('stop');return x+r;});}`,true],
+    [`export function main(n){return [n,${constant}].map(x=>x+Math.random());}`,true],
+    [`export function main(n){return [n,${constant},3].sort(()=>Math.random()-0.5);}`,true],
   ];
   const variant=seed%programs.length;
   const [code,eligible]=programs[variant];
