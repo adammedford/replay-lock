@@ -11,6 +11,7 @@ import { configureDevRuntime, replayDevTrace } from "../../dist/dev-runtime.js";
 import { defaultClientConditions, defaultServerConditions } from "vite";
 import { developmentConditions, resolveDevOptions } from "../../dist/dev-options.js";
 import { DEV_CATALOG_VERSION } from "../../dist/dev-catalog.js";
+import { blockerReport } from "../../scripts/yield-blockers.mjs";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const fixtures = path.join(repository, "test/fixtures/yield");
@@ -116,5 +117,38 @@ test("this repository's own code meets its eligibility floor", () => {
   for (const environment of realms) {
     const eligible = analyzeDevProject(repository, options, environment).targets.length;
     assert.ok(eligible >= expectations.selfFloor[environment], `${environment}: ${eligible} eligible is below the floor of ${expectations.selfFloor[environment]}`);
+  }
+});
+
+test("the blocker report traces skipped callables to their root sites", (t) => {
+  const root = materialize(t, "false-safe");
+  for (const environment of realms) {
+    const analysis = analyzeDevProject(root, options, environment);
+    const report = blockerReport(analysis, root, { top: 10 });
+    const eligible = new Set(analysis.targets.map((target) => locator(target.locator)));
+    assert.equal(report.eligible, eligible.size);
+    assert.ok(report.callables.every((item) => !eligible.has(item.callable)), "an eligible callable is reported as skipped");
+    assert.equal(report.outsideShapes + report.ownBody + report.inheritedOnly, report.skipped);
+    // A module-scope prototype write reaches its importer through initialization.
+    const patched = report.callables.find((item) => item.callable === "src/init/uses-patcher.ts#patchedImport");
+    assert.deepEqual(patched.blockers, [{ code: "EFFECTFUL_INITIALIZATION", site: "src/init/patcher.ts:1", inherited: true }]);
+    for (const [hazard, codes] of Object.entries(expectations.falseSafe.rejected)) {
+      if (!/^src\/init\/uses-/.test(hazard) || !codes.includes("EFFECTFUL_INITIALIZATION")) continue;
+      const item = report.callables.find((entry) => entry.callable === hazard);
+      assert.ok(item.blockers.some((blocker) => blocker.code === "EFFECTFUL_INITIALIZATION" && blocker.inherited), hazard);
+    }
+    // A site's only-blocker count is exactly what resolving it alone unlocks.
+    const inScope = report.callables.filter((item) => item.category !== "outside-shapes");
+    for (const row of report.sites) {
+      const alone = inScope.filter((item) => item.blockers.length === 1 && item.blockers[0].code === row.code && item.blockers[0].site === row.site).length;
+      assert.equal(row.only, alone, `${row.code} @ ${row.site}`);
+    }
+    let previous = 0;
+    for (const step of report.plan) {
+      assert.equal(step.cumulative, previous + step.unlocked.length);
+      previous = step.cumulative;
+    }
+    assert.ok(previous <= inScope.length);
+    assert.deepEqual(report.nearMisses.map((miss) => miss.callable), inScope.filter((item) => item.blockers.length <= 2).map((item) => item.callable));
   }
 });
