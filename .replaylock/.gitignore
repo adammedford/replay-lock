@@ -1,0 +1,5 @@
+# Written by ReplayLock: recording state and scratch files stay out of Git.
+# Reviewed cases in cases/ are meant to be committed.
+/*
+!/.gitignore
+!/cases/

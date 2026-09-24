@@ -1,13 +1,13 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfigFromFile, normalizePath, type Plugin, type ViteDevServer } from "vite";
-import { atomicWrite } from "./model.js";
+import { atomicWrite, makeStateDirectory } from "./model.js";
 import { projectLockfileDigest, readProjectLockfile } from "./project-lockfile.js";
 import { developmentAliases, loadDevConfiguration } from "./dev-options.js";
 import { createDevAnalysisClient } from "./dev-analysis-client.js";
@@ -159,7 +159,7 @@ export function devRecordingPlugin(): Plugin {
     requireOpenHost();
     report = createDevSessionReport(session);
     sessionDirectory = path.join(root, ".replaylock", "observations", "dev-sessions", session);
-    await mkdir(sessionDirectory, { recursive: true, mode: 0o700 });
+    await makeStateDirectory(sessionDirectory);
     await atomicWrite(path.join(sessionDirectory, "metadata.json"), JSON.stringify({ lockfileDigest, profiles, pid: process.pid, retention: retention.policy }));
     requireOpenHost();
     stored = 0; blocks = 0; completed = undefined; knownMetadata.clear(); diagnostics.clear(); acknowledged.clear(); appliedCounts.clear(); appliedObservations.clear(); clientWrites.clear(); activeClients.clear();
@@ -338,25 +338,31 @@ export function devRecordingPlugin(): Plugin {
     transformIndexHtml() {
       return recording ? [{ tag: "script", attrs: { type: "module" }, children: `import ${JSON.stringify(`/@id/__x00__${virtualRuntime}`)};`, injectTo: "head-prepend" as const }] : [];
     },
-    async transform(code, rawId, transformOptions) {
-      if (!recording) return null;
-      const id = rawId.split("?", 1)[0]!;
-      if (id.startsWith("\0") || id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
-      if (root !== packageRoot && (id === packageRoot || id.startsWith(`${packageRoot}/`))) return null;
-      const environment = transformOptions?.ssr || this.environment?.name === "ssr" ? "node" : "browser";
-      // Only authored, source-qualified modules are capture candidates. Other
-      // plugins' generated overlays must not trigger whole-project analysis for
-      // excluded modules or introduce new recording targets behind discovery.
-      const currentGeneration = String(generation).padStart(10, "0");
-      const result = await project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" }).catch(error => {
-        if (!recording || currentGeneration !== String(generation).padStart(10, "0")) return null;
-        throw error;
-      });
-      if (!result || currentGeneration !== String(generation).padStart(10, "0") || !recording) return null;
-      if (result.targets.length) instrumentedFiles.add(id);
-      report?.discover(result, environment, currentGeneration);
-      for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
-      return { code: result.code, map: result.map as null };
+    // Instrument authored source before other plugins rewrite it. Their output
+    // (Babel macros, framework route transforms) differs from the file, and
+    // analyzing that overlay rebuilds the whole project plan for each module.
+    transform: {
+      order: "pre",
+      async handler(code, rawId, transformOptions) {
+        if (!recording) return null;
+        const id = rawId.split("?", 1)[0]!;
+        if (id.startsWith("\0") || id.includes("/node_modules/") || !/\.[cm]?[jt]sx?$/.test(id)) return null;
+        if (root !== packageRoot && (id === packageRoot || id.startsWith(`${packageRoot}/`))) return null;
+        const environment = transformOptions?.ssr || this.environment?.name === "ssr" ? "node" : "browser";
+        // Only authored, source-qualified modules are capture candidates. Other
+        // plugins' generated overlays must not trigger whole-project analysis for
+        // excluded modules or introduce new recording targets behind discovery.
+        const currentGeneration = String(generation).padStart(10, "0");
+        const result = await project.transformAuthored({ root, id, code, environment, generation: currentGeneration, options: configuration.options, runtimeImport: environment === "browser" ? virtualRuntime : "replaylock/dev/runtime" }).catch(error => {
+          if (!recording || currentGeneration !== String(generation).padStart(10, "0")) return null;
+          throw error;
+        });
+        if (!result || currentGeneration !== String(generation).padStart(10, "0") || !recording) return null;
+        if (result.targets.length) instrumentedFiles.add(id);
+        report?.discover(result, environment, currentGeneration);
+        for (const target of result.targets) knownMetadata.add(metadataKey({ locator: target.locator, environment, generation: currentGeneration, sourceGraphDigest: result.sourceGraphDigest }));
+        return { code: result.code, map: result.map as null };
+      },
     },
     async handleHotUpdate(context) {
       if (context.file.includes("/.replaylock/")) return [];
