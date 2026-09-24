@@ -3,13 +3,86 @@
 // most of them eligible. Maintainer tooling for `npm run yield:dev -- --blockers`.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
+import { typescriptScriptKind } from '../dist/typescript-script-kind.js';
 
-/** Shapes capture does not support by design; fixing another site cannot make these eligible. */
-const OUTSIDE_SHAPES = new Set(['UNSUPPORTED_CALLABLE', 'UNSUPPORTED_ASYNC']);
+/**
+ * Constructs capture does not support by design. A callable whose shape code
+ * roots in one of them, in its own body or a callee, is outside supported
+ * shapes: fixing another site cannot make it eligible. `nested` is a function
+ * inside an anonymous function or method; `unknown` is a root the report cannot
+ * parse. An `await` on an unanalyzed call, a function not bound to a `const`,
+ * and a non-literal parameter default are ordinary blockers.
+ */
+const DESIGN_SHAPES = new Set(['jsx', 'class', 'generator', 'tagged-template', 'arguments', 'nested', 'unknown']);
+const SHAPE_CODES = new Set(['UNSUPPORTED_CALLABLE', 'UNSUPPORTED_ASYNC']);
 export const UPPER_BOUND_NOTE = 'Unlock counts are upper bounds: analysis records one origin per reason code per callable, so resolving a site can reveal another site with the same code.';
+export const SHAPES_NOTE = 'Callables whose own body or callees contain JSX, a class, a generator, a tagged template or `arguments`, or that are nested in an anonymous function or method, are outside supported shapes and excluded from the plan. An `await` on an unanalyzed call (`UNSUPPORTED_ASYNC`) and a function not bound to a `const` or with a non-literal parameter default (`UNSUPPORTED_CALLABLE`) are ordinary blockers.';
 
 const locatorKey = locator => `${locator.module}#${locator.namePath.join('.')}`;
 const packageOf = module => [...module.matchAll(/(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)/g)].at(-1)?.[1];
+
+/** The analyzer's capture unit: a named declaration, or a function or arrow bound to a variable. */
+const namedCallable = node => {
+  if (ts.isFunctionDeclaration(node)) return !!node.name && !!node.body;
+  if (!ts.isFunctionExpression(node) && !ts.isArrowFunction(node)) return false;
+  let outer = node;
+  while (ts.isParenthesizedExpression(outer.parent) || ts.isAsExpression(outer.parent) || ts.isSatisfiesExpression(outer.parent)) outer = outer.parent;
+  return ts.isVariableDeclaration(outer.parent) && ts.isIdentifier(outer.parent.name);
+};
+const literalDefault = expression => {
+  let node = expression;
+  while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
+  if (ts.isStringLiteral(node) || ts.isNumericLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isBigIntLiteral(node)) return true;
+  if ([ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(node.kind) || (ts.isIdentifier(node) && node.text === 'undefined')) return true;
+  if (ts.isPrefixUnaryExpression(node)) return node.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(node.operand);
+  if (ts.isArrayLiteralExpression(node)) return node.elements.every(element => !ts.isSpreadElement(element) && !ts.isOmittedExpression(element) && literalDefault(element));
+  if (ts.isObjectLiteralExpression(node)) return node.properties.every(property => ts.isPropertyAssignment(property) && !ts.isComputedPropertyName(property.name) && literalDefault(property.initializer));
+  return false;
+};
+const literalParameter = parameter => (!parameter.initializer || literalDefault(parameter.initializer))
+  && (ts.isIdentifier(parameter.name) || parameter.name.elements.every(element => ts.isOmittedExpression(element) || literalParameter(element)));
+
+/**
+ * The construct behind a shape code's root position: the JSX, class, tagged
+ * template, `arguments`, `await`, `yield` or `for await` the analyzer reported,
+ * or, for a callable reported as a whole, why its shape is unsupported.
+ */
+function shapeClassifier(root) {
+  const files = new Map();
+  const sourceFile = module => {
+    if (!files.has(module)) {
+      const file = path.join(root, module);
+      try { files.set(module, ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, typescriptScriptKind(file))); }
+      catch { files.set(module, undefined); }
+    }
+    return files.get(module);
+  };
+  return position => {
+    const file = sourceFile(position.module);
+    if (!file) return 'unknown';
+    let offset;
+    try { offset = file.getPositionOfLineAndCharacter(position.line - 1, position.column - 1); } catch { return 'unknown'; }
+    const starting = [];
+    const visit = node => {
+      if (node.getStart(file) === offset) starting.push(node);
+      if (node.pos <= offset && offset < node.end) ts.forEachChild(node, visit);
+    };
+    ts.forEachChild(file, visit);
+    const found = test => starting.find(test);
+    if (found(node => ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node))) return 'jsx';
+    if (found(node => ts.isClassDeclaration(node) || ts.isClassExpression(node))) return 'class';
+    if (found(ts.isTaggedTemplateExpression)) return 'tagged-template';
+    if (found(node => ts.isYieldExpression(node) || (ts.isForOfStatement(node) && !!node.awaitModifier))) return 'generator';
+    if (found(ts.isAwaitExpression)) return 'await';
+    if (found(node => ts.isIdentifier(node) && node.text === 'arguments')) return 'arguments';
+    const callable = found(node => ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node));
+    if (!callable) return 'unknown';
+    if (callable.asteriskToken) return 'generator';
+    for (let owner = callable.parent; owner; owner = owner.parent) if (ts.isFunctionLike(owner) && !namedCallable(owner)) return 'nested';
+    return callable.parameters.every(literalParameter) ? 'binding' : 'parameter-default';
+  };
+}
 
 /**
  * One realm's `analyzeDevProject` result as a blocker report. A blocker is a
@@ -25,6 +98,7 @@ export function blockerReport(analysis, root, { top = 15 } = {}) {
     }
     return lines.get(position.module)[position.line - 1]?.trim().slice(0, 120);
   };
+  const classify = shapeClassifier(root);
   const sites = new Map(), callables = new Map();
   for (const diagnostic of analysis.diagnostics) {
     if (!diagnostic.locator) continue;
@@ -34,20 +108,21 @@ export function blockerReport(analysis, root, { top = 15 } = {}) {
     const key = `${diagnostic.code} @ ${site}`;
     if (!sites.has(key)) sites.set(key, { code: diagnostic.code, site, ...(origin ? dependency ? { example: `${origin.module}:${origin.line}` } : { snippet: snippet(origin) } : {}), callables: new Set() });
     const callable = locatorKey(diagnostic.locator);
-    if (!callables.has(callable)) callables.set(callable, { callable, codes: new Set(), blockers: new Map() });
+    if (!callables.has(callable)) callables.set(callable, { callable, codes: new Set(), blockers: new Map(), shapes: new Map() });
     const entry = callables.get(callable);
     entry.codes.add(diagnostic.code);
     // Inherited through a callee, import or initializer when the chain has causes.
     const inherited = (diagnostic.causes?.length ?? 0) > 0;
     entry.blockers.set(key, (entry.blockers.get(key) ?? true) && inherited);
+    if (SHAPE_CODES.has(diagnostic.code)) entry.shapes.set(key, origin ? classify(origin) : 'unknown');
     sites.get(key).callables.add(callable);
   }
 
-  const detail = [...callables.values()].map(({ callable, codes, blockers }) => ({
+  const detail = [...callables.values()].map(({ callable, codes, blockers, shapes }) => ({
     callable,
-    category: [...codes].some(code => OUTSIDE_SHAPES.has(code)) ? 'outside-shapes' : [...blockers.values()].every(Boolean) ? 'inherited-only' : 'own-body',
+    category: [...shapes.values()].some(shape => DESIGN_SHAPES.has(shape)) ? 'outside-shapes' : [...blockers.values()].every(Boolean) ? 'inherited-only' : 'own-body',
     codes: [...codes].sort(),
-    blockers: [...blockers].map(([key, inherited]) => ({ code: sites.get(key).code, site: sites.get(key).site, inherited })),
+    blockers: [...blockers].map(([key, inherited]) => ({ code: sites.get(key).code, site: sites.get(key).site, inherited, ...(shapes.has(key) ? { shape: shapes.get(key) } : {}) })),
   })).sort((a, b) => a.callable.localeCompare(b.callable));
   const inScope = detail.filter(item => item.category !== 'outside-shapes');
   const blockersOf = new Map(inScope.map(item => [item.callable, new Set(item.blockers.map(blocker => `${blocker.code} @ ${blocker.site}`))]));
@@ -83,12 +158,16 @@ export function blockerReport(analysis, root, { top = 15 } = {}) {
   }
 
   const count = category => detail.filter(item => item.category === category).length;
-  const codes = {};
+  const tally = entries => Object.fromEntries(Object.entries(entries).sort(([a, x], [b, y]) => y - x || a.localeCompare(b)));
+  const codes = {}, shapes = {};
   for (const item of detail) for (const code of item.codes) codes[code] = (codes[code] ?? 0) + 1;
+  // Each outside-shape callable counts once per construct that excludes it.
+  for (const item of detail) for (const shape of new Set(item.blockers.map(blocker => blocker.shape).filter(shape => DESIGN_SHAPES.has(shape)))) shapes[shape] = (shapes[shape] ?? 0) + 1;
   return {
     eligible: analysis.targets.length, skipped: detail.length,
     outsideShapes: count('outside-shapes'), ownBody: count('own-body'), inheritedOnly: count('inherited-only'),
-    codes: Object.fromEntries(Object.entries(codes).sort(([a, x], [b, y]) => y - x || a.localeCompare(b))),
+    outsideShapeKinds: tally(shapes),
+    codes: tally(codes),
     plan, sites: siteRows,
     nearMisses: inScope.filter(item => item.blockers.length <= 2).map(({ callable, blockers }) => ({ callable, blockers })),
     callables: detail,
@@ -96,9 +175,11 @@ export function blockerReport(analysis, root, { top = 15 } = {}) {
 }
 
 const site = row => row.snippet ? `${row.site}  ${row.snippet}` : row.example ? `${row.site} (${row.example})` : row.site;
+const shapeKinds = report => Object.entries(report.outsideShapeKinds).map(([shape, count]) => `${shape} ${count}`).join(', ');
 
 export function formatBlockersText(environment, report, { top = 15 } = {}) {
   const out = [`\n${environment} blockers: ${report.skipped} skipped = ${report.outsideShapes} outside supported shapes + ${report.ownBody} blocked in their own body + ${report.inheritedOnly} inherited only`];
+  if (report.outsideShapes) out.push(`  Outside supported shapes by construct: ${shapeKinds(report)}`);
   out.push(`  Unlock plan (${UPPER_BOUND_NOTE.split(':')[0].toLowerCase()}):`);
   for (const [index, step] of report.plan.entries()) out.push(`  ${String(index + 1).padStart(2)}. +${String(step.unlocked.length).padEnd(3)} = ${String(step.cumulative).padEnd(4)} ${step.code} @ ${step.site}${step.unlocked.length ? `  (${step.unlocked.slice(0, 3).join(', ')}${step.unlocked.length > 3 ? ', …' : ''})` : ''}`);
   out.push('  Top root sites (callables blocked / only blocker):');
@@ -111,9 +192,10 @@ export function formatBlockersText(environment, report, { top = 15 } = {}) {
 const cell = value => String(value).replaceAll('|', '\\|');
 
 export function formatBlockersMarkdown({ project, commit, replaylockCommit, catalogVersion, generatedAt, environments }, { top = 20 } = {}) {
-  const out = [`# Development capture blockers: ${project}`, '', `Generated ${generatedAt} with \`npm run yield:dev -- --blockers\` (catalog ${catalogVersion}${replaylockCommit ? `, ReplayLock ${replaylockCommit}` : ''})${commit ? ` for ${project} at \`${commit}\`` : ''}.`, '', `${UPPER_BOUND_NOTE} Callables with \`UNSUPPORTED_CALLABLE\` or \`UNSUPPORTED_ASYNC\` (components, classes, generators, async functions) are outside supported shapes and excluded from the plan. A blocker is *inherited* when its root is reached through a callee, import or initializer rather than the callable's own body.`];
+  const out = [`# Development capture blockers: ${project}`, '', `Generated ${generatedAt} with \`npm run yield:dev -- --blockers\` (catalog ${catalogVersion}${replaylockCommit ? `, ReplayLock ${replaylockCommit}` : ''})${commit ? ` for ${project} at \`${commit}\`` : ''}.`, '', `${UPPER_BOUND_NOTE} ${SHAPES_NOTE} A blocker is *inherited* when its root is reached through a callee, import or initializer rather than the callable's own body.`];
   for (const { environment, report } of environments) {
     out.push('', `## ${environment}`, '', '| Eligible | Skipped | Outside shapes | Blocked in own body | Inherited only |', '|---|---|---|---|---|', `| ${report.eligible} | ${report.skipped} | ${report.outsideShapes} | ${report.ownBody} | ${report.inheritedOnly} |`);
+    if (report.outsideShapes) out.push('', `Outside supported shapes by construct (a callable counts once per construct): ${shapeKinds(report)}.`);
     out.push('', '### Unlock plan', '', '| Step | Resolve | Unlocks | Cumulative | Examples |', '|---|---|---|---|---|');
     for (const [index, step] of report.plan.entries()) out.push(`| ${index + 1} | \`${step.code}\` @ ${cell(step.site)} | ${step.unlocked.length} | ${step.cumulative} | ${cell(step.unlocked.slice(0, 3).join(', '))} |`);
     out.push('', '### Top root sites', '', '| Code | Site | Callables | Only blocker | Examples |', '|---|---|---|---|---|');
