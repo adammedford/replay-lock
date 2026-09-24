@@ -21,7 +21,7 @@ test("scheduled coverage is read-only, pinned, bounded, and informational", asyn
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /pull_request:|\npush:/);
   assert.match(workflow, /permissions:\n  contents: read/);
-  assert.match(workflow, /timeout-minutes: 20/);
+  assert.match(workflow, /timeout-minutes: 45/);
   assert.match(workflow, /persist-credentials: false/);
   assert.match(workflow, /node-version-file: \.nvmrc/);
   assert.match(workflow, /cache: npm/);

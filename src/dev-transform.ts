@@ -17,7 +17,7 @@ export function transformDevSource(options: DevTransformOptions): DevTransformRe
  * session. Overlays never replace the disk plan or survive a transform call.
  */
 export function createDevProjectCache(rootInput: string, resolvedOptions: ResolvedDevOptions) {
-  const root = realpathSync(rootInput);
+  const root = realpathSync.native(rootInput);
   const snapshots = new Map<DevEnvironment, { key: string; project: DevProject }>();
   function projectFor(environment: DevEnvironment, options: ResolvedDevOptions): DevProject {
     const key = JSON.stringify(options);
@@ -29,9 +29,9 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
     return snapshot.project;
   }
   function transform(options: DevTransformOptions, authoredOnly: boolean): DevTransformResult | null {
-    if (realpathSync(options.root) !== root) throw new Error("INVALID_PROJECT_ROOT: cache belongs to a different project");
+    if (realpathSync.native(options.root) !== root) throw new Error("INVALID_PROJECT_ROOT: cache belongs to a different project");
     let file = path.resolve(root, options.id.split("?", 1)[0]!);
-    try { file = realpathSync(file); } catch { /* unsaved overlay */ }
+    try { file = realpathSync.native(file); } catch { /* unsaved overlay */ }
     if (authoredOnly) {
       const snapshot = snapshots.get(options.environment);
       const authored = snapshot?.project.modules.get(file);
@@ -55,7 +55,7 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
     analyze(environment: DevEnvironment) { return projectFor(environment, resolvedOptions).analysis; },
     hasAuthoredTargets(id: string, environment: DevEnvironment): boolean {
       let file = path.resolve(root, id.split("?", 1)[0]!);
-      try { file = realpathSync(file); } catch { return false; }
+      try { file = realpathSync.native(file); } catch { return false; }
       const module = path.relative(root, file).split(path.sep).join("/");
       return projectFor(environment, resolvedOptions).analysis.targets.some(target => target.locator.module === module);
     },
@@ -66,13 +66,13 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
 }
 
 function transformProject(project: DevProject, options: DevTransformOptions): DevTransformResult {
-  let file = path.resolve(realpathSync(options.root), options.id.split("?", 1)[0]!);
-  try { file = realpathSync(file); } catch { /* new, not-yet-saved source overlay */ }
+  let file = path.resolve(realpathSync.native(options.root), options.id.split("?", 1)[0]!);
+  try { file = realpathSync.native(file); } catch { /* new, not-yet-saved source overlay */ }
   const module = project.modules.get(file);
   const targets = project.functions.filter((candidate) => candidate.module === module && candidate.instrument && candidate.problems.size === 0);
   const analysis = {
     targets: targets.map(({ locator, replayExport, requires }) => ({ locator, replayExport, ...(requires ? { requires } : {}) })),
-    diagnostics: project.analysis.diagnostics.filter((diagnostic) => diagnostic.locator?.module === (module ? path.relative(realpathSync(options.root), module.file).split(path.sep).join("/") : "")),
+    diagnostics: project.analysis.diagnostics.filter((diagnostic) => diagnostic.locator?.module === (module ? path.relative(realpathSync.native(options.root), module.file).split(path.sep).join("/") : "")),
     sourceGraphDigest: project.analysis.sourceGraphDigest,
   };
   if (!module || targets.length === 0) return { ...analysis, code: options.code, map: null };

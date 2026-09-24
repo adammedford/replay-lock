@@ -19,3 +19,5 @@ The paired [performance evidence](performance.json) and its methodology are desc
 The adoption follow-up has [paired browser latency evidence](browser-latency.md) and a [proposed explicit budget](browser-latency-budget.json). The [BMI application journey](bmi-journey.md) retains an unattended recording and review/replay/regression evidence, including its partial-capture limits.
 
 The [development responsiveness follow-up](responsiveness.md) retains a fresh baseline, failed intermediate evidence, CPU profiles and a passing five-pair final measurement against the ceilings adopted in #72.
+
+The [2026-09-23 real-application pilots](real-app-2026-09.md) record Epic Stack completing the whole journey, and BMI retaining a third case.

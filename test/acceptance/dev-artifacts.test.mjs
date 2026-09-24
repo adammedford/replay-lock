@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -297,6 +298,28 @@ test("browser replay uses Chromium in a separate realm", async t => {
   assert.equal(result.status, 0, output(result));
 });
 
+test("browser replay runs on ReplayLock's own Vitest when the application has its own", async t => {
+  const project = await fixture(t, `export function target(value) { return value + Math.random(); }`);
+  // Applications commonly depend on another Vitest version; replay must not load it.
+  const appVitest = path.join(project, "node_modules/vitest");
+  await mkdir(appVitest);
+  await writeFile(path.join(appVitest, "package.json"), JSON.stringify({ name: "vitest", version: "0.0.0-application", type: "module", exports: { ".": "./index.js", "./package.json": "./package.json" } }));
+  await writeFile(path.join(appVitest, "index.js"), `throw new Error("the application's Vitest was loaded during replay");`);
+  const artifact = toDevCase(candidate({ environment: "browser" }));
+  const result = runVerify(project, [artifact]);
+  assert.equal(result.status, 0, output(result));
+});
+
+test("verify exits when the application's configuration leaves handles open", async t => {
+  const project = await fixture(t);
+  // Plugins can leave services running after Vite closes (react-router's esbuild).
+  await writeFile(path.join(project, "vite.config.mjs"), `setInterval(() => {}, 60_000); export default {};`);
+  await writeCases(project, [toDevCase(candidate())]);
+  const result = spawnSync(process.execPath, [path.join(root, "dist/cli.js"), "verify"], { cwd: project, encoding: "utf8", timeout: 60_000 });
+  assert.equal(result.error, undefined, "verify must exit once it has a result");
+  assert.equal(result.status, 0, output(result));
+});
+
 test("per-observation runtime profiles retain provenance without hiding same-generation conflicts", async t => {
   const project = await fixture(t);
   const french = { ...profiles.browser, locale: "fr-FR" };
@@ -361,6 +384,19 @@ test("Vite aliases and custom transforms survive replay while live capture plugi
   };`);
   const aliasOptions = { ...options, resolveAliases: [{ find: "@source", replacement: path.join(project, "src") }] };
   const artifact = toDevCase(candidate({ trace: [], completion: { kind: "return", value: encodeDevValue(4) } }));
+  const verified = runVerify(project, [artifact], aliasOptions); assert.equal(verified.status, 0, output(verified));
+});
+
+test("an alias spelled differently from its physical path still resolves inside the project", async t => {
+  const project = await fixture(t, `import { offset } from '@source/offset.mjs'; export function target(value) { return value + offset; }`);
+  await writeFile(path.join(project, "src/offset.mjs"), `export const offset = 1;`);
+  // Windows runners spell temporary directories with 8.3 names (`RUNNER~1`);
+  // letter case exercises the same spelling mismatch on case-insensitive disks.
+  const replacement = path.join(project, "src").toUpperCase();
+  if (!existsSync(replacement)) { t.skip("case-sensitive file system"); return; }
+  await writeFile(path.join(project, "vite.config.mjs"), `export default { resolve: { alias: { '@source': ${JSON.stringify(replacement)} } } };`);
+  const aliasOptions = { ...options, resolveAliases: [{ find: "@source", replacement }] };
+  const artifact = toDevCase(candidate({ trace: [], completion: { kind: "return", value: encodeDevValue(3) } }));
   const verified = runVerify(project, [artifact], aliasOptions); assert.equal(verified.status, 0, output(verified));
 });
 

@@ -22,7 +22,7 @@ const prefix = "__replaylock";
 const virtualRuntime = "virtual:replaylock/dev-runtime";
 const runtimePath = fileURLToPath(new URL("./dev-runtime.js", import.meta.url));
 const clientPath = fileURLToPath(new URL("./dev-client.js", import.meta.url));
-const packageRoot = realpathSync(path.resolve(path.dirname(runtimePath), ".."));
+const packageRoot = realpathSync.native(path.resolve(path.dirname(runtimePath), ".."));
 const filesystemUrl = (file: string): string => `/@fs/${file.split(path.sep).join("/")}`;
 interface Manifest { root: string; url: string; token: string; pid: number; launch?: string }
 interface StoredObservation { observation: DevObservation; profile: DevRuntimeProfile }
@@ -271,7 +271,7 @@ export function devRecordingPlugin(): Plugin {
   return {
     name: "replaylock:dev", enforce: "pre", apply: "serve",
     config() { return { optimizeDeps: { exclude: ["replaylock"] }, ssr: { external: ["replaylock"] } }; },
-    async configResolved(config) { root = realpathSync(config.root); configuration = await loadDevConfiguration(root, config); project = createDevAnalysisClient(root, configuration.options); },
+    async configResolved(config) { root = realpathSync.native(config.root); configuration = await loadDevConfiguration(root, config); project = createDevAnalysisClient(root, configuration.options); },
     async configureServer(vite) {
       server = vite;
       const metadataChange = (file: string): void => {
@@ -564,7 +564,7 @@ async function removeLaunchManifest(root: string, launch: string, pid?: number):
     const file = path.join(directory, name);
     try {
       const value = JSON.parse(await readFile(file, "utf8")) as Partial<Manifest>;
-      if (value.launch === launch && (pid === undefined || value.pid === pid) && value.root === realpathSync(root)) await rm(file, { force: true });
+      if (value.launch === launch && (pid === undefined || value.pid === pid) && value.root === realpathSync.native(root)) await rm(file, { force: true });
     } catch { /* The server may have removed its own manifest. */ }
   }
 }
@@ -574,7 +574,7 @@ async function findManifest(root: string, url: string | undefined, launch: strin
   for (const name of names.filter(name => name.endsWith(".json"))) {
     try {
       const value = JSON.parse(await readFile(path.join(directory, name), "utf8")) as Manifest;
-      if (value.root !== realpathSync(root) || typeof value.token !== "string" || !/^[a-f0-9]{64}$/.test(value.token)) continue;
+      if (value.root !== realpathSync.native(root) || typeof value.token !== "string" || !/^[a-f0-9]{64}$/.test(value.token)) continue;
       const recorded = new URL(value.url);
       if (recorded.protocol !== "http:" || !isLocalHost(recorded.host)) continue;
       if (url ? recorded.port !== new URL(url).port || recorded.pathname !== new URL(url).pathname : value.launch !== launch) continue;
