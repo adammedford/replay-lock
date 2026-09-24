@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { findProjectConfiguration } from "./project-configuration.js";
-import { isObject, type CaseArtifact } from "./model.js";
+import { isObject, makeStateDirectory, type CaseArtifact } from "./model.js";
 import { emptyPackageCatalog, type PackageCatalog, type PackageCatalogEntry } from "./package-catalog.js";
 import type { TrustedPackageDiagnosticCode } from "./adapters.js";
 
@@ -118,7 +118,7 @@ export async function resolveProjectPackageCatalog(
   const runnerPath = path.join(directory, "runner.mjs");
   const packageCatalogUrl = new URL("./package-catalog.js", import.meta.url).href;
   const viteUrl = pathToFileURL(require.resolve("vite")).href;
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await makeStateDirectory(directory);
   await writeFile(runnerPath, [
     `import { writeFileSync } from "node:fs";`,
     `import { createServer } from ${JSON.stringify(viteUrl)};`,
@@ -222,7 +222,7 @@ export async function replayAcceptedCases(options: {
   const configPath = path.join(directory, "vitest.config.mjs");
   const behavioralFailurePath = path.join(directory, "behavioral-failures");
   const projectConfiguration = await findProjectConfiguration(options.root);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await makeStateDirectory(directory);
   await writeFile(
     harnessPath,
     verificationHarness(
@@ -294,7 +294,7 @@ async function validateAdapterDocuments(
   const adapterValidatorUrl = new URL("./adapter-validator.js", import.meta.url).href;
   const adaptersUrl = new URL("./adapters.js", import.meta.url).href;
   const viteUrl = pathToFileURL(require.resolve("vite")).href;
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await makeStateDirectory(directory);
   await writeFile(inputPath, JSON.stringify(documents), { encoding: "utf8", mode: 0o600 });
   await writeFile(runnerPath, [
     `import { readFileSync, writeFileSync } from "node:fs";`,

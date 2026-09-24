@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -10,6 +10,7 @@ import { analyzeDevProject, createDevProjectCache } from "./dev-transform.js";
 import { resolveCallableModuleLocator } from "./callable-locator.js";
 import { findProjectConfiguration } from "./project-configuration.js";
 import { assertDevSafe } from "./dev-values.js";
+import { makeStateDirectory } from "./model.js";
 
 function failure(code: string, detail: string): never { throw Object.assign(new Error(`${code}: ${detail}`), { code }); }
 function identity(target: Pick<DevCase, "locator">): string { return JSON.stringify([target.locator.module, target.locator.kind, target.locator.namePath]); }
@@ -102,7 +103,7 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
   // Owner-only, matching every other `.replaylock/` directory. The files inside
   // are 0600, but a world-traversable scratch directory still leaks metadata
   // (case filenames, counts, timing).
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await makeStateDirectory(directory);
   const temporary = await mkdtemp(path.join(directory, `dev-${phase}-`));
   let status = 0;
   try {

@@ -178,6 +178,30 @@ export default {};
   }
 });
 
+test("capture instruments authored source before other pre plugins rewrite it", { timeout: 60000 }, async () => {
+  const directory = await fixture();
+  let vite;
+  const received = [];
+  // Like vite-env-only's Babel macros: listed first, and its output differs
+  // from the file, so analyzing it would rebuild the project plan per module.
+  const rewriter = { name: "rewriting-pre-plugin", enforce: "pre", transform(code, id) {
+    if (!id.endsWith("/src/calculation.js")) return;
+    received.push(code);
+    return `${code}\n// rewritten\n`;
+  } };
+  try {
+    vite = await createServer({ root: directory, configFile: false, plugins: [rewriter, replaylock({ dev: true })], server: { host: "127.0.0.1", port: 0, fs: { allow: [directory, root] } } });
+    await vite.listen();
+    const manifest = await until(async () => (await manifests(directory))[0]);
+    assert.equal((await control(manifest, "start")).status, 200);
+    const calls = await vite.ssrLoadModule("/src/calculation.js");
+    calls.calculate(2);
+    assert.ok(received.length > 0 && received.every(code => code.includes("replaylock/dev/runtime")), "ReplayLock must transform first");
+    const stopped = await control(manifest, "stop");
+    assert.ok(stopped.body.candidates > 0, JSON.stringify(stopped.body));
+  } finally { await vite?.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test("record controller survives one reset status connection without stopping the host", {timeout:30000},async()=>{
   const directory=await fixture();let vite,controller;let polls=0;
   const host=httpServer((req,res)=>{if(req.url==='/__replaylock/status'&&++polls===1){req.socket.destroy();return;}vite.middlewares(req,res);});
