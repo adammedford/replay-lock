@@ -120,6 +120,42 @@ test("this repository's own code meets its eligibility floor", () => {
   }
 });
 
+test("the blocker report excludes only unsupported constructs from the unlock plan", (t) => {
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "replaylock-yield-shapes-")));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, "src"));
+  writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "shapes", type: "module" }));
+  writeFileSync(path.join(root, "src/shapes.tsx"), [
+    "export function badge(label: string) { return <span>{label}</span>; }",
+    "export function boxed(value: number) { class Box { constructor(readonly value: number) {} } return new Box(value).value; }",
+    "export function* counted(limit: number) { yield limit; }",
+    "export function first() { return arguments[0]; }",
+    "export const raw = (value: string) => String.raw`${value}`;",
+    "export function doubled(items: number[]) { return items.map((item) => { function twice(value: number) { return value * 2; } return twice(item); }); }",
+    "export async function awaited(load: () => Promise<number>) { return await load(); }",
+    "const fallback = 'none';",
+    "export function defaulted(value = fallback) { return value; }",
+    "export var legacy = (value: number) => value + 1;",
+    "",
+  ].join("\n"));
+  for (const environment of realms) {
+    const report = blockerReport(analyzeDevProject(root, options, environment), root);
+    const item = (name) => report.callables.find((entry) => entry.callable === `src/shapes.tsx#${name}`);
+    const shape = (name, code) => item(name)?.blockers.find((blocker) => blocker.code === code)?.shape;
+    for (const [name, construct] of [["badge", "jsx"], ["boxed", "class"], ["counted", "generator"], ["first", "arguments"], ["raw", "tagged-template"], ["doubled.<anonymous>.twice", "nested"]]) {
+      assert.equal(shape(name, "UNSUPPORTED_CALLABLE"), construct, `${environment}: ${name}`);
+      assert.equal(item(name).category, "outside-shapes", `${environment}: ${name}`);
+      assert.ok(report.outsideShapeKinds[construct] >= 1, `${environment}: ${construct}`);
+    }
+    // An await on an unanalyzed call, a non-literal default and a non-const binding are fixable blockers.
+    for (const [name, code, construct] of [["awaited", "UNSUPPORTED_ASYNC", "await"], ["defaulted", "UNSUPPORTED_CALLABLE", "parameter-default"], ["legacy", "UNSUPPORTED_CALLABLE", "binding"]]) {
+      assert.equal(shape(name, code), construct, `${environment}: ${name}`);
+      assert.notEqual(item(name).category, "outside-shapes", `${environment}: ${name}`);
+    }
+    assert.equal(Object.values(report.outsideShapeKinds).some((count) => count > report.outsideShapes), false);
+  }
+});
+
 test("the blocker report traces skipped callables to their root sites", (t) => {
   const root = materialize(t, "false-safe");
   for (const environment of realms) {
