@@ -1,6 +1,6 @@
 # Development capture blockers: epic-stack-template
 
-Generated 2026-09-24 with `npm run yield:dev -- --blockers` (catalog 4, ReplayLock 07e1f6d) for epic-stack-template at `8473afd`.
+Generated 2026-09-27 with `npm run yield:dev -- --blockers` (catalog 4, ReplayLock 60d7231) for epic-stack-template at `8473afd`.
 
 Unlock counts are upper bounds: analysis records one origin per reason code per callable, so resolving a site can reveal another site with the same code. Callables whose own body or callees contain JSX, a class, a generator, a tagged template or `arguments`, or that are nested in an anonymous function or method, are outside supported shapes and excluded from the plan. An `await` on an unanalyzed call (`UNSUPPORTED_ASYNC`) and a function not bound to a `const` or with a non-literal parameter default (`UNSUPPORTED_CALLABLE`) are ordinary blockers. A blocker is *inherited* when its root is reached through a callee, import or initializer rather than the callable's own body.
 
@@ -23,7 +23,7 @@ Outside supported shapes by construct (a callable counts once per construct): js
 | 5 | `EFFECTFUL_INITIALIZATION` @ app/utils/verification.server.ts:10 | 1 | 13 | app/routes/_auth/reset-password.tsx#meta |
 | 6 | `EFFECTFUL_INITIALIZATION` @ pkg:@sentry/node | 1 | 14 | app/routes/users/$username/index.tsx#meta |
 | 7 | `FUNCTION_VALUE` @ app/utils/timing.server.ts:29 | 1 | 15 | app/utils/timing.server.ts#createTimer |
-| 8 | `EFFECTFUL_INITIALIZATION` @ server/index.ts:161 | 1 | 16 | server/index.ts#getHost |
+| 8 | `EFFECTFUL_INITIALIZATION` @ server/index.ts:159 | 1 | 16 | server/index.ts#getHost |
 | 9 | `FUNCTION_VALUE` @ app/utils/misc.tsx:194 | 1 | 17 | app/utils/misc.tsx#callAll |
 | 10 | `FUNCTION_VALUE` @ app/utils/misc.tsx:247 | 1 | 18 | app/utils/misc.tsx#debounce |
 | 11 | `FUNCTION_VALUE` @ app/utils/timing.server.ts:98 | 1 | 19 | app/utils/timing.server.ts#cachifiedTimingReporter |
@@ -100,7 +100,7 @@ Outside supported shapes by construct (a callable counts once per construct): js
 | 5 | `EFFECTFUL_INITIALIZATION` @ pkg:@sentry-internal/replay | 1 | 13 | app/routes/users/$username/index.tsx#meta |
 | 6 | `EFFECTFUL_INITIALIZATION` @ app/utils/verification.server.ts:10 | 1 | 14 | app/routes/_auth/reset-password.tsx#meta |
 | 7 | `FUNCTION_VALUE` @ app/utils/timing.server.ts:29 | 1 | 15 | app/utils/timing.server.ts#createTimer |
-| 8 | `EFFECTFUL_INITIALIZATION` @ server/index.ts:161 | 1 | 16 | server/index.ts#getHost |
+| 8 | `EFFECTFUL_INITIALIZATION` @ server/index.ts:159 | 1 | 16 | server/index.ts#getHost |
 | 9 | `FUNCTION_VALUE` @ app/utils/misc.tsx:194 | 1 | 17 | app/utils/misc.tsx#callAll |
 | 10 | `FUNCTION_VALUE` @ app/utils/misc.tsx:247 | 1 | 18 | app/utils/misc.tsx#debounce |
 | 11 | `FUNCTION_VALUE` @ app/utils/timing.server.ts:98 | 1 | 19 | app/utils/timing.server.ts#cachifiedTimingReporter |
