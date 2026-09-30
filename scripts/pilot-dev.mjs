@@ -6,8 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import ts from 'typescript';
-import {seedReturnRegression,attachEpicMiddlewareHost} from './pilot-dev-edit.mjs';
-import { PILOTS, STAGES, COUNT_KEYS, sha256, parseScan, validatePilotReport } from './pilot-dev-manifest.mjs';
+import {seedReturnRegression,attachEpicMiddlewareHost,generateLogicMutants} from './pilot-dev-edit.mjs';
+import { PILOTS, PILOT_SCHEMA_VERSION, MUTANT_LIMIT, MISMATCH_CODES, stagesFor, countKeysFor, sha256, parseScan, validatePilotReport } from './pilot-dev-manifest.mjs';
+const RUN_STAGES=stagesFor(PILOT_SCHEMA_VERSION),RUN_COUNT_KEYS=countKeysFor(PILOT_SCHEMA_VERSION);
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const options=process.argv.slice(2),option=name=>{const i=options.indexOf(name);return i<0?undefined:options[i+1];};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -68,9 +69,11 @@ async function probeRecord(request){
 }
 async function runPilot(pin,settings){
   const startedAt=new Date().toISOString(),start=performance.now(),temporary=await realpath(await mkdtemp(path.join(tmpdir(),`replaylock-${pin.id}-`))),root=path.join(temporary,'app'),consumer=path.join(temporary,'consumer');
-  const result={id:pin.id,repository:pin.repository,revision:pin.revision,realm:pin.realm,status:'blocked',startedAt,finishedAt:startedAt,durationMs:0,data:'synthetic-local',humanReviewMs:null,reviewMode:'scripted-synthetic-only',packageManager:{name:pin.manager,version:pin.managerVersion},source:{},stages:Object.fromEntries(STAGES.map(s=>[s,{status:'not-run',commandId:null}])),counts:Object.fromEntries(COUNT_KEYS.map(k=>[k,null])),commands:[],workflows:[],blocker:null,offline:false,regressionCodes:[]};
+  const result={id:pin.id,repository:pin.repository,revision:pin.revision,realm:pin.realm,status:'blocked',startedAt,finishedAt:startedAt,durationMs:0,data:'synthetic-local',humanReviewMs:null,reviewMode:'scripted-synthetic-only',packageManager:{name:pin.manager,version:pin.managerVersion},source:{},stages:Object.fromEntries(RUN_STAGES.map(s=>[s,{status:'not-run',commandId:null}])),counts:Object.fromEntries(RUN_COUNT_KEYS.map(k=>[k,null])),commands:[],workflows:[],blocker:null,offline:false,regressionCodes:[],mutation:null};
   let stage='checkout';
-  const run=async(argv,cwd=root,timeout=300000,input='',env={})=>{const evidence=await execute(argv,cwd,timeout,input,env);const {output,...record}=evidence;record.id=result.commands.length;result.commands.push(record);result.stages[stage]={status:evidence.exitCode===0&&!evidence.errorCode&&!evidence.signal?'passed':'failed',commandId:record.id};if(evidence.exitCode!==0||evidence.errorCode||evidence.signal)throw Object.assign(Error(evidence.errorCode??'COMMAND_FAILED'),{evidence:record});return evidence;};
+  // Every command's evidence is kept without its output; the current stage points at the latest one.
+  const observe=async(argv,cwd=root,timeout=300000,input='',env={})=>{const evidence=await execute(argv,cwd,timeout,input,env);const {output,...record}=evidence;record.id=result.commands.length;result.commands.push(record);result.stages[stage]={status:'failed',commandId:record.id};return {...evidence,record};};
+  const run=async(argv,cwd=root,timeout=300000,input='',env={})=>{const evidence=await observe(argv,cwd,timeout,input,env);if(evidence.exitCode!==0||evidence.errorCode||evidence.signal)throw Object.assign(Error(evidence.errorCode??'COMMAND_FAILED'),{evidence:evidence.record});result.stages[stage].status='passed';return evidence;};
   try{
     await mkdir(root);await run(['git','init',root],temporary);await run(['git','remote','add','origin',pin.repository]);
     const remote=settings.sourceCache?path.join(settings.sourceCache,pin.id):'origin';await run(['git','fetch','--depth','1',remote,pin.revision]);await run(['git','checkout','--detach',pin.revision]);
@@ -109,15 +112,44 @@ async function runPilot(pin,settings){
     const replayEnv={NODE_OPTIONS:`--import=${guard}`};stage='offlineReplay';await run([process.execPath,cli,'verify'],root,300000,'',replayEnv);result.offline=true;result.counts.replayed=result.counts.accepted;
     const cases=await Promise.all((await readdir(path.join(root,'.replaylock/cases'))).map(async file=>JSON.parse(await readFile(path.join(root,'.replaylock/cases',file),'utf8'))));const module=path.join(root,cases[0].locator.module),before=await readFile(module,'utf8');await writeFile(module,'// Behavior-preserving pilot edit\n'+before);
     stage='refactorReplay';await run([process.execPath,cli,'verify'],root,300000,'',replayEnv);result.counts.refactorSurvived=result.counts.replayed;
+    await writeFile(module,before);
     stage='regression';
-    let edited=false;
+    let regressed;
     for(const artifact of cases){
       if(artifact.completion.kind!=='return'||artifact.completion.value.kind==='undefined')continue;
       const file=path.join(root,artifact.locator.module),text=await readFile(file,'utf8'),changed=seedReturnRegression(text,artifact.locator,ts);
-      if(changed){await writeFile(file,changed);edited=true;break;}
+      if(changed){await writeFile(file,changed);regressed={file,text};break;}
     }
-    if(!edited)throw Error('NO_SUPPORTED_REGRESSION_EDIT');
-    const changed=await execute([process.execPath,cli,'verify'],root,300000,'',replayEnv);const {output,...record}=changed;record.id=result.commands.length;result.commands.push(record);result.stages.regression={status:'failed',commandId:record.id};assert.equal(changed.exitCode,1);assert.match(output,/OUTPUT_MISMATCH/);result.stages.regression.status='passed';result.regressionCodes=['OUTPUT_MISMATCH'];result.counts.regressionsDetected=1;result.status='passed';
+    if(!regressed)throw Error('NO_SUPPORTED_REGRESSION_EDIT');
+    const changed=await observe([process.execPath,cli,'verify'],root,300000,'',replayEnv);assert.equal(changed.exitCode,1);assert.match(changed.output,/OUTPUT_MISMATCH/);result.stages.regression.status='passed';result.regressionCodes=['OUTPUT_MISMATCH'];result.counts.regressionsDetected=1;
+    await writeFile(regressed.file,regressed.text);
+    // Mutation: each accepted callable's bounded logic mutants, applied one at a
+    // time to otherwise pristine source. Detected means verify exited 1 with a
+    // mismatch diagnostic; a mutant that breaks verify some other way fails the stage.
+    stage='mutation';
+    const grouped=new Map();
+    for(const artifact of cases){const key=`${artifact.locator.module}#${artifact.locator.namePath.join('.')}`;grouped.set(key,{locator:artifact.locator,cases:(grouped.get(key)?.cases??0)+1});}
+    result.mutation={limit:MUTANT_LIMIT,callables:[]};
+    const mismatch=code=>new RegExp(`(?<![A-Z_])${code}`);
+    for(const [callable,{locator,cases:caseCount}] of [...grouped].sort(([a],[b])=>a.localeCompare(b))){
+      const file=path.join(root,locator.module),pristine=await readFile(file,'utf8'),generated=generateLogicMutants(pristine,locator,ts);
+      if(!generated)throw Error('MUTATION_TARGET_NOT_FOUND');
+      const entry={callable,cases:caseCount,generated:generated.length,applied:0,detected:0,mutants:[]};
+      for(const mutant of generated.slice(0,MUTANT_LIMIT)){
+        await writeFile(file,mutant.source);
+        let evidence;
+        try{evidence=await observe([process.execPath,cli,'verify'],root,300000,'',replayEnv);}finally{await writeFile(file,pristine);}
+        const detected=evidence.exitCode===1,codes=detected?MISMATCH_CODES.filter(code=>mismatch(code).test(evidence.output)):[];
+        if(evidence.errorCode||evidence.signal||![0,1].includes(evidence.exitCode)||(detected&&!codes.length))throw Object.assign(Error(evidence.errorCode??'MUTANT_VERIFY_FAILED'),{evidence:evidence.record});
+        entry.mutants.push({kind:mutant.kind,line:mutant.line,column:mutant.column,before:mutant.before,after:mutant.after,commandId:evidence.record.id,detected,codes});
+        entry.applied++;if(detected)entry.detected++;
+      }
+      result.mutation.callables.push(entry);
+    }
+    if(!result.mutation.callables.some(entry=>entry.applied))throw Error('NO_MUTABLE_LOGIC');
+    result.stages.mutation.status='passed';
+    result.counts.mutantsApplied=result.mutation.callables.reduce((sum,entry)=>sum+entry.applied,0);result.counts.mutantsDetected=result.mutation.callables.reduce((sum,entry)=>sum+entry.detected,0);
+    result.status='passed';
   }catch(error){
     if(stage==='record'){
       try {
@@ -128,6 +160,8 @@ async function runPilot(pin,settings){
         if(/^[A-Z][A-Z_]+$/.test(probe.code??''))error.message=probe.code;
       }catch{}
     }
+    // Validated evidence records mutation results for a passed stage alone.
+    if(stage==='mutation')result.mutation=null;
     const last=result.commands.at(-1);result.stages[stage]={status:'failed',commandId:last?.id??null};const excerpt=last?.excerpt??'';const code=/NO_ELIGIBLE_TARGET/.test(excerpt)?'NO_ELIGIBLE_TARGET':/INSTRUMENTATION_UNSUPPORTED/.test(excerpt)?'INSTRUMENTATION_UNSUPPORTED':/PLUGIN_NOT_ACTIVE/.test(excerpt)?'PLUGIN_NOT_ACTIVE':error.message;
     result.blocker={stage,code,detail:`${error.message}\n${excerpt.slice(-1900)}`,commandId:last?.id??null,category:/ENOTFOUND|ECONN|ETIMEDOUT|network/i.test(excerpt)?'transport':stage==='install'||stage==='checkout'?'prerequisite':stage==='scan'||stage==='record'?'compatibility':'workflow'};
   }finally{
@@ -142,7 +176,7 @@ if(option('--record-probe'))await probeRecord(JSON.parse(await readFile(option('
 else if(option('--validate')){validatePilotReport(JSON.parse(await readFile(option('--validate'),'utf8')));console.log('PILOT EVIDENCE VALIDATED');}
 else{
   const phase=option('--phase'),tarball=path.resolve(option('--tarball')??''),output=path.resolve(option('--output')??`docs/pilots/${phase}.json`),selected=option('--pilot')??'all';assert.ok(['baseline','final'].includes(phase),'--phase baseline|final is required');assert.match(process.versions.node,/^22\./);
-  const tarballSha256=await fileDigest(tarball);const report={schemaVersion:1,phase,generatedAt:new Date().toISOString(),runnerSha256:sha256(Buffer.concat(await Promise.all([fileURLToPath(import.meta.url),fileURLToPath(new URL('./pilot-dev-edit.mjs',import.meta.url))].map(file=>readFile(file))))),manifestSha256:await fileDigest(new URL('./pilot-dev-manifest.mjs',import.meta.url)),environment:{node:process.versions.node,platform:process.platform,arch:process.arch,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale},replaylock:{tarballSha256},pilots:[]};
+  const tarballSha256=await fileDigest(tarball);const report={schemaVersion:PILOT_SCHEMA_VERSION,phase,generatedAt:new Date().toISOString(),runnerSha256:sha256(Buffer.concat(await Promise.all([fileURLToPath(import.meta.url),fileURLToPath(new URL('./pilot-dev-edit.mjs',import.meta.url))].map(file=>readFile(file))))),manifestSha256:await fileDigest(new URL('./pilot-dev-manifest.mjs',import.meta.url)),environment:{node:process.versions.node,platform:process.platform,arch:process.arch,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale},replaylock:{tarballSha256},pilots:[]};
   const cache=path.resolve('.unlazy/dev-usability/pilot-cache');await mkdir(cache,{recursive:true});
   for(const pin of PILOTS.filter(p=>selected==='all'||selected===p.id)){console.log(`Pilot ${phase}: ${pin.id} ${pin.revision}`);const result=await runPilot(pin,{tarball,tarballSha256,sourceCache:option('--source-cache')&&path.resolve(option('--source-cache')),npmCache:path.join(cache,'npm'),corepackCache:path.join(cache,'corepack')});report.pilots.push(result);console.log(`${pin.id}: ${result.status}${result.blocker?` at ${result.blocker.stage}: ${result.blocker.code}`:''}`);}
   await mkdir(path.dirname(output),{recursive:true});await writeFile(`${output}.partial`,JSON.stringify(report,null,2)+'\n');validatePilotReport(report,{requireBoth:selected==='all'});await writeFile(output,JSON.stringify(report,null,2)+'\n');await rm(`${output}.partial`,{force:true});console.log('PILOT EVIDENCE VALIDATED');

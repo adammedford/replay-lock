@@ -8,6 +8,13 @@ export const PILOTS = Object.freeze([
 ]);
 export const STAGES = ["checkout", "install", "scan", "record", "workload", "review", "offlineReplay", "refactorReplay", "regression"];
 export const COUNT_KEYS = ["eligibleNode", "eligibleBrowser", "excludedNode", "excludedBrowser", "observations", "candidates", "accepted", "replayed", "refactorSurvived", "regressionsDetected"];
+/** Schema 2 adds a mutation stage after regression: bounded logic mutants per accepted callable, each verified alone. */
+export const PILOT_SCHEMA_VERSION = 2;
+export const MUTANT_LIMIT = 12;
+export const MUTANT_KINDS = ["comparison", "logical", "branch", "string", "number"];
+export const MISMATCH_CODES = ["OUTPUT_MISMATCH", "TRACE_MISMATCH", "EFFECT_TRACE_MISMATCH"];
+export const stagesFor = schemaVersion => schemaVersion >= 2 ? [...STAGES, "mutation"] : STAGES;
+export const countKeysFor = schemaVersion => schemaVersion >= 2 ? [...COUNT_KEYS, "mutantsApplied", "mutantsDetected"] : COUNT_KEYS;
 export const sha256 = value => createHash("sha256").update(value).digest("hex");
 
 /** Read the public CLI output, checking its summary against actual finding rows. */
@@ -34,7 +41,8 @@ const time = (value, label) => { text(value, label); assert.ok(Number.isFinite(D
 /** Validate evidence relationships, never infer capture success from a runner's exit 0. */
 export function validatePilotReport(report, { requireBoth = true } = {}) {
   object(report, "report");
-  assert.equal(report.schemaVersion, 1, "unsupported pilot schema");
+  assert.ok([1, PILOT_SCHEMA_VERSION].includes(report.schemaVersion), "unsupported pilot schema");
+  const stages = stagesFor(report.schemaVersion), countKeys = countKeysFor(report.schemaVersion);
   assert.ok(["baseline", "final"].includes(report.phase), "invalid phase");
   time(report.generatedAt, "generatedAt");
   digest(report.runnerSha256, "runnerSha256");
@@ -68,8 +76,8 @@ export function validatePilotReport(report, { requireBoth = true } = {}) {
     object(pilot.source, "source");
     object(pilot.stages, "stages");
     object(pilot.counts, "counts");
-    assert.deepEqual(Object.keys(pilot.counts).sort(), [...COUNT_KEYS].sort(), "missing or unknown counts");
-    for (const key of COUNT_KEYS) if (pilot.counts[key] !== null) count(pilot.counts[key], key);
+    assert.deepEqual(Object.keys(pilot.counts).sort(), [...countKeys].sort(), "missing or unknown counts");
+    for (const key of countKeys) if (pilot.counts[key] !== null) count(pilot.counts[key], key);
     assert.ok(Array.isArray(pilot.commands), "commands must be recorded");
     const commands = new Map();
     for (const command of pilot.commands) {
@@ -84,13 +92,15 @@ export function validatePilotReport(report, { requireBoth = true } = {}) {
       digest(command.outputSha256, "command output digest"); count(command.outputBytes, "output bytes");
       assert.ok(typeof command.excerpt === "string" && command.excerpt.length <= 6000, "invalid bounded command excerpt");
     }
-    for (const stage of STAGES) {
+    for (const stage of stages) {
       const evidence = pilot.stages[stage]; object(evidence, stage);
       assert.ok(["passed", "failed", "not-run"].includes(evidence.status), `invalid ${stage} status`);
       if (evidence.status === "not-run") { assert.equal(evidence.commandId, null, `unrun ${stage} has command evidence`); continue; }
       const command = commands.get(evidence.commandId); assert.ok(command, `missing command evidence for ${stage}`);
       if (evidence.status === "passed") {
-        assert.equal(command.exitCode, stage === "regression" ? 1 : 0, `${stage} requires successful observed exit`);
+        // A mutation stage's command is its last mutant's verify: exit 1 when detected, 0 when it survived.
+        if (stage === "mutation") assert.ok([0, 1].includes(command.exitCode), "mutation requires an observed verify exit");
+        else assert.equal(command.exitCode, stage === "regression" ? 1 : 0, `${stage} requires successful observed exit`);
         assert.equal(command.signal, null, `${stage} was signaled`); assert.equal(command.errorCode, null, `${stage} did not execute`);
       }
     }
@@ -131,21 +141,71 @@ export function validatePilotReport(report, { requireBoth = true } = {}) {
     if (pilot.counts.accepted !== null) assert.ok(pilot.counts.accepted <= (pilot.counts.candidates ?? 0), "accepted more than captured");
     if (pilot.counts.replayed !== null) assert.ok(pilot.counts.replayed <= (pilot.counts.accepted ?? 0), "replayed more than accepted");
     if (pilot.counts.refactorSurvived !== null) assert.ok(pilot.counts.refactorSurvived <= (pilot.counts.replayed ?? 0), "refactor count exceeds replay");
+    if (report.schemaVersion >= 2) validateMutation(pilot, commands);
     if (pilot.status === "passed") {
       assert.equal(pilot.blocker, null, "passing pilot has blocker");
-      for (const stage of STAGES) assert.equal(pilot.stages[stage].status, "passed", `passing pilot did not complete ${stage}`);
+      for (const stage of stages) assert.equal(pilot.stages[stage].status, "passed", `passing pilot did not complete ${stage}`);
       assert.equal(pilot.offline, true, "replay was not offline");
       assert.ok(pilot.regressionCodes.includes("OUTPUT_MISMATCH"), "seeded regression lacked output mismatch");
     } else {
       object(pilot.blocker, "blocker");
-      assert.ok(STAGES.includes(pilot.blocker.stage), "invalid blocker stage");
+      assert.ok(stages.includes(pilot.blocker.stage), "invalid blocker stage");
       text(pilot.blocker.code, "blocker code"); text(pilot.blocker.detail, "blocker detail");
       assert.equal(pilot.stages[pilot.blocker.stage].status, "failed", "blocker stage must be failed");
       assert.equal(pilot.blocker.commandId, pilot.stages[pilot.blocker.stage].commandId, "blocker evidence mismatch");
       assert.ok(["transport", "prerequisite", "compatibility", "workflow"].includes(pilot.blocker.category), "invalid blocker category");
-      assert.ok(STAGES.some(stage => pilot.stages[stage].status !== "passed"), "blocked pilot claims full journey");
+      assert.ok(stages.some(stage => pilot.stages[stage].status !== "passed"), "blocked pilot claims full journey");
     }
   }
   if (requireBoth) assert.deepEqual([...ids].sort(), PILOTS.map(pilot => pilot.id).sort(), "both public pilots are required");
   return report;
+}
+
+/**
+ * Mutation evidence: every mutant is one verify command. A detected mutant
+ * exited 1 with a mismatch diagnostic; a survivor exited 0. Per-callable and
+ * summary counts must agree with the mutants listed.
+ */
+function validateMutation(pilot, commands) {
+  const stage = pilot.stages.mutation;
+  if (stage.status !== "passed") {
+    assert.equal(pilot.mutation, null, "unperformed mutation stage claimed results");
+    for (const key of ["mutantsApplied", "mutantsDetected"]) assert.ok(pilot.counts[key] === null || pilot.counts[key] === 0, "unperformed mutation claimed counts");
+    return;
+  }
+  assert.equal(pilot.stages.regression.status, "passed", "mutation measured before regression passed");
+  object(pilot.mutation, "mutation");
+  count(pilot.mutation.limit, "mutant limit");
+  assert.ok(Array.isArray(pilot.mutation.callables) && pilot.mutation.callables.length > 0, "passed mutation stage measured no callables");
+  let applied = 0, detected = 0, cases = 0;
+  const callables = new Set(), mutantCommands = new Set();
+  const stageCommands = new Set(Object.entries(pilot.stages).filter(([name]) => name !== "mutation").map(([, evidence]) => evidence.commandId));
+  for (const entry of pilot.mutation.callables) {
+    object(entry, "mutation callable");
+    text(entry.callable, "callable"); assert.ok(!callables.has(entry.callable), "duplicate callable"); callables.add(entry.callable);
+    count(entry.cases, "callable cases"); assert.ok(entry.cases > 0, "callable without accepted cases"); cases += entry.cases;
+    for (const key of ["generated", "applied", "detected"]) count(entry[key], key);
+    assert.ok(Array.isArray(entry.mutants), "mutants must be listed");
+    assert.equal(entry.applied, entry.mutants.length, "applied count disagrees with mutants");
+    assert.ok(entry.applied <= entry.generated, "more mutants applied than generated");
+    assert.ok(entry.applied <= pilot.mutation.limit, "mutants applied beyond the bound");
+    assert.equal(entry.detected, entry.mutants.filter(mutant => mutant.detected).length, "detected count disagrees with mutants");
+    for (const mutant of entry.mutants) {
+      object(mutant, "mutant");
+      assert.ok(MUTANT_KINDS.includes(mutant.kind), "unknown mutant kind");
+      count(mutant.line, "mutant line"); count(mutant.column, "mutant column"); text(mutant.before, "mutant before"); text(mutant.after, "mutant after");
+      assert.equal(typeof mutant.detected, "boolean", "mutant detection must be boolean");
+      assert.ok(Array.isArray(mutant.codes) && mutant.codes.every(code => MISMATCH_CODES.includes(code)), "mutant codes must be mismatch diagnostics");
+      const command = commands.get(mutant.commandId); assert.ok(command, "missing command evidence for mutant");
+      assert.ok(!mutantCommands.has(mutant.commandId) && !stageCommands.has(mutant.commandId), "mutant verify must be its own command"); mutantCommands.add(mutant.commandId);
+      assert.equal(command.signal, null, "mutant verify was signaled"); assert.equal(command.errorCode, null, "mutant verify did not execute");
+      if (mutant.detected) { assert.equal(command.exitCode, 1, "detected mutant requires a failed verify"); assert.ok(mutant.codes.length > 0, "detected mutant lacks a mismatch code"); }
+      else { assert.equal(command.exitCode, 0, "undetected mutant requires a passing verify"); assert.equal(mutant.codes.length, 0, "surviving mutant reported a mismatch"); }
+    }
+    applied += entry.applied; detected += entry.detected;
+  }
+  assert.ok(mutantCommands.has(stage.commandId), "mutation stage evidence must be one of its mutants' commands");
+  assert.equal(cases, pilot.counts.accepted, "every accepted case must belong to exactly one measured callable");
+  assert.equal(pilot.counts.mutantsApplied, applied, "mutantsApplied disagrees with callables");
+  assert.equal(pilot.counts.mutantsDetected, detected, "mutantsDetected disagrees with callables");
 }
