@@ -24,7 +24,7 @@ Make the blockers report and the pinned pilot measure value instead of eligibili
 - [ ] Mutant generation is a tested pure function: each operator and branch mutant, the literal mutants, no mutants for a callable without logic, and other functions left unchanged.
 - [ ] The pilot report schema moves to version 2 with per-callable mutation results. `validatePilotReport` still accepts the committed version 1 evidence unchanged.
 - [ ] A pinned Epic pilot run records mutation results for every accepted callable. Commit the evidence with a short note on what the current accepted cases protect.
-- [ ] `humanReviewMs` stays null for scripted review. One review session with the user as participant records review time per case and sets the ceiling the gate in the [README](README.md) uses.
+- [ ] `humanReviewMs` stays null for scripted review. One review session with the user as participant records review time per case and sets the ceiling the gate in the [README](README.md) uses. Store these measurements in [separate human evidence](../../pilots/human-review.md) linked to the pilot report, package digest and accepted case IDs; do not change scripted schema 1/2 reports to imply human participation.
 - [ ] Node 22 type checking, `npm run verify` and the packed-consumer check pass.
 
 ## Blocked by
