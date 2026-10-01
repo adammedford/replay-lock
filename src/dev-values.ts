@@ -186,14 +186,16 @@ function encode(value: unknown, options: DevCodecOptions): DevValue {
       if (typeof message !== "string") fail();
       safeString(message);
       charge(JSON.stringify(message));
-      const fields = keys(value).filter(key => key !== "stack" && key !== "message").map(key => {
+      const fields = [];
+      for (const key of keys(value)) {
+        if (key === "stack" || key === "message") continue;
         if (key === "name") fail();
         safeKey(key);
         charge(JSON.stringify(key));
         const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
         if (!("value" in descriptor) || !descriptor.configurable || !descriptor.writable || descriptor.enumerable !== (key !== "cause" && key !== "errors")) fail();
-        return { key, value: visit(descriptor.value, depth + 1, allowAdapter) };
-      });
+        fields.push({ key, value: visit(descriptor.value, depth + 1, allowAdapter) });
+      }
       return { kind: "error", name: errorName, message, fields };
     }
     if (prototype !== Object.prototype) fail();
