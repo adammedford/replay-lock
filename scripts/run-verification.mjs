@@ -55,6 +55,7 @@ const acceptanceFiles = [
   "test/acceptance/review-batch.test.mjs",
   "test/acceptance/ci-verify-example.test.mjs",
   "test/acceptance/tolerance-comparison.test.mjs",
+  "test/acceptance/tolerance-diagnostics.test.mjs",
 ];
 // Files that drive a real headless browser. Two browsers plus two Vite dev
 // servers sharing a CI runner starve each other and flake the browser-backed
