@@ -143,8 +143,18 @@ export interface ToleranceComparison {
 
 export type CaseComparison = "exact" | ToleranceComparison;
 
-/** Every number leaf inside a canonical value, in deterministic order. */
-export function numberLeafPaths(node: unknown): (string | number)[][] {
+/** V2 permits numeric error fields; V1 canonical errors remain exact. */
+export interface NumberLeafOptions {
+  errorFields?: boolean;
+}
+
+function numberLeafEntries(node: Record<string, unknown>, options: NumberLeafOptions): unknown[] | undefined {
+  const entries = node.kind === "record" ? node.entries : options.errorFields && node.kind === "error" ? node.fields : undefined;
+  return Array.isArray(entries) ? entries : undefined;
+}
+
+/** Every number leaf in deterministic order, with adapted payloads kept opaque. */
+export function numberLeafPaths(node: unknown, options: NumberLeafOptions = {}): (string | number)[][] {
   const paths: (string | number)[][] = [];
   const walk = (current: unknown, path: (string | number)[]): void => {
     if (!isObject(current)) return;
@@ -153,8 +163,9 @@ export function numberLeafPaths(node: unknown): (string | number)[][] {
       current.items.forEach((item, index) => walk(item, [...path, index]));
       return;
     }
-    if (current.kind === "record" && Array.isArray(current.entries)) {
-      for (const entry of current.entries) {
+    const entries = numberLeafEntries(current, options);
+    if (entries) {
+      for (const entry of entries) {
         if (isObject(entry) && typeof entry.key === "string") walk(entry.value, [...path, entry.key]);
       }
     }
@@ -162,6 +173,22 @@ export function numberLeafPaths(node: unknown): (string | number)[][] {
   };
   walk(node, []);
   return paths;
+}
+
+/** Resolve the same paths enumeration offers, without entering adapted payloads. */
+export function numberLeafValue(node: unknown, path: readonly (string | number)[], options: NumberLeafOptions = {}): number | undefined {
+  let current = node;
+  for (const step of path) {
+    if (!isObject(current)) return undefined;
+    if (typeof step === "number") {
+      if (current.kind !== "array" || !Array.isArray(current.items)) return undefined;
+      current = current.items[step];
+    } else {
+      const entry = numberLeafEntries(current, options)?.find((item) => isObject(item) && item.key === step);
+      current = isObject(entry) ? entry.value : undefined;
+    }
+  }
+  return isObject(current) && current.kind === "number" && typeof current.value === "number" ? current.value : undefined;
 }
 
 /** The completion value a tolerance path is resolved against, if there is one. */

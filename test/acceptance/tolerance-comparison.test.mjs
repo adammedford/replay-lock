@@ -6,8 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { artifactJson, createCandidate, parseCase } from "../../dist/model.js";
-import { parseToleranceEpsilon } from "../../dist/review.js";
+import { artifactJson, createCandidate, formatLeafPath, numberLeafPaths, parseCase } from "../../dist/model.js";
+import * as model from "../../dist/model.js";
+import { parseToleranceEpsilon, parseToleranceSelection } from "../../dist/review.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cli = path.join(root, "dist", "cli.js");
@@ -32,6 +33,38 @@ test("parseToleranceEpsilon rejects anything other than a finite positive number
   assert.equal(parseToleranceEpsilon("not-a-number"), undefined);
   assert.equal(parseToleranceEpsilon(""), undefined);
   assert.equal(parseToleranceEpsilon("Infinity"), undefined);
+});
+
+test("shared numeric leaves traverse nested records and arrays with error fields enabled only explicitly", () => {
+  const node = { kind: "record", entries: [
+    { key: "odd.key", value: { kind: "array", items: [
+      { kind: "number", value: 7 },
+      { kind: "error", fields: [{ key: "count", value: { kind: "number", value: 9 } }] },
+    ] } },
+    { key: "opaque", value: { kind: "adapted", payload: { kind: "number", value: 11 } } },
+  ] };
+  assert.deepEqual(numberLeafPaths(node), [["odd.key", 0]]);
+  assert.deepEqual(numberLeafPaths(node, { errorFields: true }), [["odd.key", 0], ["odd.key", 1, "count"]]);
+  assert.equal(formatLeafPath(["odd.key", 1, "count"]), '$["odd.key"][1].count');
+  assert.equal(model.numberLeafValue(node, ["odd.key", 0]), 7);
+  assert.equal(model.numberLeafValue(node, ["odd.key", 1, "count"]), undefined);
+  assert.equal(model.numberLeafValue(node, ["odd.key", 1, "count"], { errorFields: true }), 9);
+  assert.equal(model.numberLeafValue(node, ["opaque", "payload"], { errorFields: true }), undefined);
+  assert.equal(model.numberLeafValue(node, ["odd.key", 3], { errorFields: true }), undefined);
+});
+
+test("shared selection keeps explicit order and whitespace, defaults only changed leaves, and rejects invalid indexes", () => {
+  const choices = [
+    { path: ["alpha"], display: "$.alpha", value: 10, differs: false },
+    { path: ["beta"], display: "$.beta", value: 20, differs: true },
+    { path: ["gamma"], display: "$.gamma", value: 30, differs: false },
+  ];
+  assert.deepEqual(parseToleranceSelection(" 2 , 1 ", choices), [choices[2], choices[1]]);
+  assert.deepEqual(parseToleranceSelection(" \t ", choices), [choices[1]]);
+  assert.equal(parseToleranceSelection("", choices.map(choice => ({ ...choice, differs: false }))), undefined);
+  for (const answer of ["1,", ",2", "1,,2", "1, \t ,2", "1,1", "-1", "3", "0.5", "Infinity", "not-a-number"]) {
+    assert.equal(parseToleranceSelection(answer, choices), undefined, answer);
+  }
 });
 
 test("review accepts a candidate with an explicit tolerance and the choice is visible in the persisted case", async () => {
@@ -279,6 +312,22 @@ test("review refuses empty comma parts without accepting or changing the pending
     assert.deepEqual(await caseArtifacts(project), []);
     assert.equal(await readFile(pendingPath, "utf8"), before);
   }
+});
+
+test("V1 review uses blank to tolerate only the changed nested leaf", async t => {
+  const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-tolerance-changed-"));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const original = makeCandidate("pair", [], { "odd.key": [10, 20] });
+  const replacement = { ...makeCandidate("pair", [], { "odd.key": [11, 20] }), replacesCaseId: original.caseId };
+  await mkdir(path.join(project, ".replaylock/cases"), { recursive: true });
+  await writeFile(path.join(project, ".replaylock/cases", `${original.caseId}.json`), artifactJson(toArtifact(original)));
+  await writePending(project, [replacement]);
+  const reviewed = runReview(project, "t\n\n0.5\n");
+  assert.equal(reviewed.status, 0, output(reviewed));
+  assert.match(output(reviewed), /\[0\] \$\["odd\.key"\]\[0\] = 11  \(changed\)/);
+  assert.match(output(reviewed), /\[1\] \$\["odd\.key"\]\[1\] = 20/);
+  assert.deepEqual((await caseArtifacts(project))[0].comparison, { kind: "tolerance", leaves: [{ path: ["odd.key", 0], epsilon: 0.5 }] });
+  assert.deepEqual(await pendingFiles(project), []);
 });
 
 test("tolerance comparison branch integration marker", () => {
