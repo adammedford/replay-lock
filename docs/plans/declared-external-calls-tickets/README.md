@@ -12,11 +12,13 @@ Parent spec: [declared-external-calls.md](../declared-external-calls.md). Parent
 
 Each ticket names the Epic callables it must capture and the behavior they protect.
 
-**Gate.** Stop and bring the evidence to the user before starting the next ticket after 02 and after 03 if any of these hold:
+**Gate.** Stop and bring the evidence to the user after 02 and after 03 before starting the next ticket, even when automated checks pass. These are explicit user-review checkpoints in the individual tickets, not permission to widen automatically. In particular, surface any of the following:
 - a seeded mutant in a named callable goes undetected;
 - review time per accepted case exceeds the ceiling set in 00;
 - the browser latency budget fails;
 - the named callables cannot be captured without a capability outside the ticket.
+
+Ticket 00 also remains a hard prerequisite for 01 until a real participant review session records per-case timings and the user's ceiling. Use the [separate human-review evidence workflow](../../pilots/human-review.md); scripted pilot reports retain null human timings.
 
 Deferred until a ticket's evidence requires them:
 - trust for further deterministic libraries (`clsx`, `tailwind-merge`, `cookie`);
