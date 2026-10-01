@@ -7,8 +7,8 @@ import { types } from "node:util";
 import type { DevBlock, DevCandidate, DevCase, DevEnvironment, DevLocator, DevObservation, DevRetentionPolicy, DevRuntimeProfile, DevValue, TraceEvent } from "./dev-contract.js";
 import type { DevRetentionSnapshot } from "./dev-retention.js";
 import { assertDevSafe, validateDevValue } from "./dev-values.js";
-import { atomicWrite } from "./model.js";
-import { parseReviewDecision, parseToleranceEpsilon } from "./review.js";
+import { atomicWrite, formatLeafPath, numberLeafPaths, numberLeafValue } from "./model.js";
+import { parseReviewDecision, parseToleranceEpsilon, parseToleranceSelection } from "./review.js";
 
 export const DEV_ARTIFACT_LIMITS = Object.freeze({ maxBytes: 256 * 1024, maxTraceEvents: 10_000, maxPendingUnique: 1_000, maxProjectUnique: 1_000 });
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -97,28 +97,6 @@ export function createDevCaseId(input: Pick<DevCase, "locator" | "environment" |
   return createHash("sha256").update(devArtifactJson({ schemaVersion: 2, locator: input.locator, environment: input.environment, arguments: input.arguments, trace: input.trace })).digest("hex");
 }
 
-function devLeafPath(path: readonly (string | number)[]): string {
-  return path.reduce<string>((rendered, step) =>
-    typeof step === "number" ? `${rendered}[${step}]`
-      : /^[A-Za-z_$][\w$]*$/.test(step) ? `${rendered}.${step}`
-      : `${rendered}[${JSON.stringify(step)}]`, "$");
-}
-
-function devLeafValue(node: unknown, path: readonly (string | number)[]): number | undefined {
-  let current: unknown = node;
-  for (const step of path) {
-    if (!current || typeof current !== "object") return undefined;
-    const value = current as { kind?: unknown; items?: unknown[]; entries?: { key: string; value: unknown }[]; fields?: { key: string; value: unknown }[] };
-    if (typeof step === "number") current = Array.isArray(value.items) ? value.items[step] : undefined;
-    else {
-      const entries = value.kind === "record" ? value.entries : value.kind === "error" ? value.fields : undefined;
-      current = Array.isArray(entries) ? entries.find((entry) => entry.key === step)?.value : undefined;
-    }
-  }
-  const leaf = current as { kind?: unknown; value?: unknown } | undefined;
-  return leaf && leaf.kind === "number" && typeof leaf.value === "number" ? leaf.value : undefined;
-}
-
 /**
  * Tolerance is chosen one named leaf at a time, with the leaves that actually
  * changed pre-selected, so the shortest answer loosens only what drifted.
@@ -131,9 +109,9 @@ async function chooseDevTolerance(
   const paths = devNumberLeafPaths(candidate.completion.value);
   if (paths.length === 0) { console.error("This completion has no number leaf; tolerance does not apply"); return undefined; }
   const choices = paths.map((path) => {
-    const value = devLeafValue(candidate.completion.value, path);
-    const previous = existing ? devLeafValue(existing.completion.value, path) : undefined;
-    return { path, display: devLeafPath(path), value, differs: previous !== undefined && previous !== value };
+    const value = numberLeafValue(candidate.completion.value, path, { errorFields: true });
+    const previous = existing ? numberLeafValue(existing.completion.value, path, { errorFields: true }) : undefined;
+    return { path, display: formatLeafPath(path), value: value ?? Number.NaN, differs: previous !== undefined && value !== undefined && previous !== value };
   });
 
   let selected = choices;
@@ -142,20 +120,9 @@ async function chooseDevTolerance(
       console.log(`  [${index}] ${choice.display} = ${choice.value}${choice.differs ? "  (changed)" : ""}`);
     }
     const preselected = choices.filter((choice) => choice.differs);
-    const answer = (await next(`Which leaf may drift? (comma-separated indexes; ${preselected.length ? `blank = ${preselected.map((c) => c.display).join(", ")}` : "a selection is required"}) `)).trim();
-    if (answer.length === 0) {
-      if (preselected.length === 0) { console.error("No tolerance leaf selected"); return undefined; }
-      selected = preselected;
-    } else {
-      const picked: typeof choices = [];
-      for (const part of answer.split(",")) {
-        const index = Number(part.trim());
-        const choice = choices[index];
-        if (!Number.isSafeInteger(index) || !choice || picked.includes(choice)) { console.error("No tolerance leaf selected"); return undefined; }
-        picked.push(choice);
-      }
-      selected = picked;
-    }
+    const chosen = parseToleranceSelection(await next(`Which leaf may drift? (comma-separated indexes; ${preselected.length ? `blank = ${preselected.map((c) => c.display).join(", ")}` : "a selection is required"}) `), choices);
+    if (!chosen) { console.error("No tolerance leaf selected"); return undefined; }
+    selected = chosen;
   }
 
   const leaves = [];
@@ -169,26 +136,7 @@ async function chooseDevTolerance(
 
 /** Every number leaf inside a DevValue, in deterministic order. */
 export function devNumberLeafPaths(node: unknown): (string | number)[][] {
-  const paths: (string | number)[][] = [];
-  const walk = (current: unknown, path: (string | number)[]): void => {
-    if (!current || typeof current !== "object") return;
-    const value = current as { kind?: unknown; items?: unknown[]; entries?: unknown[]; fields?: unknown[] };
-    if (value.kind === "number") { paths.push([...path]); return; }
-    if (value.kind === "array" && Array.isArray(value.items)) {
-      value.items.forEach((item, index) => walk(item, [...path, index]));
-      return;
-    }
-    const entries = value.kind === "record" ? value.entries : value.kind === "error" ? value.fields : undefined;
-    if (Array.isArray(entries)) {
-      for (const entry of entries) {
-        const field = entry as { key?: unknown; value?: unknown };
-        if (typeof field.key === "string") walk(field.value, [...path, field.key]);
-      }
-    }
-    // "adapted" is intentionally not traversed; its adapter defines equality.
-  };
-  walk(node, []);
-  return paths;
+  return numberLeafPaths(node, { errorFields: true });
 }
 
 /**
@@ -458,7 +406,7 @@ export async function reviewDevCandidates(root: string, decisions?: AsyncIterato
       if (existing && (await next("Replace accepted case? Type replace: ")).trim().toLowerCase() !== "replace") { console.error(`Replacement not confirmed; retained ${candidate.caseId}`); return 2; }
       await atomicWrite(casePath, devArtifactJson(artifact), { durable: true });
       await unlink(pendingPath);
-      console.log(`Accepted ${candidate.caseId}${artifact.comparison === "exact" ? "" : ` (tolerance ${artifact.comparison.leaves.map((leaf) => `${devLeafPath(leaf.path)} +/-${leaf.epsilon}`).join(", ")})`}`);
+      console.log(`Accepted ${candidate.caseId}${artifact.comparison === "exact" ? "" : ` (tolerance ${artifact.comparison.leaves.map((leaf) => `${formatLeafPath(leaf.path)} +/-${leaf.epsilon}`).join(", ")})`}`);
       if (decision === "accept-remaining-in-file") batch.add(candidate.locator.module);
     }
   } finally { terminal?.close(); }
