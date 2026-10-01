@@ -12,6 +12,7 @@ const acceptanceFiles = [
   "test/acceptance/dev-conformance.test.mjs",
   "test/acceptance/dev-diagnostics.test.mjs",
   "test/acceptance/dev-pilots.test.mjs",
+  "test/acceptance/pilot-human-review.test.mjs",
   "test/acceptance/dev-reporting.test.mjs",
   "test/acceptance/dev-retention.test.mjs",
   "test/acceptance/dev-artifacts.test.mjs",
