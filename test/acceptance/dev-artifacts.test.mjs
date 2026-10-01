@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
-import { createDevCandidate, createDevCaseId, devArtifactJson, parseDevCase, parseDevCandidate, persistDevObservations, toDevCase } from "../../dist/dev-artifacts.js";
+import { createDevCandidate, createDevCaseId, devArtifactJson, devNumberLeafPaths, parseDevCase, parseDevCandidate, persistDevObservations, toDevCase } from "../../dist/dev-artifacts.js";
 import { preflightDevCases, validateDevCaseAdapters } from "../../dist/dev-verify.js";
 import { encodeDevValue } from "../../dist/dev-values.js";
 import { configureDevRuntime, runtimeProfile } from "../../dist/dev-runtime.js";
@@ -214,12 +214,73 @@ test("review replacements require explicit confirmation, including during a file
 test("invalid tolerance, skip and reject never accidentally accept a candidate", async t => {
   const project = await fixture(t);
   await writeCases(project, [candidate()], true);
-  assert.equal(runReview(project, "t\n0\n").status, 2);
-  assert.equal((await pendingFiles(project)).length, 1);
+  const before = await pendingFiles(project);
+  for (const epsilon of ["0", "-1", "Infinity", "not-a-number", ""]) {
+    const reviewed = runReview(project, `t\n${epsilon}\n`);
+    assert.equal(reviewed.status, 2, output(reviewed));
+    assert.match(output(reviewed), /Invalid or missing epsilon/);
+    assert.deepEqual(await pendingFiles(project), before);
+    assert.deepEqual(await acceptedFiles(project), []);
+  }
   assert.equal(runReview(project, "s\n").status, 0);
   assert.equal((await pendingFiles(project)).length, 1);
   assert.equal(runReview(project, "r\n").status, 0);
   assert.deepEqual(await pendingFiles(project), []); assert.deepEqual(await acceptedFiles(project), []);
+});
+
+test("V2 review refuses empty comma parts without accepting or changing the pending candidate", async t => {
+  const project = await fixture(t);
+  const triple = candidate({ completion: { kind: "return", value: encodeDevValue({ alpha: 10, beta: 20, gamma: 30 }) } });
+  await writeCases(project, [triple], true);
+  const before = await pendingFiles(project);
+  for (const selection of ["1,", ",2", "1,,2", "1,  ,2"]) {
+    const reviewed = runReview(project, `t\n${selection}\n0.5\n0.5\n0.5\n`);
+    assert.equal(reviewed.status, 2, output(reviewed));
+    assert.match(output(reviewed), /No tolerance leaf selected/);
+    assert.doesNotMatch(output(reviewed), /Epsilon for/);
+    assert.deepEqual(await acceptedFiles(project), []);
+    assert.deepEqual(await pendingFiles(project), before);
+  }
+});
+
+test("V2 review preserves explicit multi-leaf order and requires a selection when no leaf changed", async t => {
+  const project = await fixture(t);
+  const triple = candidate({ completion: { kind: "return", value: encodeDevValue({ alpha: 10, beta: 20, gamma: 30 }) } });
+  await writeCases(project, [triple], true);
+  const before = await pendingFiles(project);
+  const blank = runReview(project, "t\n\n");
+  assert.equal(blank.status, 2, output(blank));
+  assert.match(output(blank), /No tolerance leaf selected/);
+  assert.deepEqual(await pendingFiles(project), before);
+  const reviewed = runReview(project, "t\n 2 , 1 \n0.5\n1e-3\n");
+  assert.equal(reviewed.status, 0, output(reviewed));
+  assert.deepEqual(parseDevCase((await acceptedFiles(project))[0].text).comparison, {
+    kind: "tolerance", leaves: [{ path: ["gamma"], epsilon: 0.5 }, { path: ["beta"], epsilon: 0.001 }],
+  });
+  assert.deepEqual(await pendingFiles(project), []);
+});
+
+test("V2 review preselects only changed nested error fields and keeps adapter payloads opaque", async t => {
+  const project = await fixture(t);
+  const completion = count => ({ kind: "throw", value: {
+    kind: "error", name: "Error", message: "retry", fields: [
+      { key: "odd.key", value: encodeDevValue([count, 20]) },
+      { key: "opaque", value: { kind: "adapted", adapterId: "amount", version: 1, payload: encodeDevValue(99) } },
+    ],
+  } });
+  const original = candidate({ completion: completion(10) });
+  const replacement = { ...candidate({ completion: completion(11) }), replacesCaseId: original.caseId };
+  await writeCases(project, [toDevCase(original)]);
+  await writeCases(project, [replacement], true);
+  assert.deepEqual(devNumberLeafPaths(replacement.completion.value), [["odd.key", 0], ["odd.key", 1]]);
+  const reviewed = runReview(project, "t\n\n0.5\nreplace\n");
+  assert.equal(reviewed.status, 0, output(reviewed));
+  assert.match(output(reviewed), /\[0\] \$\["odd\.key"\]\[0\] = 11  \(changed\)/);
+  assert.match(output(reviewed), /\[1\] \$\["odd\.key"\]\[1\] = 20/);
+  const accepted = parseDevCase((await acceptedFiles(project))[0].text);
+  assert.deepEqual(accepted.comparison, { kind: "tolerance", leaves: [{ path: ["odd.key", 0], epsilon: 0.5 }] });
+  assert.throws(() => parseDevCase(devArtifactJson({ ...accepted, comparison: { kind: "tolerance", leaves: [{ path: ["opaque", "payload"], epsilon: 1 }] } })), /TOLERANCE_LEAF_UNRESOLVED/);
+  assert.deepEqual(await pendingFiles(project), []);
 });
 
 test("preflight refuses an adapted case for a target whose built-ins could call its methods", async t => {
