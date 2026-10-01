@@ -359,14 +359,34 @@ async function jsonFiles(directory: string): Promise<string[]> {
   catch (error) { if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return []; throw error; }
 }
 
+async function mapWithConcurrency<Input, Output>(
+  inputs: readonly Input[],
+  concurrency: number,
+  operation: (input: Input) => Promise<Output>,
+): Promise<Output[]> {
+  const results = new Array<Output>(inputs.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, inputs.length) }, async () => {
+    while (true) {
+      const index = next;
+      next += 1;
+      if (index >= inputs.length) return;
+      const input = inputs[index];
+      if (input !== undefined) results[index] = await operation(input);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** Batch review never silently replaces a previously accepted oracle. */
 export async function reviewDevCandidates(root: string, decisions?: AsyncIterator<string>): Promise<number> {
   const pendingDirectory = path.join(root, ".replaylock/observations/pending-v2");
-  const candidates = await Promise.all((await jsonFiles(pendingDirectory)).map(async (filename) => {
+  const candidates = await mapWithConcurrency(await jsonFiles(pendingDirectory), 16, async (filename) => {
     const candidate = parseDevCandidate(await readFile(path.join(pendingDirectory, filename), "utf8"));
     if (filename !== `${candidate.caseId}.json`) fail("CASE_ID_MISMATCH");
     return candidate;
-  }));
+  });
   const groupIds = new Map(candidates.map(candidate => [candidate.caseId, createDevGroupId(candidate)]));
   const reviewKey = (candidate: DevCandidate) => `${candidate.locator.module}\0${candidate.locator.namePath.join(".")}\0${candidate.locator.kind}\0${candidate.environment}\0${groupIds.get(candidate.caseId)}\0${candidate.caseId}`;
   candidates.sort((a, b) => reviewKey(a).localeCompare(reviewKey(b)));
