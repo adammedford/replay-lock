@@ -82,8 +82,13 @@ function bytesSafe(bytes: Uint8Array): void {
   safeString(new TextDecoder("utf-16be").decode(bytes));
 }
 function base64(bytes: Uint8Array): string {
+  const Buffer = (globalThis as typeof globalThis & { Buffer?: { from(buffer: ArrayBufferLike, byteOffset?: number, length?: number): { toString(encoding: string): string } } }).Buffer;
+  if (Buffer) return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
+  const CHUNK_SIZE = 0x4000;
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK_SIZE) as unknown as number[]);
+  }
   return btoa(binary);
 }
 function unbase64(value: string): Uint8Array {
