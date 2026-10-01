@@ -1,5 +1,7 @@
 # Public development-capture pilots
 
+For #105's outstanding participant session, use the [human review timing workflow](human-review.md). It prepares case-linked evidence separately from scripted pilot reports; no timing or ceiling is inferred automatically.
+
 Issue [#64](https://github.com/adammedford/replay-lock/issues/64) uses two pinned public applications. Homer is the browser pilot at `daa017dfe1ea8d0875697aede091319b6134bb4b`; Epic Stack is the SSR pilot at `8473afd804b66dba6a23f317908dc35d1535e90d`. [Baseline evidence](baseline.json) and [final evidence](final.json) contain commands, exit statuses, timings, source and lockfile digests, package versions, counts and blocker categories. A report validator checks that claimed outcomes agree with command evidence. A validated report can describe a blocked pilot; it does not imply a successful capture journey.
 
 ```sh
