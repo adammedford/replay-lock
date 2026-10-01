@@ -48,7 +48,11 @@ export const DEV_BUILTIN_GLOBALS: ReadonlySet<string> = new Set([
 /** Members that may follow `globalThis`/`window`/`self` without being ambient state. */
 export const DEV_GLOBAL_OBJECT_MEMBERS: ReadonlySet<string> = new Set(["Math", "Date", "crypto", "performance", "fetch", "process", "Promise", "Array", "Object", "Number", "String", "Boolean", "BigInt"]);
 
-/** Traced effect functions. Used as values they would run outside interception. */
+/**
+ * Traced effect function catalog identifiers (used solely for static AST analysis).
+ * Note: These are string literals for effect identification; no synchronous I/O is performed here.
+ * Used as values they would run outside interception.
+ */
 export const DEV_EFFECT_FUNCTIONS: ReadonlySet<string> = new Set([
   "Math.random", "crypto.randomUUID", "Date", "Date.now", "performance.now", "fetch", "fs.readFileSync", "fsPromises.readFile",
 ]);
