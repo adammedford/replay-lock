@@ -228,7 +228,9 @@ export function parseToleranceSelection(
   }
   const selected: ToleranceChoice[] = [];
   for (const part of trimmed.split(",")) {
-    const index = Number(part.trim());
+    const token = part.trim();
+    if (token.length === 0) return undefined;
+    const index = Number(token);
     const choice = choices[index];
     if (!Number.isSafeInteger(index) || !choice || selected.includes(choice)) return undefined;
     selected.push(choice);

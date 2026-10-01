@@ -222,6 +222,21 @@ test("invalid tolerance, skip and reject never accidentally accept a candidate",
   assert.deepEqual(await pendingFiles(project), []); assert.deepEqual(await acceptedFiles(project), []);
 });
 
+test("V2 review refuses empty comma parts without accepting or changing the pending candidate", async t => {
+  const project = await fixture(t);
+  const triple = candidate({ completion: { kind: "return", value: encodeDevValue({ alpha: 10, beta: 20, gamma: 30 }) } });
+  await writeCases(project, [triple], true);
+  const before = await pendingFiles(project);
+  for (const selection of ["1,", ",2", "1,,2", "1,  ,2"]) {
+    const reviewed = runReview(project, `t\n${selection}\n0.5\n0.5\n0.5\n`);
+    assert.equal(reviewed.status, 2, output(reviewed));
+    assert.match(output(reviewed), /No tolerance leaf selected/);
+    assert.doesNotMatch(output(reviewed), /Epsilon for/);
+    assert.deepEqual(await acceptedFiles(project), []);
+    assert.deepEqual(await pendingFiles(project), before);
+  }
+});
+
 test("preflight refuses an adapted case for a target whose built-ins could call its methods", async t => {
   const project = await fixture(t, "export function target(value) { return JSON.stringify(value) + Math.random(); }\n");
   await preflightDevCases(project, [toDevCase(candidate())], options);

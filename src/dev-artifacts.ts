@@ -149,7 +149,9 @@ async function chooseDevTolerance(
     } else {
       const picked: typeof choices = [];
       for (const part of answer.split(",")) {
-        const index = Number(part.trim());
+        const token = part.trim();
+        if (token.length === 0) { console.error("No tolerance leaf selected"); return undefined; }
+        const index = Number(token);
         const choice = choices[index];
         if (!Number.isSafeInteger(index) || !choice || picked.includes(choice)) { console.error("No tolerance leaf selected"); return undefined; }
         picked.push(choice);

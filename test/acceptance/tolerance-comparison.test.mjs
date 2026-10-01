@@ -264,6 +264,23 @@ test("review names the drifting leaf and pre-selects the one that actually chang
   }
 });
 
+test("review refuses empty comma parts without accepting or changing the pending candidate", async t => {
+  const project = await mkdtemp(path.join(os.tmpdir(), "replaylock-tolerance-empty-part-"));
+  t.after(() => rm(project, { recursive: true, force: true }));
+  const candidate = makeCandidate("triple", [], { alpha: 10, beta: 20, gamma: 30 });
+  await writePending(project, [candidate]);
+  const pendingPath = path.join(project, ".replaylock/observations/pending", `${candidate.caseId}.json`);
+  const before = await readFile(pendingPath, "utf8");
+  for (const selection of ["1,", ",2", "1,,2", "1,  ,2"]) {
+    const reviewed = runReview(project, `t\n${selection}\n0.5\n0.5\n0.5\n`);
+    assert.equal(reviewed.status, 2, output(reviewed));
+    assert.match(output(reviewed), /No tolerance leaf selected/);
+    assert.doesNotMatch(output(reviewed), /Epsilon for/);
+    assert.deepEqual(await caseArtifacts(project), []);
+    assert.equal(await readFile(pendingPath, "utf8"), before);
+  }
+});
+
 test("tolerance comparison branch integration marker", () => {
   console.log("tolerance comparison branch integration verified");
 });
