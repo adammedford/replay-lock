@@ -1,0 +1,55 @@
+{
+  "arguments": {
+    "items": [],
+    "kind": "array"
+  },
+  "caseId": "655fab4b7e37b6aeb8a40b15e729ad02390e564faf14d2c7d651577134ad806e",
+  "comparison": "exact",
+  "completion": {
+    "kind": "return",
+    "value": {
+      "items": [
+        {
+          "entries": [
+            {
+              "key": "title",
+              "value": {
+                "kind": "string",
+                "value": "Epic Notes"
+              }
+            }
+          ],
+          "kind": "record"
+        }
+      ],
+      "kind": "array"
+    }
+  },
+  "eligibility": {
+    "reasonCodes": [
+      "DEV_TRACE_REPLAYABLE"
+    ],
+    "verdict": "replayable"
+  },
+  "environment": "node",
+  "locator": {
+    "kind": "export",
+    "module": "app/routes/_marketing/index.tsx",
+    "namePath": [
+      "meta"
+    ]
+  },
+  "provenance": {
+    "captureStatus": "partial",
+    "lockfileDigest": "sha256:143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "runtimeProfile": {
+      "environment": "node",
+      "locale": "en-US",
+      "runtime": "node:22.19.0",
+      "timezone": "America/Chicago"
+    },
+    "sourceGraphDigest": "sha256:e410247231872eec71ce62f0b10af03517e4e4184bd3979c04da96ee65376508"
+  },
+  "schemaVersion": 2,
+  "trace": []
+}
