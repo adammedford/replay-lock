@@ -4,6 +4,7 @@ import {
   comparableCompletionValue,
   formatLeafPath,
   numberLeafPaths,
+  numberLeafValue,
   toCaseArtifact,
   type CandidateArtifact,
   type CaseArtifact,
@@ -183,8 +184,8 @@ export function toleranceChoices(
   const candidateValue = comparableCompletionValue(candidate.completion);
   const existingValue = existing ? comparableCompletionValue(existing.completion) : undefined;
   return numberLeafPaths(candidateValue).map((path) => {
-    const current = leafAt(candidateValue, path);
-    const previous = existingValue === undefined ? undefined : leafAt(existingValue, path);
+    const current = numberLeafValue(candidateValue, path);
+    const previous = existingValue === undefined ? undefined : numberLeafValue(existingValue, path);
     return {
       path,
       display: formatLeafPath(path),
@@ -192,24 +193,6 @@ export function toleranceChoices(
       differs: previous !== undefined && current !== undefined && previous !== current,
     };
   });
-}
-
-function leafAt(node: unknown, path: readonly (string | number)[]): number | undefined {
-  let current: unknown = node;
-  for (const step of path) {
-    if (!current || typeof current !== "object") return undefined;
-    const value = current as { kind?: unknown; items?: unknown[]; entries?: { key: string; value: unknown }[] };
-    if (typeof step === "number") {
-      if (value.kind !== "array" || !Array.isArray(value.items)) return undefined;
-      current = value.items[step];
-    } else {
-      if (value.kind !== "record" || !Array.isArray(value.entries)) return undefined;
-      current = value.entries.find((entry) => entry.key === step)?.value;
-    }
-  }
-  if (!current || typeof current !== "object") return undefined;
-  const leaf = current as { kind?: unknown; value?: unknown };
-  return leaf.kind === "number" && typeof leaf.value === "number" ? leaf.value : undefined;
 }
 
 /**
@@ -228,7 +211,9 @@ export function parseToleranceSelection(
   }
   const selected: ToleranceChoice[] = [];
   for (const part of trimmed.split(",")) {
-    const index = Number(part.trim());
+    const token = part.trim();
+    if (token.length === 0) return undefined;
+    const index = Number(token);
     const choice = choices[index];
     if (!Number.isSafeInteger(index) || !choice || selected.includes(choice)) return undefined;
     selected.push(choice);

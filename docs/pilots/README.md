@@ -25,3 +25,5 @@ The [development responsiveness follow-up](responsiveness.md) retains a fresh ba
 The [2026-09-23 real-application pilots](real-app-2026-09.md) record Epic Stack completing the whole journey, and BMI retaining a third case.
 
 The [2026-09-27 Epic mutation run](epic-mutation-2026-09-27.md) is the first schema 2 evidence: it scores each accepted callable against seeded logic mutants and records what the current cases protect.
+
+The [issue #64 acceptance audit](issue-64-acceptance-audit.md) maps its delivered requirements to executable checks and preserved evidence, and distinguishes closure from the outstanding human-review gate in #105.
