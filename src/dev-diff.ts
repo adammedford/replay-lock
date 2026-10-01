@@ -36,9 +36,18 @@ type Tolerance = (leaf: readonly (string | number)[]) => number | undefined;
 const exactly: Tolerance = () => undefined;
 
 function fields(expected: { key: string; value: DevValue }[], actual: { key: string; value: DevValue }[], path: string, leaf: readonly (string | number)[], tolerate: Tolerance): DevDifference | undefined {
-  const left = new Map(expected.map(entry => [entry.key, entry.value]));
-  const right = new Map(actual.map(entry => [entry.key, entry.value]));
-  for (const key of [...new Set([...left.keys(), ...right.keys()])].sort()) {
+  const left = new Map<string, DevValue>();
+  const keys = new Set<string>();
+  for (const entry of expected) {
+    left.set(entry.key, entry.value);
+    keys.add(entry.key);
+  }
+  const right = new Map<string, DevValue>();
+  for (const entry of actual) {
+    right.set(entry.key, entry.value);
+    keys.add(entry.key);
+  }
+  for (const key of Array.from(keys).sort()) {
     const difference = first(left.get(key), right.get(key), property(path, key), [...leaf, key], tolerate);
     if (difference) return difference;
   }
