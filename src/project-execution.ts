@@ -529,7 +529,7 @@ function verificationHarness(
   }
   const actual = classified.observation.completion;
   if (!completionsMatch(expected, actual, ${comparisonMode})) {
-    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, () => firstDifference(expected, actual));
+    failBehavior(${JSON.stringify("OUTPUT_MISMATCH")}, ${JSON.stringify(locator)}, () => firstDifference(expected, actual, ${comparisonMode}));
   }
 });`;
   });
@@ -616,7 +616,7 @@ function verificationHarness(
     // A throw completion carries either "error" (a standard error) or "value"
     // (any other thrown value). A case recorded as one and replayed as the
     // other is a real regression, so it must be described, not indexed into.
-    `function firstDifference(expected, actual) {`,
+    `function firstDifference(expected, actual, comparisonMode) {`,
     `  if (expected.error || actual.error) {`,
     `    if (!expected.error || !actual.error) {`,
     `      return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
@@ -627,9 +627,12 @@ function verificationHarness(
     `  if (!expected.value || !actual.value) {`,
     `    return "$: expected " + displayCompletion(expected) + "; received " + displayCompletion(actual);`,
     `  }`,
-    `  return valueDifference(expected.value, actual.value, "$");`,
+    `  return valueDifference(expected.value, actual.value, "$", comparisonMode, []);`,
     `}`,
-    `function valueDifference(expected, actual, path) {`,
+    // Keep the diagnostic label separate from the semantic leaf path: record
+    // keys may contain dots, and array indices must remain numbers. Descend
+    // only into children rejected by the same comparator that failed replay.
+    `function valueDifference(expected, actual, path, comparisonMode, valuePath) {`,
     `  if (expected.kind !== actual.kind) return path + ": expected " + displayValue(expected) + "; received " + displayValue(actual);`,
     `  if (expected.kind === "null") return path + ": canonical null differed";`,
     `  if (expected.kind === "boolean" || expected.kind === "number" || expected.kind === "string") {`,
@@ -638,7 +641,8 @@ function verificationHarness(
     `  if (expected.kind === "array") {`,
     `    const length = Math.min(expected.items.length, actual.items.length);`,
     `    for (let index = 0; index < length; index += 1) {`,
-    `      if (JSON.stringify(expected.items[index]) !== JSON.stringify(actual.items[index])) return valueDifference(expected.items[index], actual.items[index], path + "[" + index + "]");`,
+    `      const nextValuePath = valuePath.concat(index);`,
+    `      if (!valuesMatch(expected.items[index], actual.items[index], comparisonMode, nextValuePath)) return valueDifference(expected.items[index], actual.items[index], path + "[" + index + "]", comparisonMode, nextValuePath);`,
     `    }`,
     `    return path + ".length: expected " + expected.items.length + "; received " + actual.items.length;`,
     `  }`,
@@ -646,16 +650,18 @@ function verificationHarness(
     `    const expectedEntries = new Map(expected.entries.map((entry) => [entry.key, entry.value]));`,
     `    const actualEntries = new Map(actual.entries.map((entry) => [entry.key, entry.value]));`,
     `    for (const key of new Set([...expectedEntries.keys(), ...actualEntries.keys()])) {`,
-    `      const nextPath = path + "." + key;`,
+    `      const nextPath = path + (/^[A-Za-z_$][\\w$]*$/.test(key) ? "." + key : "[" + JSON.stringify(key) + "]");`,
     `      if (!expectedEntries.has(key)) return nextPath + ": unexpected value " + displayValue(actualEntries.get(key));`,
     `      if (!actualEntries.has(key)) return nextPath + ": expected " + displayValue(expectedEntries.get(key)) + "; received <missing>";`,
-    `      if (JSON.stringify(expectedEntries.get(key)) !== JSON.stringify(actualEntries.get(key))) return valueDifference(expectedEntries.get(key), actualEntries.get(key), nextPath);`,
+    `      const nextValuePath = valuePath.concat(key);`,
+    `      if (!valuesMatch(expectedEntries.get(key), actualEntries.get(key), comparisonMode, nextValuePath)) return valueDifference(expectedEntries.get(key), actualEntries.get(key), nextPath, comparisonMode, nextValuePath);`,
     `    }`,
     `  }`,
     `  if (expected.kind === "adapted") {`,
     `    if (expected.adapterId !== actual.adapterId) return path + ".adapterId: expected " + JSON.stringify(expected.adapterId) + "; received " + JSON.stringify(actual.adapterId);`,
     `    if (expected.version !== actual.version) return path + ".version: expected " + expected.version + "; received " + actual.version;`,
-    `    return valueDifference(expected.payload, actual.payload, path + ".payload");`,
+    // Payload diagnostics must preserve the adapter's exact equality contract.
+    `    return valueDifference(expected.payload, actual.payload, path + ".payload", "exact", []);`,
     `  }`,
     `  return path + ": canonical values differed";`,
     `}`,
