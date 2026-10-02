@@ -41,4 +41,14 @@ The evaluation must separately report predicate/hazard controls, actual capture/
 
 The pinned Epic revision is8473afd804b66dba6a23f317908dc35d1535e90d. The prior [blocker map](../pilots/analyzer-precision-2026-10-01.md) separates Prism's ambient global writes, Sentry's mutable Array.from guard and catch logging, Noble's reachable local table loop and OAuth registration's environment-dependent logging and constructor work. Those constructs are outside this first proof grammar. No package/file allowlist, replay placeholder assumption or default-native-behavior assumption may clear them.
 
+The 2026-10-02 [retained comparison](branch-proof-epic-results.json) finds **20 eligible callables per realm in both baseline and prototype, zero of eleven named targets**. Every named target still reports EFFECTFUL_INITIALIZATION. Node roots are Noble SHA3:29 except forgot-password/signup (Prism:1218) and auth (auth.server.ts:23). Browser root/login/reset-password/note-detail roots are Sentry replay:4019; other roots match Node. The JSON lists every exact target and origin.
+
+Reproduce with the [evaluation harness](branch-proof-epic-scan.mjs):
+
+```sh
+node docs/plans/branch-proof-epic-scan.mjs APP_ROOT BASELINE_DIST
+```
+
+This is deliberately an **explicit-default-development-conditions structural scan with dotenv metadata excluded**, not a new fully configured application scan or complete fingerprint qualification. It executes no application config hooks or blocked target modules, and its process-local filesystem guard forbids dotenv reads. The application retains earlier pilot instrumentation; unchanged Git status does not assert a pristine checkout or byte-for-byte immutability. Baseline analyzer a0aa766 has identical analysis/options/transform source to merged base0867957. Prototype implementation pin d39383f; the result document and harness are retained in subsequent evidence commits. No application or dependency edits were made by this evaluation.
+
 Return experimental evidence to #123 before selecting production work. Do not merge this branch into main, close #106, start #107, copy old participant timings into new cases, or change the initial60000ms human ceiling and later mandatory user checkpoints.

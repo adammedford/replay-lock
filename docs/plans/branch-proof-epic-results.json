@@ -1,0 +1,652 @@
+{
+  "revision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+  "method": "explicit-default-development-conditions; dotenv metadata excluded; no application config hooks or imports",
+  "baselineAnalyzerCommit": "a0aa766ea3e51669f913bd1e676d2104f6eda97d",
+  "prototypeImplementationCommit": "d39383f",
+  "results": [
+    {
+      "label": "baseline",
+      "environment": "node",
+      "eligible": 20,
+      "targets": [
+        {
+          "target": "app/root.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/forgot-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/login.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/$provider.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/index.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/reset-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/signup.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/$noteId.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/utils/auth.server.ts#getSessionExpirationDate",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "app/utils/auth.server.ts",
+                "line": 23,
+                "column": 19
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasFile",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasId",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "environment": "browser",
+      "eligible": 20,
+      "targets": [
+        {
+          "target": "app/root.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/forgot-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/login.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/$provider.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/index.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/reset-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/signup.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/$noteId.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/utils/auth.server.ts#getSessionExpirationDate",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "app/utils/auth.server.ts",
+                "line": 23,
+                "column": 19
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasFile",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasId",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "prototype",
+      "environment": "node",
+      "eligible": 20,
+      "targets": [
+        {
+          "target": "app/root.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/forgot-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/login.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/$provider.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/index.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/reset-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/signup.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/$noteId.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/utils/auth.server.ts#getSessionExpirationDate",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "app/utils/auth.server.ts",
+                "line": 23,
+                "column": 19
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasFile",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasId",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "prototype",
+      "environment": "browser",
+      "eligible": 20,
+      "targets": [
+        {
+          "target": "app/root.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/forgot-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/login.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/$provider.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/onboarding/index.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/reset-password.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/_auth/signup.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/prismjs/prism.js",
+                "line": 1218,
+                "column": 2
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/$noteId.tsx#meta",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@sentry-internal/replay/build/npm/esm/index.js",
+                "line": 4019,
+                "column": 24
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/utils/auth.server.ts#getSessionExpirationDate",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "app/utils/auth.server.ts",
+                "line": 23,
+                "column": 19
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasFile",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        },
+        {
+          "target": "app/routes/users/$username/notes/+shared/note-editor.server.tsx#imageHasId",
+          "eligible": false,
+          "findings": [
+            {
+              "code": "EFFECTFUL_INITIALIZATION",
+              "origin": {
+                "module": "node_modules/@noble/hashes/sha3.js",
+                "line": 29,
+                "column": 5
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
