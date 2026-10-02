@@ -59,4 +59,22 @@ Noble still requires array appending/method identity, destructuring/iteration, a
 
 The proof rejects extent/iterations above 256, source indexing above 16384 nodes or depth 192, and primitive evaluation above 32768 visits or depth 128. Exhausted whole-module budgets discard partial proofs. Ordinary modules without a syntactic candidate skip the reference index. Five public boundary/resource fixtures admit the exact 256-slot case and reject 257 slots, overly complex arithmetic, deep parentheses and source-node exhaustion. Their both-realm scan is measured by the focused acceptance file against its existing 15000ms fixture timeout, not a weakened threshold.
 
-The [five-pair public workload measurement](owned-initialization-performance-results.json), with 10/1000 ordinary modules plus one 256-slot owned table in both realms, stays within the additive regression budget of max(20ms, 10% of baseline median). Small-module median overhead is 0.07ms Node and -0.23ms browser; large-module overhead is -13.49ms Node and 3.78ms browser. These are controlled same-process analysis/transform timings, not human or whole-application latency claims. The unchanged historical performance report separately still passes its original checker; it is not a newly repeated historical speedup measurement.
+The [five-pair public workload measurement](owned-initialization-performance-results.json), refreshed against implementation `ba3e23f1b63b95cbd3b6428bc9f18d0ff1c46324`, with 10/1000 ordinary modules plus one 256-slot owned table in both realms, stays within the additive regression budget of max(20ms, 10% of baseline median). Small-module median overhead is 0.21ms Node and -0.13ms browser; large-module overhead is -15.04ms Node and -27.12ms browser. These are controlled same-process analysis/transform timings, not human or whole-application latency claims. The unchanged historical performance report separately still passes its original checker; it is not a newly repeated historical speedup measurement.
+
+## Final verification
+
+Evaluated implementation: `ba3e23f1b63b95cbd3b6428bc9f18d0ff1c46324`, on Node 22.19.0/npm 11.5.2. After fixing review findings, the focused public scan/cache/integration checks, typecheck, full `npm run verify` (all 52 locked acceptance files, packed consumer and actual Chromium), reviewed dogfood, extended core conformance, extended idiom conformance and diff check all passed. The refreshed read-only pinned Epic comparison retains the same results and source hashes. No existing fixture, floor, guard or runtime contract was weakened.
+
+The retained integration's second independently expected completion6 now exercises existing-slot RHS reads, parentheses, prior constants, unary minus and addition/subtraction/multiplication/division/remainder. Changing its divisor produces `OUTPUT_MISMATCH`; this is observed construction coverage, not scan eligibility alone. A separate public cache regression proved red before the fix, then passed in both realms: removing, restoring and removing a dependency cycle requalifies unchanged authored source and matches cold transformation/analysis. Graph-dependent exclusions can no longer use the authored-only rejection shortcut.
+
+### Standards
+
+Independent final review of `0867957...ba3e23f`: zero actionable findings, hard documented-standard violations or actionable baseline smells. The original harness-cleanup finding was resolved with optional oracle restoration and independent nested resource cleanup; the reviewer rechecked the fix and the cache/arithmetic additions.
+
+### Spec
+
+Independent final spec/adversarial review of the same diff: zero remaining actionable findings. The two initial findings—stale cached rejection after dependency-cycle removal and scan-only evidence for expanded arithmetic—were resolved and independently rechecked. The explicitly reported protected-intrinsic host limitation is permitted by #126; it is not successful protected-host capture/replay evidence. Reviews were static and read-only; the root's executed checks establish the test results separately.
+
+## Decision handoff
+
+This completes the bounded evaluation, not production delivery. Synthetic closed numeric table behavior is supported under the declared constraints, but active protected-prototype sentinels cannot record/replay at this runtime seam, and none of the eleven named Epic targets is unlocked. Retain this source/evidence on the experimental branch and return the result to #123 for an explicit production or next-capability decision. No production PR or main merge; #106 remains open, #107 remains blocked, and the initial60000ms human ceiling and mandatory later checkpoints remain unchanged.

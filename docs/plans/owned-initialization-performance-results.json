@@ -11,8 +11,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 26.123666999999955,
-      "editToReadyMs": 3.555416999999977
+      "coldLoadMs": 26.783000000000015,
+      "editToReadyMs": 3.3143329999999764
     },
     {
       "label": "baseline",
@@ -20,8 +20,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.957417000000021,
-      "editToReadyMs": 2.8665829999999914
+      "coldLoadMs": 3.6080410000000143,
+      "editToReadyMs": 2.286625000000015
     },
     {
       "label": "prototype",
@@ -29,8 +29,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 27.161833,
-      "editToReadyMs": 4.443750000000023
+      "coldLoadMs": 25.215791999999965,
+      "editToReadyMs": 3.824333000000024
     },
     {
       "label": "prototype",
@@ -38,8 +38,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 4.581624999999974,
-      "editToReadyMs": 2.923000000000002
+      "coldLoadMs": 4.280250000000024,
+      "editToReadyMs": 2.706583999999964
     },
     {
       "label": "prototype",
@@ -47,8 +47,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.8042500000000246,
-      "editToReadyMs": 2.654792000000043
+      "coldLoadMs": 3.6910830000000487,
+      "editToReadyMs": 2.651458000000048
     },
     {
       "label": "prototype",
@@ -56,8 +56,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.6460409999999683,
-      "editToReadyMs": 2.3805000000000973
+      "coldLoadMs": 3.739708000000064,
+      "editToReadyMs": 2.3881249999999454
     },
     {
       "label": "baseline",
@@ -65,8 +65,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.7329579999999396,
-      "editToReadyMs": 2.4350409999999556
+      "coldLoadMs": 3.4839589999999134,
+      "editToReadyMs": 2.296208999999976
     },
     {
       "label": "baseline",
@@ -74,8 +74,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.7157080000000633,
-      "editToReadyMs": 2.134999999999991
+      "coldLoadMs": 3.36258399999997,
+      "editToReadyMs": 1.9326670000000377
     },
     {
       "label": "baseline",
@@ -83,8 +83,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 5.161624999999958,
-      "editToReadyMs": 2.4421250000000327
+      "coldLoadMs": 4.752624999999966,
+      "editToReadyMs": 2.141958000000045
     },
     {
       "label": "baseline",
@@ -92,8 +92,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.3856250000000045,
-      "editToReadyMs": 1.9016670000000886
+      "coldLoadMs": 3.0375419999999167,
+      "editToReadyMs": 2.5286250000000337
     },
     {
       "label": "prototype",
@@ -101,8 +101,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 4.925749999999994,
-      "editToReadyMs": 2.669999999999959
+      "coldLoadMs": 4.978457999999932,
+      "editToReadyMs": 2.4185829999998987
     },
     {
       "label": "prototype",
@@ -110,8 +110,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 3.152082999999948,
-      "editToReadyMs": 2.085042000000044
+      "coldLoadMs": 2.9099579999999605,
+      "editToReadyMs": 1.8258340000000999
     },
     {
       "label": "prototype",
@@ -119,8 +119,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.6335000000000264,
-      "editToReadyMs": 1.69012500000008
+      "coldLoadMs": 2.4751249999999345,
+      "editToReadyMs": 1.5813340000000835
     },
     {
       "label": "prototype",
@@ -128,8 +128,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.545541999999955,
-      "editToReadyMs": 1.80824999999993
+      "coldLoadMs": 2.459583000000066,
+      "editToReadyMs": 1.5249579999999696
     },
     {
       "label": "baseline",
@@ -137,8 +137,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.649084000000016,
-      "editToReadyMs": 1.4530419999999822
+      "coldLoadMs": 2.7492500000000746,
+      "editToReadyMs": 1.6242089999999507
     },
     {
       "label": "baseline",
@@ -146,8 +146,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.4381670000000213,
-      "editToReadyMs": 1.4998750000000882
+      "coldLoadMs": 2.4745419999999285,
+      "editToReadyMs": 1.5254159999999501
     },
     {
       "label": "baseline",
@@ -155,8 +155,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.336416999999983,
-      "editToReadyMs": 1.4348340000000235
+      "coldLoadMs": 2.4480419999999867,
+      "editToReadyMs": 1.48112500000002
     },
     {
       "label": "baseline",
@@ -164,8 +164,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.341042000000016,
-      "editToReadyMs": 1.349917000000005
+      "coldLoadMs": 2.427000000000021,
+      "editToReadyMs": 1.4004170000000613
     },
     {
       "label": "prototype",
@@ -173,8 +173,8 @@
       "environment": "node",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.5483330000000706,
-      "editToReadyMs": 1.4806669999999258
+      "coldLoadMs": 2.457667000000015,
+      "editToReadyMs": 1.6929169999999658
     },
     {
       "label": "prototype",
@@ -182,8 +182,8 @@
       "environment": "browser",
       "ordinaryModules": 10,
       "ownedTableSlots": 256,
-      "coldLoadMs": 2.2820839999999407,
-      "editToReadyMs": 1.6732500000000528
+      "coldLoadMs": 2.398625000000038,
+      "editToReadyMs": 1.519457999999986
     },
     {
       "label": "baseline",
@@ -191,8 +191,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1155.652458,
-      "editToReadyMs": 65.97370799999999
+      "coldLoadMs": 1152.291,
+      "editToReadyMs": 63.49029100000007
     },
     {
       "label": "baseline",
@@ -200,8 +200,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1056.520209,
-      "editToReadyMs": 60.16170800000009
+      "coldLoadMs": 1090.7848329999997,
+      "editToReadyMs": 69.76533400000017
     },
     {
       "label": "prototype",
@@ -209,8 +209,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1084.8695419999995,
-      "editToReadyMs": 63.21950000000015
+      "coldLoadMs": 1100.9673330000005,
+      "editToReadyMs": 63.52183299999979
     },
     {
       "label": "prototype",
@@ -218,8 +218,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1051.0565419999994,
-      "editToReadyMs": 59.28620799999953
+      "coldLoadMs": 1074.027959,
+      "editToReadyMs": 61.713958000000275
     },
     {
       "label": "prototype",
@@ -227,8 +227,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1035.4137920000003,
-      "editToReadyMs": 56.924958999999944
+      "coldLoadMs": 1070.0337909999998,
+      "editToReadyMs": 58.45400000000063
     },
     {
       "label": "prototype",
@@ -236,8 +236,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1063.2676669999992,
-      "editToReadyMs": 55.61912500000017
+      "coldLoadMs": 1052.6892089999992,
+      "editToReadyMs": 58.28554199999962
     },
     {
       "label": "baseline",
@@ -245,8 +245,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1056.9091670000007,
-      "editToReadyMs": 55.65849999999955
+      "coldLoadMs": 1083.3918749999993,
+      "editToReadyMs": 55.85599999999977
     },
     {
       "label": "baseline",
@@ -254,8 +254,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1054.626875,
-      "editToReadyMs": 55.31891600000017
+      "coldLoadMs": 1101.850875,
+      "editToReadyMs": 55.86804200000006
     },
     {
       "label": "baseline",
@@ -263,8 +263,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1068.3207500000008,
-      "editToReadyMs": 58.35845799999879
+      "coldLoadMs": 1072.6001669999987,
+      "editToReadyMs": 55.23074999999881
     },
     {
       "label": "baseline",
@@ -272,8 +272,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1071.185542000001,
-      "editToReadyMs": 55.14008300000023
+      "coldLoadMs": 1086.0895830000009,
+      "editToReadyMs": 56.8722089999992
     },
     {
       "label": "prototype",
@@ -281,8 +281,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1066.7067909999987,
-      "editToReadyMs": 58.183250000000044
+      "coldLoadMs": 1058.7555410000004,
+      "editToReadyMs": 58.2912499999984
     },
     {
       "label": "prototype",
@@ -290,8 +290,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1062.1033749999988,
-      "editToReadyMs": 56.7114160000001
+      "coldLoadMs": 1053.2155000000002,
+      "editToReadyMs": 56.208291999999346
     },
     {
       "label": "prototype",
@@ -299,8 +299,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1084.9545000000016,
-      "editToReadyMs": 57.496917000000394
+      "coldLoadMs": 1068.3534579999996,
+      "editToReadyMs": 56.725249999999505
     },
     {
       "label": "prototype",
@@ -308,8 +308,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1108.8846669999984,
-      "editToReadyMs": 65.07191700000112
+      "coldLoadMs": 1058.9670409999999,
+      "editToReadyMs": 56.274874999999156
     },
     {
       "label": "baseline",
@@ -317,8 +317,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1080.1944159999985,
-      "editToReadyMs": 78.14983299999949
+      "coldLoadMs": 1089.0259590000023,
+      "editToReadyMs": 72.37408299999879
     },
     {
       "label": "baseline",
@@ -326,8 +326,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1059.4845830000013,
-      "editToReadyMs": 58.985749999999825
+      "coldLoadMs": 1084.526208000003,
+      "editToReadyMs": 55.75174999999945
     },
     {
       "label": "baseline",
@@ -335,8 +335,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1092.8839169999992,
-      "editToReadyMs": 78.06195800000205
+      "coldLoadMs": 1075.3824160000004,
+      "editToReadyMs": 55.19854200000191
     },
     {
       "label": "baseline",
@@ -344,8 +344,8 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1063.1992089999985,
-      "editToReadyMs": 63.79716600000029
+      "coldLoadMs": 1075.4807500000024,
+      "editToReadyMs": 56.55962500000169
     },
     {
       "label": "prototype",
@@ -353,8 +353,8 @@
       "environment": "node",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1056.9383750000015,
-      "editToReadyMs": 69.56774999999834
+      "coldLoadMs": 1059.2812090000007,
+      "editToReadyMs": 70.00779200000034
     },
     {
       "label": "prototype",
@@ -362,45 +362,45 @@
       "environment": "browser",
       "ordinaryModules": 1000,
       "ownedTableSlots": 256,
-      "coldLoadMs": 1103.6698749999996,
-      "editToReadyMs": 66.98179099999834
+      "coldLoadMs": 1069.3587499999994,
+      "editToReadyMs": 55.35450000000128
     }
   ],
   "comparisons": [
     {
       "ordinaryModules": 10,
       "environment": "node",
-      "baselineMedianMs": 3.7329579999999396,
-      "prototypeMedianMs": 3.8042500000000246,
-      "overheadMs": 0.07129200000008495,
+      "baselineMedianMs": 3.4839589999999134,
+      "prototypeMedianMs": 3.6910830000000487,
+      "overheadMs": 0.2071240000001353,
       "budgetMs": 20,
       "withinAdditiveRegressionBudget": true
     },
     {
       "ordinaryModules": 10,
       "environment": "browser",
-      "baselineMedianMs": 3.3856250000000045,
-      "prototypeMedianMs": 3.152082999999948,
-      "overheadMs": -0.23354200000005676,
+      "baselineMedianMs": 3.0375419999999167,
+      "prototypeMedianMs": 2.9099579999999605,
+      "overheadMs": -0.12758399999995618,
       "budgetMs": 20,
       "withinAdditiveRegressionBudget": true
     },
     {
       "ordinaryModules": 1000,
       "environment": "node",
-      "baselineMedianMs": 1080.1944159999985,
-      "prototypeMedianMs": 1066.7067909999987,
-      "overheadMs": -13.487624999999753,
-      "budgetMs": 108.01944159999985,
+      "baselineMedianMs": 1083.3918749999993,
+      "prototypeMedianMs": 1068.3534579999996,
+      "overheadMs": -15.038416999999754,
+      "budgetMs": 108.33918749999994,
       "withinAdditiveRegressionBudget": true
     },
     {
       "ordinaryModules": 1000,
       "environment": "browser",
-      "baselineMedianMs": 1059.4845830000013,
-      "prototypeMedianMs": 1063.2676669999992,
-      "overheadMs": 3.7830839999978707,
-      "budgetMs": 105.94845830000014,
+      "baselineMedianMs": 1086.0895830000009,
+      "prototypeMedianMs": 1058.9670409999999,
+      "overheadMs": -27.122542000000976,
+      "budgetMs": 108.6089583000001,
       "withinAdditiveRegressionBudget": true
     }
   ]
