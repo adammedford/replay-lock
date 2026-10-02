@@ -6,6 +6,7 @@ import ts from "typescript";
 import { classifyKnownInvocation, createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
+import { createOwnedInitializationProof } from "./dev-owned-initialization-prototype.js";
 import { DEV_AMBIENT_GLOBALS, DEV_BUILTIN_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_FRESH_CONSTRUCTORS, DEV_FRESH_METHODS, DEV_FRESH_STATICS, DEV_GLOBAL_OBJECT_MEMBERS, DEV_IMPLICIT_CALLERS, DEV_METHODS, devCatalogInvocation, devMutatingStatic, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
@@ -269,6 +270,27 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   });
   const program = ts.createProgram([...modules.keys()], compilerOptions, host);
   const checker = program.getTypeChecker();
+  // Peel sinks to establish an acyclic dependency closure in linear graph
+  // work. Cycles and their importers cannot acquire the experimental proof.
+  const pendingDependencies = new Map<string, number>();
+  const importers = new Map<string, string[]>();
+  const acyclic = new Set<string>(), queue: string[] = [];
+  for (const module of modules.values()) {
+    const dependencies = [...module.dependencies].filter(file => modules.has(file));
+    pendingDependencies.set(module.file, dependencies.length);
+    if (dependencies.length === 0) queue.push(module.file);
+    for (const dependency of dependencies) { const parents = importers.get(dependency) ?? []; parents.push(module.file); importers.set(dependency, parents); }
+  }
+  for (let index = 0; index < queue.length; index++) {
+    const file = queue[index]!;
+    acyclic.add(file);
+    for (const parent of importers.get(file) ?? []) {
+      const remaining = pendingDependencies.get(parent)! - 1;
+      pendingDependencies.set(parent, remaining);
+      if (remaining === 0) queue.push(parent);
+    }
+  }
+  const ownedInitialization = new Map([...modules.values()].map(module => [module.sourceFile, createOwnedInitializationProof(module.sourceFile, checker, acyclic.has(module.file))]));
   const functions: DevFunction[] = [];
   const bySymbol = new Map<ts.Symbol, DevFunction>();
   const symbol = (node: ts.Node): ts.Symbol | undefined => {
@@ -631,6 +653,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     };
     initialization(module.sourceFile);
     for (const finding of findings) {
+      if (ownedInitialization.get(module.sourceFile)?.covers(finding)) continue;
       const tier = initializationTier(finding);
       const problems = tier.kind === "global" ? module.problems : tier.kind === "module" ? module.moduleProblems : bindingProblems(module, tier.declaration);
       problems.at("EFFECTFUL_INITIALIZATION", finding);
@@ -724,6 +747,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
   };
   const tables = new Map<ts.VariableDeclaration, boolean>();
   const immutableTable = (declaration: ts.VariableDeclaration): boolean => {
+    if (ownedInitialization.get(declaration.getSourceFile())?.finalized(declaration)) return true;
     let result = tables.get(declaration);
     if (result !== undefined) return result;
     const statement = declaration.parent.parent;

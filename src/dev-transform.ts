@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import MagicString from "magic-string";
+import { OWNED_INITIALIZATION_PROOF_REVISION } from "./dev-owned-initialization-prototype.js";
 import ts from "typescript";
 import { buildDevProject, patternArrow, type DevProject, type DevFunction, type DevOperation } from "./dev-analysis.js";
 import type { DevEnvironment, ResolvedDevOptions, DevTransformOptions, DevTransformResult } from "./dev-contract.js";
@@ -19,8 +20,9 @@ export function transformDevSource(options: DevTransformOptions): DevTransformRe
 export function createDevProjectCache(rootInput: string, resolvedOptions: ResolvedDevOptions) {
   const root = realpathSync.native(rootInput);
   const snapshots = new Map<DevEnvironment, { key: string; project: DevProject }>();
+  const planKey = (options: ResolvedDevOptions): string => JSON.stringify({ options, proofRevision: OWNED_INITIALIZATION_PROOF_REVISION });
   function projectFor(environment: DevEnvironment, options: ResolvedDevOptions): DevProject {
-    const key = JSON.stringify(options);
+    const key = planKey(options);
     let snapshot = snapshots.get(environment);
     if (!snapshot || snapshot.key !== key || !snapshot.project.isCurrent()) {
       snapshot = { key, project: buildDevProject(root, options, environment) };
@@ -38,7 +40,7 @@ export function createDevProjectCache(rootInput: string, resolvedOptions: Resolv
       // This proof depends on authored syntax alone, not import resolution or
       // dependency contents. Re-read the actual source before rejecting; every
       // other admission decision still validates the complete input snapshot.
-      if (snapshot?.key === JSON.stringify(options.options) && authored?.initializationTaintsModule) {
+      if (snapshot?.key === planKey(options.options) && authored?.initializationTaintsModule) {
         try { if (readFileSync(file, "utf8") === authored.sourceFile.text) return null; }
         catch { /* Fall back to complete validation when the source is unavailable. */ }
       }
