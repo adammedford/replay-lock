@@ -6,6 +6,7 @@ import ts from "typescript";
 import { classifyKnownInvocation, createEffectAnalyzer, expressionPath } from "./effect-analyzer.js";
 import { isTypeScriptSourceFilename, typescriptScriptKind } from "./typescript-script-kind.js";
 import { createDevInputTracker } from "./dev-project-cache.js";
+import { createInitializerBranchProofPrototype } from "./dev-branch-proof-prototype.js";
 import { DEV_AMBIENT_GLOBALS, DEV_BUILTIN_GLOBALS, DEV_EFFECT_FUNCTIONS, DEV_FRESH_CONSTRUCTORS, DEV_FRESH_METHODS, DEV_FRESH_STATICS, DEV_GLOBAL_OBJECT_MEMBERS, DEV_IMPLICIT_CALLERS, DEV_METHODS, devCatalogInvocation, devMutatingStatic, devInertInitialization, devReadableBuiltin, inertExpression } from "./dev-catalog.js";
 import type { DevAnalysis, DevDiagnostic, DevEnvironment, DevLocator, DevSourcePosition, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 
@@ -613,6 +614,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) return writeTier(node.operand);
     return containingTier(node);
   };
+  const unreachableInitializer = createInitializerBranchProofPrototype(checker);
   for (const module of modules.values()) {
     const findings = new Set<ts.Node>(moduleInitializationNodes(module.sourceFile));
     const initialization = (child: ts.Node): void => {
@@ -631,6 +633,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     };
     initialization(module.sourceFile);
     for (const finding of findings) {
+      if (unreachableInitializer(finding)) continue;
       const tier = initializationTier(finding);
       const problems = tier.kind === "global" ? module.problems : tier.kind === "module" ? module.moduleProblems : bindingProblems(module, tier.declaration);
       problems.at("EFFECTFUL_INITIALIZATION", finding);
