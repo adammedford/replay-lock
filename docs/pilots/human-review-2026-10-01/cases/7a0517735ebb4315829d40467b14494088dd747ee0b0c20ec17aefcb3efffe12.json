@@ -1,0 +1,55 @@
+{
+  "arguments": {
+    "items": [],
+    "kind": "array"
+  },
+  "caseId": "7a0517735ebb4315829d40467b14494088dd747ee0b0c20ec17aefcb3efffe12",
+  "comparison": "exact",
+  "completion": {
+    "kind": "return",
+    "value": {
+      "items": [
+        {
+          "entries": [
+            {
+              "key": "title",
+              "value": {
+                "kind": "string",
+                "value": "Epic Notes"
+              }
+            }
+          ],
+          "kind": "record"
+        }
+      ],
+      "kind": "array"
+    }
+  },
+  "eligibility": {
+    "reasonCodes": [
+      "DEV_TRACE_REPLAYABLE"
+    ],
+    "verdict": "replayable"
+  },
+  "environment": "browser",
+  "locator": {
+    "kind": "export",
+    "module": "app/routes/_marketing/index.tsx",
+    "namePath": [
+      "meta"
+    ]
+  },
+  "provenance": {
+    "captureStatus": "partial",
+    "lockfileDigest": "sha256:143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "runtimeProfile": {
+      "environment": "browser",
+      "locale": "en-US",
+      "runtime": "browser:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+      "timezone": "America/Chicago"
+    },
+    "sourceGraphDigest": "sha256:7be1e9d271f761de6b0bb7c016db9d1737fc6fefd80f8f9ff03e2c5215f33cef"
+  },
+  "schemaVersion": 2,
+  "trace": []
+}

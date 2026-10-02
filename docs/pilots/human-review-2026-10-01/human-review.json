@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "human-review-evidence",
+  "sessionSha256": "b17358b2e828345d885878947ecfbf4d860bca960baab4a5293004d952ba24f6",
+  "session": {
+    "schemaVersion": 1,
+    "artifactKind": "human-review-session",
+    "pilotId": "epic-stack",
+    "repository": "https://github.com/epicweb-dev/epic-stack.git",
+    "revision": "8473afd804b66dba6a23f317908dc35d1535e90d",
+    "pilotReportSha256": "3c83eb735b8991297a27b095cd47e300c21ae741d5753e4c4778ea4013a95482",
+    "tarballSha256": "30d7213b5768d90d14fcd9a796c39530423d091bf5ea9c854ee951afb5dda0dc",
+    "cases": [
+      {
+        "caseId": "0b3afd9c6c1e5b38d3d39e1da6dae5ebb7ebf7bd5abe8289f444c807937b316e",
+        "artifactSha256": "68e78ec7532462f73f2e2866de8292bc42654dae7365184420ee64068a98b68d",
+        "callable": "app/utils/misc.tsx#getUserImgSrc",
+        "environment": "node"
+      },
+      {
+        "caseId": "655fab4b7e37b6aeb8a40b15e729ad02390e564faf14d2c7d651577134ad806e",
+        "artifactSha256": "6d2a096acabca85758cee99400fa6a8d46423203b63bb2db5e93514ea03f6aa6",
+        "callable": "app/routes/_marketing/index.tsx#meta",
+        "environment": "node"
+      },
+      {
+        "caseId": "7a0517735ebb4315829d40467b14494088dd747ee0b0c20ec17aefcb3efffe12",
+        "artifactSha256": "9214e539a88ce21645005d49e4ecdf9332b39f2d75345a51215115104c992140",
+        "callable": "app/routes/_marketing/index.tsx#meta",
+        "environment": "browser"
+      },
+      {
+        "caseId": "8dae70d0b068645857cc3f3560f0e33cb8e551e1593a147aeb337e8c3574d71f",
+        "artifactSha256": "c75d544edd9b61ff0e573ec7dbc99bc19023716d178e33cbd971688d45dbcbba",
+        "callable": "app/utils/user.ts#isUser",
+        "environment": "browser"
+      },
+      {
+        "caseId": "b92fab0b08c2825023428914d48c5a646800e210cef27fbb8f31160f49dc2b25",
+        "artifactSha256": "c0f7ada354058c3c267339119ba694eef024ae972e6777f004cfd3cf6a662cf2",
+        "callable": "app/utils/user.ts#isUser",
+        "environment": "node"
+      }
+    ]
+  },
+  "reviewMode": "terminal-interactive",
+  "clock": "performance.now",
+  "participant": {
+    "id": "adam",
+    "role": "user"
+  },
+  "ceilingMs": 60000,
+  "measurements": [
+    {
+      "caseId": "0b3afd9c6c1e5b38d3d39e1da6dae5ebb7ebf7bd5abe8289f444c807937b316e",
+      "startedAt": "2026-10-01T19:05:54.126Z",
+      "finishedAt": "2026-10-01T19:06:31.088Z",
+      "reviewMs": 36960.072042,
+      "decision": "accept",
+      "note": ""
+    },
+    {
+      "caseId": "655fab4b7e37b6aeb8a40b15e729ad02390e564faf14d2c7d651577134ad806e",
+      "startedAt": "2026-10-01T19:06:35.411Z",
+      "finishedAt": "2026-10-01T19:06:53.331Z",
+      "reviewMs": 17919.152959000006,
+      "decision": "accept",
+      "note": ""
+    },
+    {
+      "caseId": "7a0517735ebb4315829d40467b14494088dd747ee0b0c20ec17aefcb3efffe12",
+      "startedAt": "2026-10-01T19:06:55.510Z",
+      "finishedAt": "2026-10-01T19:07:09.651Z",
+      "reviewMs": 14140.85875,
+      "decision": "accept",
+      "note": ""
+    },
+    {
+      "caseId": "8dae70d0b068645857cc3f3560f0e33cb8e551e1593a147aeb337e8c3574d71f",
+      "startedAt": "2026-10-01T19:07:26.705Z",
+      "finishedAt": "2026-10-01T19:07:46.707Z",
+      "reviewMs": 20002.291290999987,
+      "decision": "accept",
+      "note": ""
+    },
+    {
+      "caseId": "b92fab0b08c2825023428914d48c5a646800e210cef27fbb8f31160f49dc2b25",
+      "startedAt": "2026-10-01T19:07:56.489Z",
+      "finishedAt": "2026-10-01T19:08:13.931Z",
+      "reviewMs": 17441.706875000003,
+      "decision": "accept",
+      "note": ""
+    }
+  ],
+  "totalReviewMs": 106464.08191699999,
+  "ceilingExceeded": false
+}

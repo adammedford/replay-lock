@@ -1,0 +1,45 @@
+{
+  "arguments": {
+    "items": [
+      {
+        "kind": "null"
+      }
+    ],
+    "kind": "array"
+  },
+  "caseId": "b92fab0b08c2825023428914d48c5a646800e210cef27fbb8f31160f49dc2b25",
+  "comparison": "exact",
+  "completion": {
+    "kind": "return",
+    "value": {
+      "kind": "null"
+    }
+  },
+  "eligibility": {
+    "reasonCodes": [
+      "DEV_TRACE_REPLAYABLE"
+    ],
+    "verdict": "replayable"
+  },
+  "environment": "node",
+  "locator": {
+    "kind": "local",
+    "module": "app/utils/user.ts",
+    "namePath": [
+      "isUser"
+    ]
+  },
+  "provenance": {
+    "captureStatus": "partial",
+    "lockfileDigest": "sha256:143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "runtimeProfile": {
+      "environment": "node",
+      "locale": "en-US",
+      "runtime": "node:22.19.0",
+      "timezone": "America/Chicago"
+    },
+    "sourceGraphDigest": "sha256:e410247231872eec71ce62f0b10af03517e4e4184bd3979c04da96ee65376508"
+  },
+  "schemaVersion": 2,
+  "trace": []
+}

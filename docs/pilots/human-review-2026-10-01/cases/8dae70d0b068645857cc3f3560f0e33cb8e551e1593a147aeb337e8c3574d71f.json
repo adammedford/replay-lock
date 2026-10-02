@@ -1,0 +1,45 @@
+{
+  "arguments": {
+    "items": [
+      {
+        "kind": "null"
+      }
+    ],
+    "kind": "array"
+  },
+  "caseId": "8dae70d0b068645857cc3f3560f0e33cb8e551e1593a147aeb337e8c3574d71f",
+  "comparison": "exact",
+  "completion": {
+    "kind": "return",
+    "value": {
+      "kind": "null"
+    }
+  },
+  "eligibility": {
+    "reasonCodes": [
+      "DEV_TRACE_REPLAYABLE"
+    ],
+    "verdict": "replayable"
+  },
+  "environment": "browser",
+  "locator": {
+    "kind": "local",
+    "module": "app/utils/user.ts",
+    "namePath": [
+      "isUser"
+    ]
+  },
+  "provenance": {
+    "captureStatus": "partial",
+    "lockfileDigest": "sha256:143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "runtimeProfile": {
+      "environment": "browser",
+      "locale": "en-US",
+      "runtime": "browser:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+      "timezone": "America/Chicago"
+    },
+    "sourceGraphDigest": "sha256:7be1e9d271f761de6b0bb7c016db9d1737fc6fefd80f8f9ff03e2c5215f33cef"
+  },
+  "schemaVersion": 2,
+  "trace": []
+}
