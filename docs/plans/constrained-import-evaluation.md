@@ -35,6 +35,7 @@ Evaluate a retained, non-production **whole-graph admission module**: either est
 ## Implementation Decisions
 
 - **Evaluation only.** Implementation awaits explicit approval of this spec. Retain a future experiment outside main; no production PR/merge, effect relaxation, package exception, runtime profile or artifact-schema change is selected.
+- **Toolchain and compatibility.** Evaluate Node22.19.0/Vite8.2.2/Vitest4.1.11, matching the audited toolchain. Package engines span >=22.12.0 <23, but synchronous hooks require22.15 or later; this spec neither assumes those hooks on earlier patches nor selects a higher minimum version or expands runtime support. Delivery would need a separate compatibility decision.
 - **One shared admission module, host-specific adapters.** Its interface owns current qualification, unsupported reasons, graph identity and whether execution may begin. Existing development scan, natural recording and verification remain external seams; no public loader-management interface is selected.
 - **First grammar is deliberately small.** Fresh synthetic Node HTTP and Chromium hosts; application closure contains only static ESM imports/re-exports, primitive immutable constant initialization and synchronous function declarations whose invoked behavior already qualifies under current analysis. No initializer calls, loops, mutable exports, objects with accessors, class initialization, native capability imports, computed property work or unknown control flow. Do not depend on merging either earlier prototype.
 - **Finite graph.** At most32 application modules,64KiB per module and256KiB total application source per requested closure. Count original and evaluated representations independently; excessive size, unknown expansion or exhausted analysis is refusal. Limits are evaluation caps, not a new production configuration or proof that the underlying analyzer is cheap. Measure both small and exact-boundary workloads before recommending delivery.
@@ -55,7 +56,7 @@ Two ordinary positive fixtures import a safe scalar helper through an ESM diamon
 | ID | Both-realm scenario | Required public result |
 | --- | --- | --- |
 | P1 | Minimal effect-free static closure and table-free scalar result | Scan qualifies; natural observed7 is inspected/reviewed and verifies offline |
-| P2 | Diamond, named re-export, primitive initialization; second result9 | Baseline and admitted host responses agree on completion, initialization-dependent values, export shape and identity |
+| P2 | Diamond, named re-export, primitive initialization; second result9 | Natural observed9 is inspected/reviewed and verifies offline; baseline/admitted responses also agree on initialization-dependent values, export shape and identity |
 | P3 | Same qualified source through live and replay adapters | Same admission rules, source/resolution identity and original semantics; no replay-only permission |
 | H1 | Independently reachable logging/read/write/network/database initializer | Entire graph refuses before evaluation; no native effect reached, no candidate accepted |
 | H2 | Timer/listener/DOM/global/prototype initializer | Same; each effect has an independent external positive control |
