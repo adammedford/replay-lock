@@ -481,6 +481,7 @@
       "src/owned-mutation.ts#mutatesDefaultedAliasBorrowed": ["ARGUMENT_MUTATION"],
       "src/owned-mutation.ts#mutatesAncestorDefaultBorrowed": ["ARGUMENT_MUTATION"],
       "src/owned-mutation.ts#mutatesNestedDefaultBorrowed": ["ARGUMENT_MUTATION"],
+      "src/owned-mutation.ts#mutatesShadowedUndefined": ["ARGUMENT_MUTATION"],
       "src/owned-mutation.ts#mutatesCallbackDestructuredInstalledBorrowed": ["ARGUMENT_MUTATION"],
       "src/owned-mutation.ts#mutatesMixedNestedBorrowed": ["ARGUMENT_MUTATION"],
       "src/owned-mutation.ts#mutateBoth": ["ARGUMENT_MUTATION"],

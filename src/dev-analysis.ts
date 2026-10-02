@@ -889,14 +889,16 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const node = unwrap(expression);
     if (seen.has(node)) return false;
     seen.add(node);
-    if (inertLiteral(node)) return true;
     if (ts.isObjectLiteralExpression(node)) return node.properties.every((property) => ts.isPropertyAssignment(property) && !ts.isComputedPropertyName(property.name) && ownedArgument(property.initializer, owner, call, new Set(seen)));
     if (ts.isArrayLiteralExpression(node)) return node.elements.every((element) => !ts.isSpreadElement(element) && !ts.isOmittedExpression(element) && ownedArgument(element, owner, call, new Set(seen)));
     if (ts.isIdentifier(node)) {
+      // `undefined` is literal data only when it is the ambient value, not a
+      // parameter or local alias that can hold a borrowed object.
+      if (node.text === "undefined" && undeclared(node)) return true;
       const declaration = symbol(node)?.valueDeclaration;
       return !!declaration && ts.isVariableDeclaration(declaration) && !!declaration.initializer && constantDeclaration(declaration) && descendantOf(declaration, owner) && unchangedOwnedBinding(declaration, call) && ownedArgument(declaration.initializer, owner, call, seen);
     }
-    return false;
+    return inertLiteral(node);
   };
   for (const candidate of reachableFunctions) {
     const { node, module, problems, effects, calls, references } = candidate;

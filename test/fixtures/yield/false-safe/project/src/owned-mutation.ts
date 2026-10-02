@@ -99,3 +99,5 @@ function nestedDefaultMutation(first: { box?: { value: number } }, second: { val
   owned.box.value++;
 }
 export function mutatesNestedDefaultBorrowed(borrowed: { value: number }) { return nestedDefaultMutation({}, borrowed); }
+
+export function mutatesShadowedUndefined(undefined: { value: number }) { return nestedIncrement({ nested: undefined }); }
