@@ -243,8 +243,8 @@ for (const realm of ['node', 'browser']) {
           await requestAnswers();
           globalThis.__owned126Oracles.check();
         } finally {
-          globalThis.__owned126Oracles.restore();
-          await new Promise(resolve => application.close(resolve));
+          try { globalThis.__owned126Oracles?.restore(); }
+          finally { await new Promise(resolve => application.close(resolve)); }
         }
       }
       await until(async () => (await control(manifest, 'status')).stored === 2);
@@ -266,9 +266,11 @@ for (const realm of ['node', 'browser']) {
       assert.equal(reviewed.status, 0, reviewed.output);
       assert.equal((await jsonFiles(root, '.replaylock/cases')).length, 2);
     } finally {
-      globalThis.__owned126Oracles?.restore();
-      await browser?.close();
-      await vite?.close();
+      try { globalThis.__owned126Oracles?.restore(); }
+      finally {
+        try { await browser?.close(); }
+        finally { await vite?.close(); }
+      }
     }
 
     // Establish matched pre-import replay oracles independently, with a latch
