@@ -12,7 +12,9 @@ This is a bounded partial delivery for [#106](https://github.com/adammedford/rep
 
 Public yield and verify-CLI controls established behavioral failures before their fixes, including inherited setters, rest/spread alignment, reassigned aliases, mixed transitive origins, installed borrowed values, destructuring defaults and short-circuited primitive environment expressions. V1 and capture policy remain unchanged. No automatic trust/declarations, application dependency edits, blanket initializer skipping or native-I/O fallback were introduced.
 
-The synthetic yield corpus's exact eligible set increases from **41 to 47 per realm**. A fresh self-analysis with Vite's default development conditions measures **129 eligible callables per realm**; `selfFloor` rises from **114 to 129**, without reducing existing floors or removing hazards. These are eligibility measurements, not application-value evidence.
+The synthetic yield corpus's exact eligible set increases from **41 to 47 per realm**. Self-analysis with Vite's default development conditions and a project-local `npm ci` installation measures **121 eligible callables per realm**; `selfFloor` rises from **114 to 121**, without reducing the existing baseline or removing hazards. These are eligibility measurements, not application-value evidence.
+
+The first PR verification exposed an invalid measurement setup: sharing another checkout's `node_modules` through a symlink produced 129 eligible callables. Identical Vite files resolved outside that project, whereas the project-local installation exposed Vite initialization hazards inherited by eight callables in `dev-options.ts` and `dev-server.ts`. The clean-install self-floor test reproduced CI's exact `121 eligible is below the floor of 129` failure before correcting the proposed floor. Final validation uses project-local dependencies; no analyzer exemptions were added.
 
 ## Pinned Epic compatibility result
 
