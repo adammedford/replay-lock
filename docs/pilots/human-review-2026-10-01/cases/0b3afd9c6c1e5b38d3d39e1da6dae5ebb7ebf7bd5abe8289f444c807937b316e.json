@@ -1,0 +1,47 @@
+{
+  "arguments": {
+    "items": [
+      {
+        "kind": "string",
+        "value": "user/kody.png"
+      }
+    ],
+    "kind": "array"
+  },
+  "caseId": "0b3afd9c6c1e5b38d3d39e1da6dae5ebb7ebf7bd5abe8289f444c807937b316e",
+  "comparison": "exact",
+  "completion": {
+    "kind": "return",
+    "value": {
+      "kind": "string",
+      "value": "/resources/images?objectKey=user%2Fkody.png"
+    }
+  },
+  "eligibility": {
+    "reasonCodes": [
+      "DEV_TRACE_REPLAYABLE"
+    ],
+    "verdict": "replayable"
+  },
+  "environment": "node",
+  "locator": {
+    "kind": "export",
+    "module": "app/utils/misc.tsx",
+    "namePath": [
+      "getUserImgSrc"
+    ]
+  },
+  "provenance": {
+    "captureStatus": "partial",
+    "lockfileDigest": "sha256:143cea0291eb245f1bf241f06e74dfd862f87e681ef80a7ecbd64387647b5c51",
+    "runtimeProfile": {
+      "environment": "node",
+      "locale": "en-US",
+      "runtime": "node:22.19.0",
+      "timezone": "America/Chicago"
+    },
+    "sourceGraphDigest": "sha256:e410247231872eec71ce62f0b10af03517e4e4184bd3979c04da96ee65376508"
+  },
+  "schemaVersion": 2,
+  "trace": []
+}
