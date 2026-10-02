@@ -133,9 +133,10 @@ test("the blocker report excludes only unsupported constructs from the unlock pl
     "export const raw = (value: string) => String.raw`${value}`;",
     "export function doubled(items: number[]) { return items.map((item) => { function twice(value: number) { return value * 2; } return twice(item); }); }",
     "export async function awaited(load: () => Promise<number>) { return await load(); }",
-    "const fallback = 'none';",
+    "const fallback = Date.now();",
     "export function defaulted(value = fallback) { return value; }",
     "export var legacy = (value: number) => value + 1;",
+    "legacy = (value: number) => value - 1;",
     "",
   ].join("\n"));
   for (const environment of realms) {

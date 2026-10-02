@@ -9,6 +9,8 @@ export interface DevLocator {
 export interface DevOptions {
   capture?: { mode?: "automatic" | "annotated"; include?: string[]; exclude?: string[]; retention?: false | Partial<DevRetentionPolicy> };
   effects?: { randomness?: boolean; time?: boolean; fetch?: boolean; filesystem?: boolean; environment?: string[] };
+  /** Explicit synthetic values used only while verifying module initialization. */
+  replay?: { environment?: Record<string, string> };
 }
 export interface DevRetentionPolicy { maxPerCallable: number; maxPerGroup: number }
 export interface ResolvedDevOptions {
@@ -18,6 +20,7 @@ export interface ResolvedDevOptions {
   resolveConditions?: Record<DevEnvironment, string[]>;
   capture: { mode: "automatic" | "annotated"; include: string[]; exclude: string[]; retention?: false | DevRetentionPolicy };
   effects: { randomness: boolean; time: boolean; fetch: boolean; filesystem: boolean; environment: string[] };
+  replay?: { environment: Record<string, string> };
 }
 export type DevValue =
   | { kind: "undefined" | "null" }

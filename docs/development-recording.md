@@ -43,7 +43,7 @@ Review shows the explicit arguments, full external trace, completion, and proven
 
 Automatic selection includes supported module exports, private module functions, and named nested functions whose behavior does not depend on an enclosing invocation. Private replay locators use lexical names, so moving lines does not invalidate a case. A nested function is replayed without calling its enclosing owner. Captured enclosing variables, `this`, generators, unknown callbacks, timers, detached work, writes, streams, mutable module state, and module initialization a function can observe remain ineligible.
 
-Parameters may use destructuring patterns and defaults that are literal data (such as `({ page = 1 } = {})` or `(separator = ", ")`), because they bind before capture begins; a computed pattern key or any other default is unsupported. Recording keeps the arguments as passed, and replay applies the same defaults. An error thrown while binding parameters happens before capture and is not recorded.
+Parameters may use destructuring patterns and defaults that are literal data (such as `({ page = 1 } = {})` or `(separator = ", ")`), including module constants initialized with inert literal data, because they bind before capture begins. Computed pattern keys and effectful or mutable-binding defaults are unsupported. Stable `var`/`let` function bindings are eligible only when the binding is never reassigned. Recording keeps the arguments as passed, and replay applies the same defaults. An error thrown while binding parameters happens before capture and is not recorded.
 
 A function is eligible only when every function it can run is analyzed as a call. Anonymous functions and methods in its body, and project or built-in functions used as values rather than called, report `FUNCTION_VALUE`: a `toString`, `valueOf`, iterator, or callback can be invoked implicitly, outside effect interception. Reading host state that is not a traced effect, such as `process.argv`, `process.platform`, an unknown member of `Math`, or a Node builtin other than the traced `fs`, `crypto`, and `perf_hooks` reads, reports `AMBIENT_STATE`.
 
@@ -85,13 +85,27 @@ export default defineReplayLock({
     filesystem: true,
     environment: ["APP_REGION", "VITE_REGION"],
   },
+  replay: {
+    environment: {
+      SESSION_SECRET: "synthetic-replay-placeholder",
+      VITE_REGION: "test-region",
+    },
+  },
   valueAdapters: [],
 });
 ```
 
 Randomness, time, fetch, and filesystem reads default to enabled. No environment variables are enabled by default. Include defaults to project source; dependency, output, test, configuration, and ReplayLock data directories are excluded. Supplying an exclusion list replaces that default list. Source `@replaylock exclude <reason>` directives still apply. Development mode does not treat `assume-pure` as permission to replay an unrecognized effect.
 
+`replay.environment` supplies explicit string placeholders before verification imports project modules. It overrides those keys in the isolated worker's `process.env` and in Vite's `import.meta.env`, for Node and browser cases. Use synthetic values suitable for module initialization, such as a session-storage constructor's required configuration. Replay does not run your server entry's `dotenv/config` setup, load secret defaults, or fetch missing values. Other worker environment keys retain the normal process environment; runtime timezone and locale remain those recorded in the case.
+
+Supply a plain object with enumerable string data properties. Prototype keys (`__proto__`, `constructor`, `prototype`) and runtime-managed names (`NODE_ENV`, `NODE_OPTIONS`, `TZ`, `LANG`, `NO_COLOR`, `FORCE_COLOR`, `DEV`, `PROD`, `MODE`, `SSR`, `BASE_URL`) are rejected, case-insensitively, because they configure the verification worker or Vite/Vitest rather than application initialization.
+
+This configuration does not enable capture of environment reads. `effects.environment` separately selects keys read during a callable's invocation, and replay consumes their recorded trace values even when a different initialization placeholder is configured. A callable that observes an effectful initializer remains ineligible. Optional missing keys do not require placeholders. If module import fails after reading missing keys through `process.env` in Node or `import.meta.env` in either realm, verification exits `2` with `REPLAY_ENVIRONMENT_MISSING`, the module and key names, and guidance to configure placeholders; it does not display those keys' values. Missing reads are tracked only during module import and do not become invocation trace events.
+
 Analysis recognizes lexical aliases of supported builtins and local imports. Vite string aliases are resolved with exact and slash-prefix matching. User regex aliases and custom alias resolvers block development instrumentation; framework-specific virtual modules remain ineligible when static analysis cannot establish their source. `scan --dev` reports both Node and browser findings without invoking target functions.
+
+Browser missing-key diagnostics instrument project modules, not optimized or external dependency code. Placeholders are still supplied to the worker environment; failures wholly inside such dependencies retain ordinary infrastructure diagnostics. This diagnostic boundary does not make those imports safe or relax analyzer admission.
 
 ## Supported external reads
 

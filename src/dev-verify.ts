@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Plugin } from "vite";
+import MagicString from "magic-string";
+import ts from "typescript";
 import type { DevCase, DevEnvironment, DevTarget, ResolvedDevOptions } from "./dev-contract.js";
 import { devArtifactJson, parseDevCase } from "./dev-artifacts.js";
 import { analyzeDevProject, createDevProjectCache } from "./dev-transform.js";
@@ -14,6 +16,50 @@ import { makeStateDirectory } from "./model.js";
 
 function failure(code: string, detail: string): never { throw Object.assign(new Error(`${code}: ${detail}`), { code }); }
 function identity(target: Pick<DevCase, "locator">): string { return JSON.stringify([target.locator.module, target.locator.kind, target.locator.namePath]); }
+
+const environmentTrackerId = "replaylock:verification-environment";
+const environmentTracker = `let missing;
+const proxies = new WeakMap();
+export function beginEnvironmentReads() { missing = new Set(); }
+export function finishEnvironmentReads() { const keys = [...(missing ?? [])].sort(); missing = undefined; return keys; }
+export function trackEnvironment(environment) {
+  if (environment === null || (typeof environment !== 'object' && typeof environment !== 'function')) return environment;
+  if (proxies.has(environment)) return proxies.get(environment);
+  const proxy = new Proxy(environment, { get(target, key) {
+    const value = Reflect.get(target, key);
+    if (missing && value === undefined && typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) missing.add(key);
+    return value;
+  } });
+  proxies.set(environment, proxy);
+  return proxy;
+}`;
+
+/** Track native import.meta.env reads without adding them to invocation traces. */
+function trackImportMetaEnvironment(code: string, id: string) {
+  const source = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true);
+  const reads: ts.Node[] = [];
+  function visit(node: ts.Node): void {
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "env"
+      && ts.isMetaProperty(node.expression) && node.expression.keywordToken === ts.SyntaxKind.ImportKeyword) {
+      // Vitest supplies its test environment through `metaEnv ?? import.meta.env`.
+      // Observe whichever environment that native expression actually selects.
+      const parent = node.parent;
+      reads.push(ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ? parent : node);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  if (!reads.length) return undefined;
+  let binding = "__replaylock_environment";
+  while (code.includes(binding)) binding += "_";
+  const output = new MagicString(code);
+  for (const read of reads) {
+    output.prependLeft(read.getStart(source), `${binding}(`);
+    output.appendRight(read.end, ")");
+  }
+  output.prepend(`import { trackEnvironment as ${binding} } from ${JSON.stringify(environmentTrackerId)};\n`);
+  return { code: output.toString(), map: output.generateMap({ source: id, includeContent: true, hires: true }) };
+}
 
 export function reportDevVerificationError(error: unknown): void {
   const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "unknown infrastructure failure";
@@ -114,7 +160,7 @@ async function runIsolatedGroups(root: string, groups: readonly DevCase[][], opt
       await writeFile(runner, `import { readFile } from 'node:fs/promises';\nimport { runDevVerificationWorker, reportDevVerificationError } from ${JSON.stringify(import.meta.url)};\ntry { process.exitCode = await runDevVerificationWorker(JSON.parse(await readFile(${JSON.stringify(input)}, 'utf8'))); } catch (error) { reportDevVerificationError(error); process.exitCode = 2; }\n// Project configuration can leave services open after Vitest closes.\nfor (const stream of [process.stdout, process.stderr]) await new Promise((resolve) => stream.write("", resolve));\nprocess.exit(process.exitCode);\n`, { mode: 0o600 });
       const runtime = group[0]!.provenance.runtimeProfile;
       const result = await new Promise<number>((resolve) => {
-        const child = spawn(process.execPath, [runner], { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, TZ: runtime.timezone, LANG: `${runtime.locale.replaceAll("-", "_")}.UTF-8`, NO_COLOR: "1", FORCE_COLOR: "0" } });
+        const child = spawn(process.execPath, [runner], { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...options.replay?.environment, TZ: runtime.timezone, LANG: `${runtime.locale.replaceAll("-", "_")}.UTF-8`, NO_COLOR: "1", FORCE_COLOR: "0" } });
         let bytes = 0, truncated = false;
         // A worker's own stdout/stderr are forwarded to the matching parent
         // stream, bounded so a runaway replay cannot flood the terminal. The
@@ -169,8 +215,15 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
     { find: "replaylock/dev/diff", replacement: fileURLToPath(new URL("./dev-diff.js", import.meta.url)) },
     { find: /^replaylock$/, replacement: fileURLToPath(new URL(realm === "browser" ? "./dev-browser-api.js" : "./index.js", import.meta.url)) },
   ];
+  const replayModule = (id: string): string | undefined => {
+    const cleanId = id.split("?")[0]!;
+    if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(cleanId) || cleanId.includes("/node_modules/") || cleanId.startsWith(temporary) || cleanId === configuration || cleanId.startsWith(path.dirname(runtimePath) + path.sep)) return;
+    return resolveCallableModuleLocator(root, cleanId).ok ? cleanId : undefined;
+  };
   const plugin: Plugin = {
     name: "replaylock-isolated-v2-replay", enforce: "pre",
+    resolveId(id) { if (id === environmentTrackerId) return `\0${environmentTrackerId}`; },
+    load(id) { if (id === `\0${environmentTrackerId}`) return environmentTracker; },
     configResolved(config) {
       // Replay runs on ReplayLock's own Vitest. Browser Mode dedupes `vitest`
       // to the project root, where an application's copy (another version, or
@@ -194,14 +247,24 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
         return resolved;
       });
     },
-    transform(code, id) {
-      const cleanId = id.split("?")[0]!;
-      if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(cleanId) || cleanId.includes("/node_modules/") || cleanId.startsWith(temporary) || cleanId === configuration || cleanId.startsWith(path.dirname(runtimePath) + path.sep)) return;
-      const resolved = resolveCallableModuleLocator(root, cleanId);
-      if (!resolved.ok) return;
+    // Instrument authored syntax before Vitest replaces import.meta.env with
+    // its worker environment expression, which is not an application effect.
+    transform: { order: "pre", handler(code, id) {
+      const cleanId = replayModule(id);
+      if (!cleanId) return;
       const transformed = project.transform({ root, id: cleanId, code, environment: realm, generation: "verify", options, replay: true, runtimeImport: "replaylock/dev/runtime" });
       return { code: transformed.code, map: transformed.map as null };
-    },
+    } },
+  };
+  // A separate transform lets Vite compose this map with the instrumentation
+  // map, preserving authored locations rather than mapping to intermediate text.
+  const environmentPlugin: Plugin = {
+    name: "replaylock-verification-environment",
+    transform: { order: "pre", handler(code, id) {
+      const cleanId = replayModule(id);
+      if (!cleanId) return;
+      return trackImportMetaEnvironment(code, cleanId);
+    } },
   };
   let browser: import("vitest/node").TestUserConfig["browser"];
   if (realm === "browser") {
@@ -223,6 +286,7 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   let count = 0;
   const testOptions: import("vitest/node").TestUserConfig = {
     include: [path.relative(root, filename).replaceAll(path.sep, "/")], exclude: [],
+    ...(options.replay ? { env: options.replay.environment } : {}),
     fileParallelism: false, maxWorkers: 1, pool: "forks", environment: "node", testTimeout: 15_000, silent: true,
     ...(browser ? { browser } : {}),
     reporters: [{ onTestRunEnd(modules, errors) {
@@ -258,7 +322,8 @@ export async function runDevVerificationWorker(input: WorkerInput): Promise<numb
   // cannot see them. Scan them up front: a dependency discovered mid-run makes
   // Vite re-optimize and reload the page under a running case.
   const optimizeDeps = { entries: [...new Set(cases.map((artifact) => artifact.locator.module))] };
-  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin], optimizeDeps, resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
+  const define = Object.fromEntries(Object.entries(options.replay?.environment ?? {}).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]));
+  const viteOptions = { ...mergeConfig(projectConfig, { configFile: false, root, plugins: [plugin, environmentPlugin], optimizeDeps, define, resolve: { alias: aliases }, server: { host: "127.0.0.1", fs: { allow: [root, libraryRoot] } } }), root, test: testOptions };
   // Browser Mode starts a separate Vite server from project options. An explicit
   // project carries the same source transforms and aliases into that realm.
   const replayProject = { ...viteOptions, test: { ...testOptions, name: "replaylock-v2" } };
@@ -288,6 +353,7 @@ function harness(cases: DevCase[], targets: DevTarget[], configuration: string |
 import { configureDevRuntime, replayDevTrace } from 'replaylock/dev/runtime';
 import { encodeDevValue, decodeDevValue, validateDevAdapters } from 'replaylock/dev/values';
 import { describeDevCompletionDifference, describeDevTraceDifference } from 'replaylock/dev/diff';
+import { beginEnvironmentReads, finishEnvironmentReads, trackEnvironment } from '${environmentTrackerId}';
 ${realm === "node" ? "import { types } from 'node:util';" : ""}
 ${configurationImport}
 const cases = ${JSON.stringify(cases)};
@@ -307,10 +373,21 @@ try {
   adapterFailure = new Error(typeof error?.code === 'string' && /^VALUE_ADAPTER_[A-Z_]+$/.test(error.code) ? error.code : 'VALUE_ADAPTER_VALIDATION_FAILED');
 }
 configureDevRuntime(undefined);
+async function importTarget(artifact) {
+  beginEnvironmentReads();
+  ${realm === "node" ? `const original = process.env;
+  process.env = trackEnvironment(original);` : ""}
+  try { return await import(/* @vite-ignore */ '/' + artifact.locator.module); }
+  catch (error) {
+    const missing = finishEnvironmentReads();
+    if (missing.length) throw new Error('REPLAY_ENVIRONMENT_MISSING: ' + artifact.locator.module + ' initialization failed after reading missing keys ' + missing.join(', ') + '; configure synthetic placeholders in replay.environment');
+    throw error;
+  } finally { ${realm === "node" ? "process.env = original;" : ""} finishEnvironmentReads(); }
+}
 for (const [index, artifact] of cases.entries()) test(artifact.caseId, async () => {
   if (adapterFailure) throw adapterFailure;
   ${phase === "validate" ? "return;" : ""}
-  const module = await import(/* @vite-ignore */ '/' + artifact.locator.module);
+  const module = await importTarget(artifact);
   const callable = module[targets[index].replayExport];
   if (typeof callable !== 'function') throw new Error('ORPHANED_CALLABLE');
   const args = decodeDevValue(artifact.arguments, codec);
