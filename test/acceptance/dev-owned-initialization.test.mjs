@@ -231,6 +231,26 @@ test('H11: dependency table bytes, package exports, aliases and conditions canno
   }
 });
 
+test('H11: removing and restoring a dependency cycle requalifies unchanged authored tables', async t => {
+  const source = 'import "./dependency.js";' + positive;
+  const cycle = 'import "./answer.js";export const marker=1;';
+  const root = await fixture(t, { 'src/answer.js': source, 'src/dependency.js': cycle });
+  const options = resolveDevOptions(), cache = createDevProjectCache(root, options);
+  for (const environment of ['node', 'browser']) {
+    await put(root, 'src/dependency.js', cycle);
+    cache.analyze(environment);
+    const input = { root, id: path.join(root, 'src/answer.js'), code: source, environment, generation: 'owned-cycle', options };
+    assert.equal(cache.transformAuthored(input), null);
+    for (const dependency of ['export const marker=1;', cycle, 'export const marker=2;']) {
+      await put(root, 'src/dependency.js', dependency);
+      const cold = transformDevSource(input);
+      const expected = cold.targets.length ? cold : null;
+      assert.deepEqual(cache.transformAuthored(input), expected, `${environment}: dependency change must invalidate authored exclusion`);
+      assert.deepEqual(cache.analyze(environment), analyzeDevProject(root, options, environment));
+    }
+  }
+});
+
 test('H11: a replaced physical table locator cannot borrow its previous admission', async t => {
   if(process.platform==='win32'){t.skip('symlink privileges unavailable in Windows contract');return;}
   const root=await fixture(t,{

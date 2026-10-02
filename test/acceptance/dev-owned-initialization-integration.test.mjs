@@ -116,7 +116,7 @@ export function answer() { return table[2]; }
   // but intentionally lacks its own slot zero. Dense slots must bypass it.
   'length.js': `const scale = 3;
 const table = [126004, 126004, 126004];
-for (let i = 0; i < table.length; i++) { table[i] = i * scale; }
+for (let i = 0; i < table.length; i++) { table[i] = (table[i] - 126003) / (-(-1)) + i * scale + (i % 1) - 1; }
 export function answer() { return table[2]; }
 `,
 };
@@ -316,6 +316,16 @@ for (const realm of ['node', 'browser']) {
       assert.doesNotMatch(mutation.output, /REPLAY_SAFETY_REGRESSION|OWNED126_ORACLE_/);
       assert.match(mutation.output, /OUTPUT_MISMATCH/);
     }
+
+    // Independently observed 6 also depends on existing-slot reads, division,
+    // unary negation and addition/subtraction, not just multiplication.
+    await put(root, 'src/literal.js', sources['literal.js']);
+    await put(root, 'src/length.js', sources['length.js'].replace('/ (-(-1))', '/ (-(-2))'));
+    const arithmeticMutation = await command(root, ['verify']);
+    assert.equal(arithmeticMutation.status, 1, arithmeticMutation.output);
+    assert.match(arithmeticMutation.output, /OUTPUT_MISMATCH/);
+    assert.doesNotMatch(arithmeticMutation.output, /REPLAY_SAFETY_REGRESSION|OWNED126_ORACLE_/);
+    await put(root, 'src/length.js', sources['length.js']);
 
     // Current qualification, not a reviewed case, authorizes import. Each
     // unsafe edit is independently refused; rejected modules are never loaded

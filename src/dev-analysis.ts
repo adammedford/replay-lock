@@ -47,6 +47,8 @@ export interface DevModule {
   selected: boolean;
   /** Authored initialization alone taints every function in this module. */
   initializationTaintsModule: boolean;
+  /** A dependency cycle can make otherwise supported construction unknown. */
+  initializationExclusionIsAuthoredOnly: boolean;
   dependencies: Set<string>;
   dependencyNodes: Map<string, ts.Node>;
   /** Dependencies imported only for their side effects. */
@@ -251,7 +253,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       reachable.add(dependency);
     }
     modules.set(file, {
-      file, sourceFile, selected, initializationTaintsModule: false, dependencies, dependencyNodes, bareDependencies,
+      file, sourceFile, selected, initializationTaintsModule: false, initializationExclusionIsAuthoredOnly: false, dependencies, dependencyNodes, bareDependencies,
       problems, moduleProblems: new DevProblems(root, sourceFile, sourceFile), bindings,
     });
   }
@@ -658,8 +660,9 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       const problems = tier.kind === "global" ? module.problems : tier.kind === "module" ? module.moduleProblems : bindingProblems(module, tier.declaration);
       problems.at("EFFECTFUL_INITIALIZATION", finding);
     }
-    // Resolution-independent: the transform may rely on this before analysis.
+    // Only acyclic closures have resolution-independent initialization exclusions.
     module.initializationTaintsModule = module.problems.has("EFFECTFUL_INITIALIZATION") || module.problems.has("UNSUPPORTED_SOURCE") || module.moduleProblems.size > 0;
+    module.initializationExclusionIsAuthoredOnly = acyclic.has(module.file);
   }
   // References made while a declaration initializes carry its dependencies' taint.
   const declarationReferences = new Map<ts.Node, Map<ts.Node, ts.Node>>();
