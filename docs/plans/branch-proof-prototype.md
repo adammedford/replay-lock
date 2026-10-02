@@ -37,6 +37,18 @@ Natural application workflows use Node HTTP requests and Chromium button clicks.
 
 The evaluation must separately report predicate/hazard controls, actual capture/replay, safe-edit verification, stale unsafe-guard preflight, cache/overlay drift, full regressions, both review axes and current pinned application findings. A missing seam or unsupported case is a finding, not a passing test. Final outcomes and source pin are recorded in #125; the command list alone is not evidence of success.
 
+## Evaluation outcome — 2026-10-02
+
+The bounded design works at the specified synthetic seams. Ten scan/cache acceptance tests plus two natural recording/replay tests pass. Both realms admit the literal-false and prior initialized const-comparison cases, produce and explicitly review actual observations returning7/11, and verify offline. Safe source edits verify; unsafe guard changes fail pre-import with REPLAY_SAFETY_REGRESSION and EFFECTFUL_INITIALIZATION. Caught logging in the throwaway harness independently fails the latched oracle in both realms.
+
+An independent baseline comparison at the public scan CLI rejected the literal-false, const-comparison and true-hazard fixtures in both realms; the prototype admitted only the first two and kept the true-hazard rejection. The builder demonstrated successive P1–P4 red/green slices; a reassigned-const control exposed an initially overbroad fact and forced exact-symbol write rejection before completion.
+
+On project-local Node22.19.0/npm11.5.2 dependencies, full `npm run verify` (packed consumer and complete locked suite), typecheck, reviewed dogfood, both extended conformance families and diff checking pass. Existing tests, hazard expectations and yield floors were not weakened. Independent Standards and Spec reviews found zero actionable issues through74c6273, including the retained Epic scan harness and evidence. Parent verification repeats the leaf checks before final publication; exact final source pin and evidence are in #125.
+
+Supported facts remain boolean/string/finite-number/null literals, exact prior top-level const bindings, negation, strict comparison and AND/OR value semantics. Block-local const, imported/mutable/destructured facts, arithmetic, ambient/native guards, reachable try/loop/switch contexts and interprocedural proof remain unsupported. Only synthetic logging has a live/replay sentinel; other native-effect categories are independently admission-negative scan controls. Passing these controls is not a general safety certification or approval to ship.
+
+The application-value result is **no named Epic gain**. Return this evidence to #123 for an explicit production decision; do not infer a broader proof capability from it.
+
 ## Compatibility limit
 
 The pinned Epic revision is8473afd804b66dba6a23f317908dc35d1535e90d. The prior [blocker map](../pilots/analyzer-precision-2026-10-01.md) separates Prism's ambient global writes, Sentry's mutable Array.from guard and catch logging, Noble's reachable local table loop and OAuth registration's environment-dependent logging and constructor work. Those constructs are outside this first proof grammar. No package/file allowlist, replay placeholder assumption or default-native-behavior assumption may clear them.
