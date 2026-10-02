@@ -278,6 +278,26 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     if (!found) return undefined;
     return found.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(found) : found;
   };
+  const stableVariables = new Map<ts.VariableDeclaration, boolean>();
+  const stableVariable = (declaration: ts.VariableDeclaration): boolean => {
+    if (constantDeclaration(declaration)) return true;
+    if (stableVariables.has(declaration)) return stableVariables.get(declaration)!;
+    const binding = symbol(declaration.name);
+    let stable = !!binding && ts.isIdentifier(declaration.name);
+    const inspect = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node !== declaration.name && symbol(node) === binding && writtenExpression(expressionSite(node))) stable = false;
+      ts.forEachChild(node, inspect);
+    };
+    inspect(declaration.getSourceFile());
+    stableVariables.set(declaration, stable);
+    return stable;
+  };
+  const inertDefault = (expression: ts.Expression): boolean => {
+    if (inertLiteral(expression)) return true;
+    const node = unwrap(expression);
+    const declaration = ts.isIdentifier(node) && symbol(node)?.valueDeclaration;
+    return !!declaration && ts.isVariableDeclaration(declaration) && constantDeclaration(declaration) && !enclosingFunction(declaration) && !!declaration.initializer && inertLiteral(declaration.initializer);
+  };
   for (const module of modules.values()) {
     const exported = new Set<ts.Symbol>();
     const moduleSymbol = checker.getSymbolAtLocation(module.sourceFile);
@@ -296,7 +316,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
           const namePath = [...owners, name];
           const locator: DevLocator = { module: posix(path.relative(root, module.file)), kind: owners.length ? "nested" : binding && exported.has(binding) ? "export" : "local", namePath };
           const problems = new DevProblems(root, module.sourceFile, node);
-          if (unsupportedOwner || !supportedShape(node) || !binding) problems.add("UNSUPPORTED_CALLABLE");
+          if (unsupportedOwner || !supportedShape(node, stableVariable, inertDefault) || !binding) problems.add("UNSUPPORTED_CALLABLE");
           if (nextExcluded) problems.add(policy.invalid ? "INVALID_POLICY" : "SOURCE_EXCLUDED");
           const candidate: DevFunction = {
             locator, replayExport: `__replaylock_dev_${createHash("sha256").update(JSON.stringify(locator)).digest("hex").slice(0, 24)}`,
@@ -460,7 +480,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     return ts.isClassDeclaration(statement) || ts.isExportAssignment(statement) ? { kind: "binding", declaration: statement } : moduleTier;
   };
   /** A write taints what it writes. */
-  const writeTier = (target: ts.Expression): Tier => {
+  const writeTier = (target: ts.Expression, mutatesObject = false): Tier => {
     let node = unwrap(target);
     let member: string | undefined;
     while (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) { member = memberName(node); node = unwrap(node.expression); }
@@ -472,6 +492,10 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
       // cannot be read by a capture target; host and built-in globals can.
       return globalObject(node.text) && member !== undefined && /^[_$]/.test(member) ? moduleTier : globalTier;
     }
+    // A local name for a host/built-in object does not own that object.
+    // Mutating it (including replacing a function's native bind) changes the
+    // original ambient object, whereas rebinding the local name does not.
+    if ((member !== undefined || mutatesObject) && canonical(node) !== undefined) return globalTier;
     const own = checker.getSymbolAtLocation(node)!;
     if (own.flags & ts.SymbolFlags.Alias) return moduleTier;
     const declaration = topLevelDeclaration(own.valueDeclaration ?? own.declarations?.[0]);
@@ -500,6 +524,15 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     return ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Symbol" && undeclared(node.expression);
   };
   const definitionApis = new Set(["Object.defineProperty", "Object.defineProperties", "Object.freeze", "Object.seal", "Object.preventExtensions"]);
+  // Assignment invokes inherited setters. Unlike definition/freeze operations,
+  // it needs a direct fresh target with the native prototype and sources that
+  // cannot replace that prototype before another source is copied.
+  const plainAssignObject = (node: ts.Expression): boolean => plainLiteral(node) && node.properties.every((property) => {
+    const name = property.name;
+    return !!name && (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) && name.text !== "__proto__";
+  });
+  const freshAssignTarget = (node: ts.Expression): boolean => ts.isArrowFunction(node) || ts.isFunctionExpression(node)
+    || plainAssignObject(node) || ts.isArrayLiteralExpression(node) && !node.elements.some(ts.isSpreadElement);
   /**
    * Defining, freezing or sealing properties of the object the expression
    * itself creates changes nothing else. Bundlers emit this for namespace
@@ -508,15 +541,35 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
    */
   const ownedDefinition = (expression: ts.Expression): boolean => {
     const node = unwrap(expression);
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
     if (plainLiteral(node)) return true;
     if (ts.isArrayLiteralExpression(node)) return !node.elements.some(ts.isSpreadElement);
     if (!ts.isCallExpression(node)) return false;
     const name = identity(unwrap(node.expression));
     const [target, key, descriptor] = node.arguments.map(unwrap);
+    if (name === "Object.assign") return !!target && freshAssignTarget(target) && node.arguments.slice(1).every((argument) => plainAssignObject(unwrap(argument)));
     if (!name || !definitionApis.has(name) || !target || !ownedDefinition(target)) return false;
     if (name === "Object.defineProperty") return node.arguments.length === 3 && literalKey(key!) && plainLiteral(descriptor!);
     if (name === "Object.defineProperties") return node.arguments.length === 2 && plainLiteral(key!) && key.properties.every((property) => ts.isPropertyAssignment(property) && plainLiteral(unwrap(property.initializer)));
     return node.arguments.length === 1;
+  };
+  const bindableHostFunctions = new Set(["setTimeout", "setInterval", "setImmediate", "queueMicrotask", "requestAnimationFrame", "requestIdleCallback", "scheduler.postTask", "scheduler.yield"]);
+  const guardedHostBinding = (node: ts.CallExpression, receiver: ts.Expression): boolean => {
+    const name = identity(receiver);
+    if (!name || !bindableHostFunctions.has(name)) return false;
+    const provesFunction = (expression: ts.Expression): boolean => {
+      const condition = unwrap(expression);
+      if (!ts.isBinaryExpression(condition)) return false;
+      if (condition.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) return provesFunction(condition.left) || provesFunction(condition.right);
+      if (condition.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken) return false;
+      const [left, right] = [unwrap(condition.left), unwrap(condition.right)];
+      return ts.isTypeOfExpression(left) && identity(left.expression) === name && ts.isStringLiteral(right) && right.text === "function"
+        || ts.isTypeOfExpression(right) && identity(right.expression) === name && ts.isStringLiteral(left) && left.text === "function";
+    };
+    for (let owner: ts.Node = node; owner.parent && !ts.isSourceFile(owner.parent); owner = owner.parent) {
+      if (ts.isConditionalExpression(owner.parent) && descendantOf(node, owner.parent.whenTrue) && provesFunction(owner.parent.condition)) return true;
+    }
+    return false;
   };
   const callTier = (node: ts.CallExpression | ts.NewExpression): Tier => {
     const callee = unwrap(node.expression);
@@ -524,10 +577,19 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     if (callee.kind === ts.SyntaxKind.ImportKeyword) return globalTier;
     const name = identity(callee);
     if (ts.isIdentifier(callee) && callee.text === "require" && undeclared(callee)) return args.length === 1 && ts.isStringLiteral(args[0]!) ? containingTier(node) : globalTier;
-    if (name && mutationApis.has(name) && args[0]) return ownedDefinition(node) ? containingTier(node) : writeTier(args[0]);
+    if (name && mutationApis.has(name) && args[0]) return ownedDefinition(node) ? containingTier(node) : writeTier(args[0], true);
     const known = classifyKnownInvocation(expressionPath(callee) ?? name);
     if (known === "DYNAMIC_EVALUATION" || known === "IO" || known === "LOGGING") return globalTier;
     if (name && (knownReads.has(name) || (keyReaders.has(name) && !args.some(ts.isSpreadElement)))) return containingTier(node);
+    if (ts.isCallExpression(node) && (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))) {
+      const method = memberName(callee);
+      const receiver = identity(callee.expression);
+      const spec = method && DEV_METHODS.get(method);
+      // Binding a feature-detected host function does not invoke that function.
+      // An environment string method likewise only computes this declaration's value.
+      if (method === "bind" && guardedHostBinding(node, callee.expression)
+        || spec && !spec.mutating && !spec.callbacks?.length && !spec.regex && receiver && /^(?:process|import\.meta)\.env\.[^.]+$/.test(receiver)) return containingTier(node);
+    }
     if (args.some(builtinObject)) return globalTier;
     let base: ts.Expression = callee;
     let member: string | undefined;
@@ -778,9 +840,74 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const declaration = ts.isIdentifier(node) ? symbol(node)?.valueDeclaration : undefined;
     return declaration && !descendantOf(declaration, owner) ? "AMBIENT_MUTATION" : "ARGUMENT_MUTATION";
   };
+  const mutatedParameters = new Map<DevFunction, Set<number>>();
+  const parameterInputs = (expression: ts.Node, owner: DevCallable, seen = new Set<ts.Node>()): Set<number> => {
+    const inputs = new Set<number>();
+    if (seen.has(expression)) return inputs;
+    seen.add(expression);
+    if (ts.isIdentifier(expression) && referenceIdentifier(expression)) {
+      const declaration = symbol(expression)?.valueDeclaration;
+      const index = owner.parameters.findIndex((parameter) => declaration && descendantOf(declaration, parameter));
+      const binding = symbol(expression);
+      const reassigned = binding && namedIdentifiers(expression.getSourceFile(), expression.text).some((reference) => reference !== declaration && symbol(reference) === binding && writtenExpression(expressionSite(reference)));
+      // Mutable aliases and parameters can carry any caller-owned input after
+      // reassignment. Do not infer ownership from their initial binding alone.
+      if (reassigned) owner.parameters.forEach((_, input) => inputs.add(input));
+      if (index >= 0) inputs.add(index);
+      else if (declaration && ts.isVariableDeclaration(declaration) && declaration.initializer && descendantOf(declaration, owner)) {
+        for (const input of parameterInputs(declaration.initializer, owner, seen)) inputs.add(input);
+      } else if (declaration && ts.isBindingElement(declaration) && descendantOf(declaration, owner)) {
+        let binding: ts.Node = declaration;
+        while (!ts.isVariableDeclaration(binding) && !ts.isParameter(binding) && binding.parent) {
+          if (ts.isBindingElement(binding) && binding.initializer) for (const input of parameterInputs(binding.initializer, owner, seen)) inputs.add(input);
+          binding = binding.parent;
+        }
+        if (ts.isVariableDeclaration(binding) && binding.initializer) for (const input of parameterInputs(binding.initializer, owner, seen)) inputs.add(input);
+      }
+    }
+    ts.forEachChild(expression, (child) => { for (const input of parameterInputs(child, owner, seen)) inputs.add(input); });
+    return inputs;
+  };
+  const unchangedOwnedBinding = (declaration: ts.VariableDeclaration, call: ts.CallExpression, seen = new Set<ts.Node>()): boolean => {
+    if (!ts.isIdentifier(declaration.name) || seen.has(declaration)) return false;
+    seen.add(declaration);
+    const binding = symbol(declaration.name);
+    return namedIdentifiers(declaration.getSourceFile(), declaration.name.text).every((reference) => {
+      if (reference === declaration.name || symbol(reference) !== binding) return true;
+      let site = expressionSite(reference);
+      while ((ts.isPropertyAccessExpression(site.parent) || ts.isElementAccessExpression(site.parent)) && site.parent.expression === site) site = expressionSite(site.parent);
+      if (ts.isVariableDeclaration(site.parent) && site.parent.initializer === site) return constantDeclaration(site.parent) && unchangedOwnedBinding(site.parent, call, new Set(seen));
+      if (ts.isCallExpression(site.parent) && site.parent.arguments.includes(site as ts.Expression) && site.parent !== call) return false;
+      if (ts.isPropertyAssignment(site.parent) && site.parent.initializer === site || ts.isShorthandPropertyAssignment(site.parent) || ts.isSpreadElement(site.parent) || ts.isSpreadAssignment(site.parent) || ts.isArrayLiteralExpression(site.parent)) return false;
+      if (ts.isBinaryExpression(site.parent) && site.parent.right === site && site.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken) return false;
+      return !writtenExpression(site);
+    });
+  };
+  // A new outer object can still contain borrowed objects. Require ownership
+  // throughout the argument before exempting a callee's parameter writes.
+  const ownedArgument = (expression: ts.Expression, owner: DevCallable, call: ts.CallExpression, seen = new Set<ts.Node>()): boolean => {
+    const node = unwrap(expression);
+    if (seen.has(node)) return false;
+    seen.add(node);
+    if (inertLiteral(node)) return true;
+    if (ts.isObjectLiteralExpression(node)) return node.properties.every((property) => ts.isPropertyAssignment(property) && !ts.isComputedPropertyName(property.name) && ownedArgument(property.initializer, owner, call, new Set(seen)));
+    if (ts.isArrayLiteralExpression(node)) return node.elements.every((element) => !ts.isSpreadElement(element) && !ts.isOmittedExpression(element) && ownedArgument(element, owner, call, new Set(seen)));
+    if (ts.isIdentifier(node)) {
+      const declaration = symbol(node)?.valueDeclaration;
+      return !!declaration && ts.isVariableDeclaration(declaration) && !!declaration.initializer && constantDeclaration(declaration) && descendantOf(declaration, owner) && unchangedOwnedBinding(declaration, call) && ownedArgument(declaration.initializer, owner, call, seen);
+    }
+    return false;
+  };
   for (const candidate of reachableFunctions) {
     const { node, module, problems, effects, calls, references } = candidate;
     let callbackDepth = 0;
+    const mutationInputs = new Set<number>();
+    let unknownMutationInput = false;
+    const recordMutationInput = (target: ts.Node): void => {
+      const inputs = parameterInputs(target, node);
+      if (inputs.size === 0) unknownMutationInput = true;
+      for (const input of inputs) mutationInputs.add(input);
+    };
     const inspect = (child: ts.Node): void => {
       if (child !== node && ts.isFunctionLike(child)) {
         if (candidate.callbacks.has(child)) {
@@ -792,12 +919,24 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
         else if (runtimeFunction(child) && !discovered.has(child)) problems.at("FUNCTION_VALUE", child);
         return;
       }
-      if (callbackDepth > 0) {
+      {
         const written = ts.isBinaryExpression(child) && child.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && child.operatorToken.kind <= ts.SyntaxKind.LastAssignment ? child.left
           : ts.isDeleteExpression(child) ? child.expression
           : (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) && (child.operator === ts.SyntaxKind.PlusPlusToken || child.operator === ts.SyntaxKind.MinusMinusToken) ? child.operand : undefined;
-        const code = written && callbackWrite(written, node);
+        // V1's alias scan does not model destructuring defaults. Keep V2's
+        // proven parameter-derived writes visible in ordinary bodies too.
+        const target = written && unwrap(written);
+        const memberWrite = target && (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) ? target : undefined;
+        const parameterWrite = memberWrite && parameterInputs(memberWrite, node).size > 0;
+        const receiver = memberWrite && unwrap(memberWrite.expression);
+        // A fresh outer container does not own a parameter-derived inner value.
+        const nestedBorrowed = parameterWrite && receiver && (ts.isPropertyAccessExpression(receiver) || ts.isElementAccessExpression(receiver));
+        const code = nestedBorrowed ? "ARGUMENT_MUTATION" : written && (callbackDepth > 0 || parameterWrite) && callbackWrite(written, node);
         if (code) problems.at(code, child);
+        if (code === "ARGUMENT_MUTATION") {
+          recordMutationInput(written!);
+          if (ts.isBinaryExpression(child) && child.operatorToken.kind === ts.SyntaxKind.EqualsToken) recordMutationInput(child.right);
+        }
       }
       if (ts.isTypeNode(child)) return;
       if (child.kind === ts.SyntaxKind.ThisKeyword || child.kind === ts.SyntaxKind.SuperKeyword || (ts.isMetaProperty(child) && child.keywordToken === ts.SyntaxKind.NewKeyword)) problems.at("RECEIVER_DEPENDENCE", child);
@@ -808,7 +947,7 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
           const owner = enclosingFunction(declaration);
           if (owner) problems.at("CLOSURE_CAPTURE", child);
           if (ts.isVariableDeclaration(declaration)) {
-            if (!constantDeclaration(declaration)) problems.at("AMBIENT_STATE", child);
+            if (!constantDeclaration(declaration) && !(bySymbol.has(binding!) && stableVariable(declaration))) problems.at("AMBIENT_STATE", child);
             // Objects in module scope can carry getters or be mutated by an
             // unrelated export. Only immutable scalar values and resolved
             // callable/builtin aliases are proven safe ambient bindings.
@@ -869,7 +1008,10 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
           } else if (name && devCatalogInvocation(child, name, expressionPath(child.expression))) {
             if (DEV_IMPLICIT_CALLERS.has(name) && child.arguments?.length) candidate.implicitBuiltins = true;
             // Direct mutation analysis does not descend into callbacks.
-            if (callbackDepth > 0 && devMutatingStatic(name) && !(child.arguments?.[0] && freshValue(child.arguments[0], node))) problems.at("ARGUMENT_MUTATION", child);
+            if (callbackDepth > 0 && devMutatingStatic(name) && !(child.arguments?.[0] && freshValue(child.arguments[0], node))) {
+              problems.at("ARGUMENT_MUTATION", child);
+              recordMutationInput(child.arguments?.[0] ?? child);
+            }
           } else if (ts.isCallExpression(child) && builtinMethod(child, candidate)) {
             candidate.implicitBuiltins = true;
           } else {
@@ -896,9 +1038,33 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     const direct = analyzeDirectEffects({ source: candidate.locator.module, sourceFile: module.sourceFile, callable: node, nestedFunctions: "skip" });
     for (const finding of direct.findings) {
       const position = module.sourceFile.getPositionOfLineAndCharacter(finding.line - 1, finding.column - 1);
+      if (finding.code === "ARGUMENT_MUTATION") {
+        let site: ts.Node | undefined;
+        const find = (child: ts.Node): void => {
+          if (!site && child.getStart(module.sourceFile) === position && (ts.isBinaryExpression(child) || ts.isCallExpression(child) || ts.isDeleteExpression(child) || ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child))) site = child;
+          if (child.getFullStart() <= position && child.end >= position) ts.forEachChild(child, find);
+        };
+        find(node);
+        if (site) {
+          let target: ts.Node = site;
+          if (ts.isBinaryExpression(site)) target = site.left;
+          else if (ts.isDeleteExpression(site)) target = site.expression;
+          else if (ts.isPrefixUnaryExpression(site) || ts.isPostfixUnaryExpression(site)) target = site.operand;
+          else if (ts.isCallExpression(site)) {
+            const callee = unwrap(site.expression);
+            target = mutationApis.has(identity(callee) ?? "") ? site.arguments[0] ?? site : ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee) ? callee.expression : callee;
+          }
+          recordMutationInput(target);
+          // Installing another argument into a mutated object can expose that
+          // borrowed value to a later write through the original parameter.
+          if (ts.isBinaryExpression(site) && site.operatorToken.kind === ts.SyntaxKind.EqualsToken) for (const input of parameterInputs(site.right, node)) mutationInputs.add(input);
+        } else unknownMutationInput = true;
+      }
       const covered = coveredFindingCodes.has(finding.code) && [...effects.keys()].some((effectNode) => position === effectNode.getStart() || ((ts.isCallExpression(effectNode) || ts.isNewExpression(effectNode)) && position === effectNode.expression.getStart()));
       if (!covered) problems.at(finding.code, { module: candidate.locator.module, line: finding.line, column: finding.column });
     }
+    if (problems.has("ARGUMENT_MUTATION") && (mutationInputs.size === 0 || unknownMutationInput)) node.parameters.forEach((_, index) => mutationInputs.add(index));
+    mutatedParameters.set(candidate, mutationInputs);
   }
   // A callable whose built-ins may invoke methods of its values requires plain
   // values, and so does every callable that calls it.
@@ -959,7 +1125,26 @@ export function buildDevProject(rootInput: string, options: ResolvedDevOptions, 
     for (const candidate of reachableFunctions) {
       changed = inheritAll(candidate.problems, candidate.module.problems, candidate.node) || changed;
       changed = inheritAll(candidate.problems, candidate.module.moduleProblems, candidate.node) || changed;
-      for (const [call, target] of candidate.calls) changed = inheritAll(candidate.problems, target.problems, call) || changed;
+      for (const [call, target] of candidate.calls) {
+        const mutations = mutatedParameters.get(target)!;
+        const ambiguous = call.arguments.some(ts.isSpreadElement) || target.node.parameters.some((parameter) => !!parameter.dotDotDotToken) || target.problems.has("ARGUMENT_MUTATION") && mutations.size === 0;
+        const borrowed = ambiguous ? call.arguments.map((_, index) => index) : [...mutations].filter((index) => !call.arguments[index] || !ownedArgument(call.arguments[index]!, candidate.node, call));
+        for (const code of target.problems) {
+          if (code === "ARGUMENT_MUTATION" && !ambiguous && borrowed.length === 0) continue;
+          if (!candidate.problems.has(code)) { candidate.problems.inherit(code, target.problems, call); changed = true; }
+        }
+        if (target.problems.has("ARGUMENT_MUTATION")) for (const index of borrowed) {
+          const argument = call.arguments[index];
+          if (!argument) continue;
+          const inputs = parameterInputs(argument, candidate.node);
+          // Each unknown borrowed origin is conservative independently: a
+          // known first input must not conceal an unknown second alias.
+          if (inputs.size === 0) candidate.node.parameters.forEach((_, input) => inputs.add(input));
+          for (const input of inputs) {
+            if (!mutatedParameters.get(candidate)!.has(input)) { mutatedParameters.get(candidate)!.add(input); changed = true; }
+          }
+        }
+      }
       for (const [target, via] of candidate.references) changed = inheritReference(candidate.problems, candidate.module, target, via) || changed;
     }
   }
@@ -1048,11 +1233,11 @@ function callableName(node: ts.Node): ts.Identifier | undefined {
  * destructuring patterns without computed keys, and defaults that are inert
  * literals. Recording keeps the arguments as passed.
  */
-function supportedParameter(parameter: ts.ParameterDeclaration | ts.BindingElement): boolean {
-  if (parameter.initializer && !inertLiteral(parameter.initializer)) return false;
+function supportedParameter(parameter: ts.ParameterDeclaration | ts.BindingElement, inertDefault: (expression: ts.Expression) => boolean): boolean {
+  if (parameter.initializer && !inertDefault(parameter.initializer)) return false;
   const name = parameter.name;
   if (ts.isIdentifier(name)) return !["this", "arguments"].includes(name.text);
-  return name.elements.every((element) => ts.isOmittedExpression(element) || ((!element.propertyName || !ts.isComputedPropertyName(element.propertyName)) && supportedParameter(element)));
+  return name.elements.every((element) => ts.isOmittedExpression(element) || ((!element.propertyName || !ts.isComputedPropertyName(element.propertyName)) && supportedParameter(element, inertDefault)));
 }
 function inertLiteral(expression: ts.Expression): boolean {
   const node = unwrap(expression);
@@ -1066,12 +1251,12 @@ function inertLiteral(expression: ts.Expression): boolean {
 export function patternArrow(node: DevCallable): boolean {
   return ts.isArrowFunction(node) && node.parameters.some((parameter) => !ts.isIdentifier(parameter.name) || !!parameter.initializer);
 }
-function supportedShape(node: DevCallable): boolean {
-  if (node.asteriskToken || !node.parameters.every(supportedParameter)) return false;
+function supportedShape(node: DevCallable, stableVariable: (declaration: ts.VariableDeclaration) => boolean, inertDefault: (expression: ts.Expression) => boolean): boolean {
+  if (node.asteriskToken || !node.parameters.every((parameter) => supportedParameter(parameter, inertDefault))) return false;
   if (ts.isFunctionDeclaration(node)) return !!node.name && (ts.isSourceFile(node.parent) || !!enclosingFunction(node));
   let outer: ts.Node = node;
   while (outer.parent && (ts.isParenthesizedExpression(outer.parent) || ts.isAsExpression(outer.parent) || ts.isSatisfiesExpression(outer.parent))) outer = outer.parent;
-  return ts.isVariableDeclaration(outer.parent) && constantDeclaration(outer.parent) && (ts.isSourceFile(outer.parent.parent.parent.parent) || !!enclosingFunction(node));
+  return ts.isVariableDeclaration(outer.parent) && stableVariable(outer.parent) && (ts.isSourceFile(outer.parent.parent.parent.parent) || !!enclosingFunction(node));
 }
 function constantDeclaration(node: ts.VariableDeclaration): boolean { return ts.isVariableDeclarationList(node.parent) && !!(node.parent.flags & ts.NodeFlags.Const); }
 function sourcePolicy(node: ts.Node): { capture: boolean; excluded: boolean; invalid: boolean } {

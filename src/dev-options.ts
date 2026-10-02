@@ -21,6 +21,27 @@ export function resolveDevOptions(input: DevOptions = {}): ResolvedDevOptions {
   if (!input || typeof input !== "object") throw new Error("INVALID_POLICY: invalid development configuration");
   const capture = input.capture ?? {};
   const effects = input.effects ?? {};
+  const replay = input.replay;
+  if (replay !== undefined && (!replay || typeof replay !== "object" || Array.isArray(replay)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(replay))
+    || Reflect.ownKeys(replay).some(key => key !== "environment")
+    || (Object.getOwnPropertyDescriptor(replay, "environment") !== undefined
+      && !("value" in Object.getOwnPropertyDescriptor(replay, "environment")!)))) {
+    throw new Error("INVALID_POLICY: replay must be an environment configuration object");
+  }
+  const environment = replay?.environment;
+  // These keys belong to the replay worker's runtime profile or Vite/Vitest's
+  // execution mode, and cannot consistently mean a string initialization value.
+  const reserved = new Set(["__PROTO__", "CONSTRUCTOR", "PROTOTYPE", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "NO_COLOR", "FORCE_COLOR", "DEV", "PROD", "MODE", "SSR", "BASE_URL"]);
+  if (environment !== undefined && (!environment || typeof environment !== "object" || Array.isArray(environment)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(environment))
+    || Reflect.ownKeys(environment).some(key => {
+      if (typeof key !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || reserved.has(key.toUpperCase())) return true;
+      const descriptor = Object.getOwnPropertyDescriptor(environment, key)!;
+      return !descriptor.enumerable || !("value" in descriptor) || typeof descriptor.value !== "string";
+    }))) {
+    throw new Error("INVALID_POLICY: replay.environment must be a plain map of explicit string placeholders without prototype or reserved runtime keys");
+  }
   if (capture.mode !== undefined && capture.mode !== "automatic" && capture.mode !== "annotated") {
     throw new Error("INVALID_POLICY: capture.mode must be automatic or annotated");
   }
@@ -37,6 +58,7 @@ export function resolveDevOptions(input: DevOptions = {}): ResolvedDevOptions {
     return value;
   }
   return {
+    ...(replay ? { replay: { environment: { ...environment } } } : {}),
     capture: {
       mode: capture.mode ?? "automatic",
       include: strings(capture.include, ["**/*"]),
