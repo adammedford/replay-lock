@@ -125,3 +125,28 @@ No temporal relaxation is selected here. G1B stays unmet, earlier failure probes
 remain intact, admission expansion stays stopped, #106 remains open and #107
 blocked. Native-effect controls, final evaluated-source binding, isolated-worker
 parity and the remaining matrix are still outstanding.
+
+## Verification and review
+
+The driver rechecked the critical installed routes and package versions, confirmed
+the actual isolated verifier/configuration path, and passed `git diff --check`.
+This revision changes documentation only. No new acceptance tests, runtime probes,
+typecheck or full verification runs were performed; earlier runtime evidence is
+linked rather than represented as a new result.
+
+### Standards
+
+Independent four-pass review of `3bfbc1a..ef88463` found no documented-standard
+violations or heuristic smell findings. It verified source/version references,
+hypothetical interface classification and the distinction between immutable bytes
+and immediate revocation. No runtime feasibility certification follows.
+
+### Spec
+
+Independent four-pass review found zero actionable mismatches in this design-only
+evaluation. It confirmed internal shared admission/host-adapter proposals, actual
+replay parity as a future obligation, the H8 timing gap and no silently selected
+temporal relaxation. Runtime proof and full-spec completion remain outstanding.
+
+Primary main remains clean at0867957. The pinned application remains at8473afd,
+with its pre-existing dirty paths and unchanged Noble sha3 source hash.
