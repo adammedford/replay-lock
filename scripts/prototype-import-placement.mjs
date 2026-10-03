@@ -13,7 +13,7 @@ const witnessSource = 'throw "SYNTHETIC_PRELUDE_REACHED";';
 
 // A deliberately tiny placement grammar, not the shared production analyzer.
 // Only primitive literals/identifier arithmetic and static .mjs edges qualify.
-function dependencies(source, url) {
+export function placementDependencies(source, url) {
   const file = ts.createSourceFile(url, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   if (file.parseDiagnostics.length) throw refused();
   const edges = [];
@@ -49,7 +49,7 @@ function dependencies(source, url) {
   return edges;
 }
 
-function qualify(sources, witnessControl) {
+export function qualifyPlacementSources(sources, witnessControl = false) {
   if (witnessControl) {
     // This isolated positive control cannot authorize arbitrary unsafe source.
     if (sources.size !== 1 || sources.get('/entry.mjs') !== witnessSource) throw refused();
@@ -65,7 +65,7 @@ function qualify(sources, witnessControl) {
     bytes += Buffer.byteLength(source);
     if (bytes > 262144 || visited.size + active.size >= 32) throw refused();
     active.add(url);
-    for (const dependency of dependencies(source, url)) visit(dependency);
+    for (const dependency of placementDependencies(source, url)) visit(dependency);
     active.delete(url); visited.add(url);
   }
   visit('/entry.mjs');
@@ -94,7 +94,7 @@ export async function startPlacementProbe(fixture, { witnessControl = false } = 
     let preparation;
     const prepare = () => preparation ??= buildSnapshot();
     async function buildSnapshot() {
-      const closure = qualify(sources, witnessControl);
+      const closure = qualifyPlacementSources(sources, witnessControl);
       const node = new Map(), browser = new Map();
       let nodeBytes = 0, browserBytes = 0;
       for (const url of closure) {
