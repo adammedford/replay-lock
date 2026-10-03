@@ -66,3 +66,36 @@ Select and evaluate such a placement separately before resuming expansion; no ne
 client protocol, production loader API, profile or artifact fact is selected here.
 #106 remains open; #107 stays blocked. Main and the pinned application are outside
 this experiment.
+
+## Verification and independent reviews
+
+At implementation revision `7d362ecc3ddda5eccb8fe87b406b0081fc309a6a`, the full
+unweakened `npm run verify` passed: verification runner, package contract, packed
+consumer, locked acceptance files and serial browser pass. The properly serial
+focused command passed all four cache/workflow tests; after the review cleanup,
+the cache file alone passed both tests. Typecheck and `git diff --check` passed.
+Typecheck covers the existing TypeScript surface, not these prototype JavaScript
+tests. Runtime/dependency pins and the60000ms test ceilings are unchanged.
+
+A combined focused command with its concurrency option after the filenames had
+timed out at the original workflow's startup reload wait. The correctly ordered
+`node --test --test-concurrency=1` run and full locked runner passed; no test,
+checkpoint assertion or timeout was removed to obtain that result.
+
+### Standards
+
+Four-pass independent review found no documented-standard violations and one
+lifecycle finding: detached event waits could reject unhandled when a click or
+assertion failed. Immediate `Promise.all` handling was added at7d362ec and the
+reviewer independently confirmed resolution. No actionable findings remain.
+
+### Spec
+
+Four-pass independent review found zero actionable mismatches in the failure
+characterization. It confirmed harmless source, newly settled public outcomes,
+cold controls, unreviewed probe artifacts and the explicit failed-H8/G1B boundary.
+It did not certify complete-adapter feasibility or remaining matrix requirements.
+
+Primary main remains clean at0867957. The pinned application remains at8473afd,
+with pre-existing dirty paths and Noble sha3 source hash unchanged. No application
+target or configuration was executed; no dependencies or lockfiles were changed.
