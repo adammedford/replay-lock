@@ -29,6 +29,15 @@ async function browserOutcome(browser, probe) {
   } finally { await page.close(); }
 }
 
+async function withBrowserProbe(fixture, run, options) {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const probe = await startPlacementProbe(fixture, options);
+    try { await run(browser, probe); }
+    finally { await probe.close(); }
+  } finally { await browser.close(); }
+}
+
 test('HTTP gate refuses before Vite evaluates any rejected graph sibling', { timeout: 60000 }, async () => {
   const probe = await startPlacementProbe(witness);
   try { assert.deepEqual(await nodeOutcome(probe), { status: 409, body: { code: 'GRAPH_REFUSED' } }); }
@@ -36,10 +45,9 @@ test('HTTP gate refuses before Vite evaluates any rejected graph sibling', { tim
 });
 
 test('fresh browser entry gate refuses before evaluating any rejected graph sibling', { timeout: 60000 }, async () => {
-  const browser = await chromium.launch({ headless: true });
-  const probe = await startPlacementProbe(witness);
-  try { assert.deepEqual(await browserOutcome(browser, probe), { code: 'GRAPH_REFUSED' }); }
-  finally { await probe.close(); await browser.close(); }
+  await withBrowserProbe(witness, async (browser, probe) => {
+    assert.deepEqual(await browserOutcome(browser, probe), { code: 'GRAPH_REFUSED' });
+  });
 });
 
 test('direct browser module URLs cannot bypass refused entry admission', { timeout: 60000 }, async () => {
@@ -65,20 +73,16 @@ test('native builtin and data imports are refused before the throw-only sibling'
 });
 
 test('throw-only control is reachable through ordinary Vite HTTP and browser hosts', { timeout: 60000 }, async () => {
-  const browser = await chromium.launch({ headless: true });
-  const probe = await startPlacementProbe({ '/entry.mjs': 'throw "SYNTHETIC_PRELUDE_REACHED";' }, { witnessControl: true });
-  try {
+  await withBrowserProbe({ '/entry.mjs': 'throw "SYNTHETIC_PRELUDE_REACHED";' }, async (browser, probe) => {
     assert.deepEqual(await nodeOutcome(probe), { status: 409, body: { code: 'SYNTHETIC_PRELUDE_REACHED' } });
     assert.deepEqual(await browserOutcome(browser, probe), { code: 'SYNTHETIC_PRELUDE_REACHED' });
-  } finally { await probe.close(); await browser.close(); }
+  }, { witnessControl: true });
 });
 
 test('original scalar graph preserves result 7 through HTTP, cache reuse and a browser click', { timeout: 60000 }, async () => {
-  const browser = await chromium.launch({ headless: true });
-  const probe = await startPlacementProbe(positive);
-  try {
+  await withBrowserProbe(positive, async (browser, probe) => {
     assert.deepEqual(await nodeOutcome(probe), { status: 200, body: { value: 7, sameNamespace: true } });
     assert.deepEqual(await nodeOutcome(probe), { status: 200, body: { value: 7, sameNamespace: true } });
     assert.deepEqual(await browserOutcome(browser, probe), { value: 7, sameNamespace: true });
-  } finally { await probe.close(); await browser.close(); }
+  });
 });
