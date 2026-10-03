@@ -50,9 +50,11 @@ test('load-only Chromium placement fails page and server cache refusal while col
     assert.equal(await page.locator('output').textContent(), '7');
     const fresh = await browser.newPage();
     await fresh.goto(workflow.url);
-    const cached = fresh.waitForResponse(response => new URL(response.url()).pathname === '/entry.mjs', { timeout: 5000 });
-    await fresh.locator('button').click({ timeout: 1000 });
-    assert.equal((await cached).status(), 200);
+    const [cached] = await Promise.all([
+      fresh.waitForResponse(response => new URL(response.url()).pathname === '/entry.mjs', { timeout: 5000 }),
+      fresh.locator('button').click({ timeout: 1000 }),
+    ]);
+    assert.equal(cached.status(), 200);
     await fresh.locator('output[data-settled]').waitFor({ timeout: 5000 });
     assert.equal(await fresh.locator('output').textContent(), '7');
     // A fresh page alone still receives the server's old transformed modules.
@@ -60,13 +62,14 @@ test('load-only Chromium placement fails page and server cache refusal while col
     await workflow.stop();
     const cold = await browser.newPage();
     await cold.goto(workflow.url);
-    const rejected = cold.waitForEvent('pageerror', { timeout: 5000 });
-    const refused = cold.waitForResponse(response => new URL(response.url()).pathname === '/entry.mjs', { timeout: 5000 });
-    await cold.locator('button').click({ timeout: 1000 });
-    const response = await refused;
+    const [response, rejected] = await Promise.all([
+      cold.waitForResponse(response => new URL(response.url()).pathname === '/entry.mjs', { timeout: 5000 }),
+      cold.waitForEvent('pageerror', { timeout: 5000 }),
+      cold.locator('button').click({ timeout: 1000 }),
+    ]);
     // This middleware host exposes load refusal as404, not a typed gate reason.
     assert.equal(response.status(), 404);
-    assert.match((await rejected).message, /Failed to fetch dynamically imported module/);
+    assert.match(rejected.message, /Failed to fetch dynamically imported module/);
     assert.equal(await cold.locator('output').textContent(), '');
   } finally {
     try { await browser?.close(); } finally { await workflow.close(); }
