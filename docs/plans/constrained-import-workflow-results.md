@@ -72,3 +72,32 @@ lost-admission measurements, extended regression/performance checks and pinned
 source-only Epic comparison remain required. This does not establish new application
 admissions, effect-prevention success or completion of #127. #106 stays open and
 #107 blocked; the initial human ceiling and later checkpoints are unchanged.
+
+## Verification and independent review
+
+The implementation at `bca249e3a2c03b50d5dee8e516c2aed33c1bbf57` passed the
+unweakened `npm run verify`, including the verification-runner checks, package
+contract, packed consumer and locked acceptance suite. Both focused workflow
+tests and all six earlier placement tests passed. `npm run typecheck` passed
+for the existing TypeScript surface; it does not typecheck prototype JavaScript.
+The toolchain remained Node22.19.0/npm11.5.2, Vite8.2.2, Vitest4.1.11 and
+Playwright1.63.0. No dependency or lockfile change was made.
+
+### Standards
+
+An independent four-pass review of `7a7b789..bca249e` found no hard standards
+violations or actionable smells. It checked shared grammar, distinct realm
+workflows, lifecycle cleanup, trusted fixture configuration, natural candidate
+inspection and serial browser registration.
+
+### Spec
+
+An independent four-pass review found no actionable mismatch in this explicitly
+partial slice. It confirmed natural capture, candidate inspection before review,
+ordinary isolated verification and equivalent/mismatch/refusal controls. It did
+not certify final evaluated-source binding, atomic generations, cache/native
+coverage, the complete matrix or new application admissions.
+
+Primary main remained clean at0867957. The pinned application remained at8473afd
+with its pre-existing dirty paths and unchanged Noble sha3 source hash; no
+application target was executed or modified.
