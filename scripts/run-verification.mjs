@@ -8,6 +8,7 @@ import { parseVerificationOptions } from "./verification-options.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseVerificationOptions(process.argv.slice(2));
 const acceptanceFiles = [
+  "test/acceptance/prototype-import-cache-feasibility.test.mjs",
   "test/acceptance/prototype-import-workflow.test.mjs",
   "test/acceptance/prototype-import-placement.test.mjs",
   "test/acceptance/dev-analysis-cache.test.mjs",
@@ -67,6 +68,7 @@ const acceptanceFiles = [
 // other file keeps the requested concurrency. The suite still runs every file
 // exactly once, fails if any file fails, and produces one complete JUnit report.
 const browserFiles = new Set([
+  "test/acceptance/prototype-import-cache-feasibility.test.mjs",
   "test/acceptance/prototype-import-workflow.test.mjs",
   "test/acceptance/prototype-import-placement.test.mjs",
   "test/acceptance/dev-replay-environment.test.mjs",

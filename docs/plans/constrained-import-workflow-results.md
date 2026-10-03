@@ -4,6 +4,10 @@ Status: **partial retained evaluation**, outside main. No production interface,
 runtime option, environment fact, artifact/profile change or earlier prototype
 merge is selected. The mandatory complete-adapter feasibility gate remains open.
 
+Subsequent [warm-cache feasibility probes](constrained-import-cache-results.md)
+refuted generation refusal for this load-only placement in both live hosts.
+Earlier workflow success below remains valid but cannot justify admission expansion.
+
 ## Observed behavior
 
 `node --test test/acceptance/prototype-import-workflow.test.mjs` drives the existing

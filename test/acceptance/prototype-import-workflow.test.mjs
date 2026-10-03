@@ -3,26 +3,9 @@ import test from 'node:test';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { startImportWorkflow } from '../../scripts/prototype-import-workflow.mjs';
-import { command, until } from '../helpers/dev-fixture.mjs';
+import { command } from '../helpers/dev-fixture.mjs';
+import { openFirstRecordingPage } from '../helpers/import-workflow.mjs';
 import { chromium } from 'playwright';
-
-// Preserve Vite's actual buffered startup reload, as the locked development
-// fixture does. No invented frame or checkpoint substitutes for the client.
-async function openFirstRecordingPage(page, url) {
-  let releaseStartupReload;
-  await page.routeWebSocket('**/*', socket => {
-    const upstream = socket.connectToServer();
-    upstream.onMessage(message => {
-      if (!releaseStartupReload && JSON.parse(String(message)).type === 'full-reload') releaseStartupReload = () => socket.send(message);
-      else socket.send(message);
-    });
-  });
-  await page.goto(url);
-  await until(() => releaseStartupReload);
-  const reloaded = page.waitForEvent('load');
-  releaseStartupReload();
-  await reloaded;
-}
 
 async function verifyEditControls(root) {
   const helper = path.join(root, 'helper.mjs');
