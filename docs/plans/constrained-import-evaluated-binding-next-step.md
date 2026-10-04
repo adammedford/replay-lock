@@ -1,5 +1,11 @@
 # #127: next evaluated-byte binding gate
 
+Amendment: the user approved this runtime evaluation. The first attachment-only
+slice and its remaining limits are recorded in
+[ordinary verifier attachment controls](constrained-import-evaluated-attachment-results.md).
+The source-audit status and evidence below describe the earlier revision; they
+are not a claim that the full recipe or both-host byte binding is implemented.
+
 Status: source audit and proposed next tracer bullet, not implementation or runtime
 feasibility evidence. Baseline `dcce94f88ea9f669cd7269a5f5bb4addca09c939`.
 The accepted operation-boundary contract and all effect/provenance rules remain.

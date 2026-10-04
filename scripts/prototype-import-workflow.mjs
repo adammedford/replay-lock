@@ -56,7 +56,8 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false } = {}) {
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false } = {}) {
+  if (evaluatorAttachment && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest;
   let stopped = false;
@@ -127,8 +128,10 @@ export async function startImportWorkflow({ ownedTurns = false } = {}) {
       </script>`);
     const gateModule = ownedTurns ? new URL('./prototype-import-generation.mjs', import.meta.url).href : pathToFileURL(fileURLToPath(import.meta.url)).href;
     const factory = ownedTurns ? 'fixtureGenerationGate' : 'fixtureImportGate';
+    const attachmentModule = new URL('./prototype-import-evaluator-attachment.mjs', import.meta.url).href;
     const configuration = `import { ${factory} } from ${JSON.stringify(gateModule)};
-      export default {plugins:[${factory}()]};`;
+      ${evaluatorAttachment ? `import { fixtureReplayDeliveryAttachment } from ${JSON.stringify(attachmentModule)};` : ''}
+      export default {plugins:[${factory}()${evaluatorAttachment ? ',fixtureReplayDeliveryAttachment()' : ''}]};`;
     await writeFile(path.join(root, 'vite.config.mjs'), configuration);
     const gate = ownedTurns ? fixtureGenerationGate() : fixtureImportGate();
     host = createHttpServer((request, response) => { void (async () => {

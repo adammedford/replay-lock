@@ -6,6 +6,7 @@ import { startImportWorkflow } from '../../scripts/prototype-import-workflow.mjs
 import { command } from '../helpers/dev-fixture.mjs';
 import { openFirstRecordingPage } from '../helpers/import-workflow.mjs';
 import { chromium } from 'playwright';
+import { verifyAttached } from '../../scripts/prototype-import-evaluator-attachment.mjs';
 
 async function reviewPositive(workflow, realm) {
   const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
@@ -46,6 +47,26 @@ test('owned Node turns refuse warm drift irreversibly and preserve reviewed publ
   } finally { await workflow.close(); }
 });
 
+test('ordinary isolated Node replay exposes a controllable final evaluator without replacing the verifier', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  try {
+    const response = await fetch(`${workflow.url}/invoke`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { value: 7 });
+    await workflow.stop();
+    await reviewPositive(workflow, 'node');
+    const released = await verifyAttached(workflow.root, 'release');
+    assert.equal(released.status, 0, released.output);
+    const mutated = await verifyAttached(workflow.root, 'mutate');
+    assert.equal(mutated.status, 1, mutated.output);
+    assert.match(mutated.output, /OUTPUT_MISMATCH/);
+    const refused = await verifyAttached(workflow.root, 'refuse');
+    assert.equal(refused.status, 2, refused.output);
+    assert.match(refused.output, /EVALUATED_INPUT_REFUSED/);
+    assert.equal(refused.output.includes('OUTPUT_MISMATCH'), false);
+  } finally { await workflow.close(); }
+});
+
 test('owned Chromium positive is inspected, explicitly reviewed and verified by the ordinary browser worker', { timeout: 60000 }, async () => {
   const workflow = await startImportWorkflow({ ownedTurns: true });
   let browser;
@@ -66,6 +87,35 @@ test('owned Chromium positive is inspected, explicitly reviewed and verified by 
     await browser.close(); browser = undefined;
     await workflow.shutdown();
     await reviewPositive(workflow, 'browser');
+  } finally {
+    try { await browser?.close(); } finally { await workflow.close(); }
+  }
+});
+
+test('ordinary Chromium replay exposes a controllable client delivery without replacing the verifier', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true, evaluatorAttachment: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await openFirstRecordingPage(page, workflow.url);
+    await page.locator('button').click({ timeout: 1000 });
+    await page.locator('output[data-settled]').waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('output').textContent(), '7');
+    await workflow.waitForObservation();
+    await workflow.stop();
+    await browser.close(); browser = undefined;
+    await workflow.shutdown();
+    await reviewPositive(workflow, 'browser');
+    const released = await verifyAttached(workflow.root, 'release');
+    assert.equal(released.status, 0, released.output);
+    const mutated = await verifyAttached(workflow.root, 'mutate');
+    assert.equal(mutated.status, 1, mutated.output);
+    assert.match(mutated.output, /OUTPUT_MISMATCH/);
+    const refused = await verifyAttached(workflow.root, 'refuse');
+    assert.equal(refused.status, 2, refused.output);
+    assert.match(refused.output, /EVALUATED_INPUT_REFUSED/);
+    assert.equal(refused.output.includes('OUTPUT_MISMATCH'), false);
   } finally {
     try { await browser?.close(); } finally { await workflow.close(); }
   }
