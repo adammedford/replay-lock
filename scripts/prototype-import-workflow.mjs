@@ -113,7 +113,11 @@ export async function startImportWorkflow({ ownedTurns = false } = {}) {
             const application = await import('/entry.mjs');
             output.textContent = String(application.result());
           } catch (error) { output.textContent = error.message; output.dataset.refused='true'; }
-          finally { ${finish} output.dataset.settled='true'; }
+          finally {
+            try { ${finish} }
+            catch { output.textContent='HOST_FAILURE'; output.dataset.refused='true'; }
+            finally { output.dataset.settled='true'; }
+          }
           ` : `
           const application = await import('/entry.mjs');
           const output = document.querySelector('output');

@@ -52,6 +52,11 @@ test('owned Chromium positive is inspected, explicitly reviewed and verified by 
   try {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    const invalid = await fetch(`${workflow.url}/__fixture_generation/finish`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(invalid.status, 409);
+    assert.deepEqual(await invalid.json(), { code: 'TURN_INVALID' });
     await openFirstRecordingPage(page, workflow.url);
     await page.locator('button').click({ timeout: 1000 });
     await page.locator('output[data-settled]').waitFor({ timeout: 5000 });
@@ -61,6 +66,23 @@ test('owned Chromium positive is inspected, explicitly reviewed and verified by 
     await browser.close(); browser = undefined;
     await workflow.shutdown();
     await reviewPositive(workflow, 'browser');
+  } finally {
+    try { await browser?.close(); } finally { await workflow.close(); }
+  }
+});
+
+test('owned Chromium reports completion transport failure and always settles the UI', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.route('**/__fixture_generation/finish', route => route.abort());
+    await openFirstRecordingPage(page, workflow.url);
+    await page.locator('button').click({ timeout: 1000 });
+    await page.locator('output[data-settled][data-refused]').waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('output').textContent(), 'HOST_FAILURE');
+    // An abandoned turn is not reused or reviewed; close its host independently.
   } finally {
     try { await browser?.close(); } finally { await workflow.close(); }
   }

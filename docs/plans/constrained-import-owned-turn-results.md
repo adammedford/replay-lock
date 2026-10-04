@@ -50,6 +50,9 @@ public export or accepted-artifact format is changed.
   before entry loading. Original admitted bytes naturally return7. Completion
   detects drift; another click and a fresh page on that host report
   GENERATION_CLOSED. A premature direct entry HTTP request is refused.
+- An empty completion request is refused with409 TURN_INVALID before an ordinary
+  positive turn. An aborted browser completion request produces HOST_FAILURE and
+  still settles the UI; that abandoned turn is not reused or reviewed.
 
 The unsupported replacement contains no native effect. No expected observation
 or artifact is manufactured. **No observation from the mid-turn drift probe is
@@ -61,6 +64,14 @@ The Node refusal test went red on the legacy200 response before implementation.
 Browser timing went red because the old button did not request admission. A
 generated-verifier-harness classification gap was caught by the real CLI check
 and corrected without bypassing review or replacing the isolated verifier.
+
+Independent Standards and Spec reviewers identified that idle completion with an
+absent token could clear a newer turn; Standards also found that a rejected
+completion fetch could leave the UI unsettled. Both public-workflow regression
+checks failed before the fixes. Completion now requires an active matching string
+token, and completion transport errors settle the trusted UI independently.
+Both reviewers confirmed the findings resolved, with no remaining actionable
+findings in this slice. Their review does not certify complete G1B feasibility.
 
 ## Remaining proof obligations
 

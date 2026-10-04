@@ -54,7 +54,7 @@ export function fixtureGenerationGate() {
     }
   }
   async function finishTurn(token) {
-    if (active !== token || finishing) throw failure('TURN_INVALID');
+    if (!active || typeof token !== 'string' || active !== token || finishing) throw failure('TURN_INVALID');
     finishing = true;
     // Admitted work may finish; observed drift only denies subsequent turns.
     try { if (!await current()) closed = true; } catch { closed = true; }
