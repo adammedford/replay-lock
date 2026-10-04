@@ -83,3 +83,25 @@ test infrastructure, not an application effect or generic plugin capability.
 No new test, adapter, runtime export, schema or profile is introduced by this note.
 Full G1B remains unmet; #106 open and #107 blocked. Prior verification is historical
 and is not represented as a new run for this documentation-only audit.
+
+## Next approval checkpoint
+
+Recommend evaluating a **fixed, pinned trusted transform recipe** plus private
+attachment to the ordinary verifier's transport/evaluator and browser delivery.
+This is a candidate to refute, not an accepted output grammar or a safety proof.
+Its value is testing actual both-host ownership without granting arbitrary
+transformed output authority. Select that bounded runtime evaluation explicitly
+before adding a worker bridge or choosing the transform-proof contract. No public
+loader API or persisted proof/schema change is proposed.
+
+## Independent review and verification
+
+Four-pass Standards review of `dcce94f...c2f9c5c` found no documented-standard
+violations or actionable heuristic findings. Four-pass Spec review found zero
+actionable mismatches for the documentation-only audit. Both checked installed
+execution routes and declined to certify runtime feasibility. The driver reread
+the critical Vite/Vitest excerpts and package pins; `git diff --check` passed.
+No new tests, builds, imports, typecheck or full verification runs occurred.
+Main remains clean at `0867957626ba7a0869fe1fa2753ec311afee60d0`; no application
+reconstruction, execution or edits were performed. Its prior revalidation
+limitation remains unresolved.
