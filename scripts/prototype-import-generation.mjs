@@ -83,6 +83,15 @@ export function fixtureGenerationGate() {
       if (!await current()) throw failure('GRAPH_REFUSED');
       // Stable observed reads are not an atomic arbitrary-filesystem snapshot.
     },
+    transformIndexHtml: {
+      order: 'pre',
+      handler(_html, context) {
+        if (replay) return; // Existing isolated verifier owns its generated UI.
+        if (path.resolve(context.filename) !== path.join(root, 'index.html')) throw failure('GRAPH_REFUSED');
+        // The fixed controller is trusted infrastructure, not mutable app HTML.
+        return snapshot.get('index.html').text;
+      },
+    },
     load(id) {
       const relative = path.relative(root, id);
       if (relative.startsWith('..') || path.isAbsolute(relative)) return;

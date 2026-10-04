@@ -37,6 +37,10 @@ selector. The earlier failed-cache characterizations remain unchanged and still
 demonstrate why a load hook alone is insufficient. No `src/`, dependency, lockfile,
 public export or accepted-artifact format is changed.
 
+A subsequent [fixed-controller delivery probe](constrained-import-controller-delivery-results.md)
+binds the trusted live HTML input at Vite's pre-transform hook. Its evidence and
+remaining route/physical-identity limits are separate from this initial slice.
+
 ## Observed public outcomes
 
 - Node naturally observes7 twice, then warm unsupported-but-harmless helper drift

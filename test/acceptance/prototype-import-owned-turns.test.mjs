@@ -88,6 +88,46 @@ test('owned Chromium reports completion transport failure and always settles the
   }
 });
 
+test('owned Chromium receives the retained controller after index replacement and refuses a new turn', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await openFirstRecordingPage(page, workflow.url);
+    const replacement = '<!doctype html><button>REPLACEMENT_CONTROLLER</button><output>harmless replacement</output>';
+    await writeFile(path.join(workflow.root, 'index.html'), replacement);
+    for (const entry of ['/', '/index.html', '/index.html?fixture=controller', '/%69ndex.html']) {
+      const response = await fetch(workflow.url + entry);
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, /Run synthetic graph/);
+      assert.equal(html.includes('REPLACEMENT_CONTROLLER'), false);
+    }
+    await page.reload();
+    assert.equal(await page.locator('button').textContent(), 'Run synthetic graph');
+    await page.locator('button').click({ timeout: 1000 });
+    await page.locator('output[data-settled][data-refused]').waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('output').textContent(), 'GENERATION_CLOSED');
+    // A changed controller cannot grant a turn; no refusal is reviewed as behavior.
+  } finally {
+    try { await browser?.close(); } finally { await workflow.close(); }
+  }
+});
+
+test('owned HTTP refuses a non-controller HTML document before delivering its authored content', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  try {
+    await writeFile(path.join(workflow.root, 'extra.html'), '<!doctype html><p>EXTRA_AUTHORED_DOCUMENT</p>');
+    const response = await fetch(`${workflow.url}/extra.html`);
+    assert.equal(response.status, 500);
+    const body = await response.text();
+    assert.match(body, /GRAPH_REFUSED/);
+    assert.equal(body.includes('EXTRA_AUTHORED_DOCUMENT'), false);
+    // This is the Vite HTML transform path, not complete extra-entry fencing.
+  } finally { await workflow.close(); }
+});
+
 test('owned Chromium turn finishes admitted bytes after mid-turn drift and refuses subsequent reuse', { timeout: 60000 }, async () => {
   const workflow = await startImportWorkflow({ ownedTurns: true });
   let browser;
