@@ -120,9 +120,10 @@ test('owned HTTP refuses a non-controller HTML document before delivering its au
   try {
     await writeFile(path.join(workflow.root, 'extra.html'), '<!doctype html><p>EXTRA_AUTHORED_DOCUMENT</p>');
     const response = await fetch(`${workflow.url}/extra.html`);
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 409);
     const body = await response.text();
     assert.match(body, /GRAPH_REFUSED/);
+    assert.deepEqual(JSON.parse(body), { code: 'GRAPH_REFUSED' });
     assert.equal(body.includes('EXTRA_AUTHORED_DOCUMENT'), false);
     // This is the Vite HTML transform path, not complete extra-entry fencing.
   } finally { await workflow.close(); }

@@ -34,10 +34,15 @@ These are checked installed-source locations, not portable adapter guarantees.
   encoded index HTTP responses. Each delivers the original controller text.
   A real page reload still shows the original button; its natural click refuses
   GENERATION_CLOSED because admission detects the changed index metadata.
-- A separate harmless extra HTML document is refused with the existing Vite500
+- A separate harmless extra HTML document is refused with fixture409
   GRAPH_REFUSED diagnostic and its authored marker is not delivered. Removing the
   identity refusal produces200 and makes that regression fail. This is a route
   control, not an independently latched native-effect oracle.
+  The owned HTTP seam refuses other decoded `.html` paths before Vite, whose
+  middleware-mode error handler otherwise consumes transform errors before the
+  fixture fallback returns404. The explicit refusal has a fixed JSON body; default
+  load-only middleware behavior is unchanged. No source text or stack enters that
+  HTTP diagnostic. Other fallback/error routes are not generally classified.
 - Existing stable positives still require inspected actual complete observations,
   explicit review and ordinary isolated verification. No changed-controller or
   refusal observation is reviewed or accepted.

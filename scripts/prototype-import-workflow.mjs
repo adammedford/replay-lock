@@ -153,6 +153,12 @@ export async function startImportWorkflow({ ownedTurns = false } = {}) {
         try { gate.assertDelivery(); if (request.url.includes('?')) throw new Error('GRAPH_REFUSED'); }
         catch { response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return; }
       }
+      if (ownedTurns) {
+        try {
+          const pathname = decodeURIComponent(new URL(request.url, 'http://fixture.invalid').pathname);
+          if (pathname.endsWith('.html') && pathname !== '/index.html') throw refused();
+        } catch { response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return; }
+      }
       if (request.url !== '/invoke') { vite.middlewares(request, response, () => { response.statusCode = 404; response.end(); }); return; }
       try {
         const invoke = async () => {
