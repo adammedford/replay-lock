@@ -8,9 +8,14 @@ import { openFirstRecordingPage } from '../helpers/import-workflow.mjs';
 import { chromium } from 'playwright';
 import { verifyAttached } from '../../scripts/prototype-import-evaluator-attachment.mjs';
 
+async function pendingNames(workflow) {
+  return readdir(path.join(workflow.root, '.replaylock/observations/pending-v2'))
+    .catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+}
+
 async function reviewPositive(workflow, realm) {
   const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
-  const names = await readdir(directory);
+  const names = await pendingNames(workflow);
   assert.equal(names.length, 1);
   const candidate = JSON.parse(await readFile(path.join(directory, names[0]), 'utf8'));
   assert.equal(candidate.environment, realm);
@@ -45,6 +50,23 @@ test('owned Node turns refuse warm drift irreversibly and preserve reviewed publ
     await workflow.stop();
     await reviewPositive(workflow, 'node');
   } finally { await workflow.close(); }
+});
+
+test('ordinary live Node evaluator preserves reviewed behavior and exposes mutation and refusal controls', { timeout: 60000 }, async () => {
+  for (const mode of ['release', 'mutate', 'refuse']) {
+    const workflow = await startImportWorkflow({ ownedTurns: true, liveAttachment: mode });
+    try {
+      const response = await fetch(`${workflow.url}/invoke`);
+      assert.equal(response.status, mode === 'refuse' ? 409 : 200);
+      assert.deepEqual(await response.json(), mode === 'refuse'
+        ? { code: 'EVALUATED_INPUT_REFUSED' } : { value: mode === 'mutate' ? 8 : 7 });
+      if (mode !== 'refuse') await workflow.waitForObservation();
+      await workflow.stop();
+      if (mode === 'release') await reviewPositive(workflow, 'node');
+      if (mode === 'refuse') assert.deepEqual(await pendingNames(workflow), []);
+      // The harmless mutated observation is never reviewed or accepted.
+    } finally { await workflow.close(); }
+  }
 });
 
 test('ordinary isolated Node replay exposes a controllable final evaluator without replacing the verifier', { timeout: 60000 }, async () => {
@@ -89,6 +111,52 @@ test('owned Chromium positive is inspected, explicitly reviewed and verified by 
     await reviewPositive(workflow, 'browser');
   } finally {
     try { await browser?.close(); } finally { await workflow.close(); }
+  }
+});
+
+test('ordinary live Chromium delivery preserves reviewed behavior and exposes mutation and refusal controls', { timeout: 60000 }, async () => {
+  for (const mode of ['release', 'mutate', 'refuse']) {
+    const workflow = await startImportWorkflow({ ownedTurns: true, liveAttachment: mode });
+    let browser;
+    try {
+      browser = await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      let refusal;
+      if (mode === 'refuse') {
+        // The rejected Chromium module response has no readable body here.
+        // Inspect the same
+        // owned HTTP seam before the natural controller finishes its turn.
+        await page.route('**/__fixture_generation/finish', async route => {
+          try {
+            const response = await fetch(`${workflow.url}/entry.mjs`, { signal: AbortSignal.timeout(5000) });
+            refusal = { status: response.status, body: await response.json() };
+          } catch (error) { refusal = { error: error.message }; }
+          finally { await route.continue(); }
+        });
+      }
+      await openFirstRecordingPage(page, workflow.url);
+      const [response] = await Promise.all([
+        page.waitForResponse(response => new URL(response.url()).pathname === '/entry.mjs', { timeout: 5000 }),
+        page.locator('button').click({ timeout: 1000 }),
+      ]);
+      await page.locator('output[data-settled]').waitFor({ timeout: 5000 });
+      assert.equal(response.status(), mode === 'refuse' ? 409 : 200);
+      if (mode === 'refuse') {
+        assert.deepEqual(refusal, { status: 409, body: { code: 'EVALUATED_INPUT_REFUSED' } });
+        assert.equal(await page.locator('output').getAttribute('data-refused'), 'true');
+      } else {
+        assert.equal(await page.locator('output').textContent(), mode === 'mutate' ? '8' : '7');
+        await workflow.waitForObservation();
+      }
+      await workflow.stop();
+      await browser.close(); browser = undefined;
+      await workflow.shutdown();
+      if (mode === 'release') await reviewPositive(workflow, 'browser');
+      if (mode === 'refuse') assert.deepEqual(await pendingNames(workflow), []);
+      // No refusal/mutated observation is accepted.
+    } finally {
+      try { await browser?.close(); } finally { await workflow.close(); }
+    }
   }
 });
 

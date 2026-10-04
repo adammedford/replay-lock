@@ -9,6 +9,7 @@ import { createServer } from 'vite';
 import { replaylock } from '../dist/vite-plugin.js';
 import { placementDependencies, qualifyPlacementSources } from './prototype-import-placement.mjs';
 import { fixtureGenerationGate } from './prototype-import-generation.mjs';
+import { attachLiveFixtureControls } from './prototype-import-live-attachment.mjs';
 
 const library = fileURLToPath(new URL('../', import.meta.url));
 const source = 'import { scalar } from "./helper.mjs"; export function result() { return scalar + 4; }';
@@ -56,8 +57,8 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false } = {}) {
-  if (evaluatorAttachment && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment } = {}) {
+  if ((evaluatorAttachment || liveAttachment !== undefined) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest;
   let stopped = false;
@@ -155,6 +156,17 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       if (ownedTurns && /^\/[a-z][a-z-]*\.mjs(?:\?|$)/.test(request.url)) {
         try { gate.assertDelivery(); if (request.url.includes('?')) throw new Error('GRAPH_REFUSED'); }
         catch { response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return; }
+        if (liveAttachment === 'refuse' && request.url === '/entry.mjs') {
+          // Exercise the actual client hook, then own its refusal response before
+          // middleware-mode Vite can consume the error into a generic error page.
+          try { await vite.environments.client.transformRequest(request.url); }
+          catch (error) {
+            response.statusCode = 409;
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ code: error.code === 'EVALUATED_INPUT_REFUSED' ? error.code : 'GRAPH_REFUSED' }));
+            return;
+          }
+        }
       }
       if (ownedTurns) {
         try {
@@ -173,12 +185,13 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
         response.end(JSON.stringify({ value }));
       } catch (error) {
         response.statusCode = 409;
-        response.end(JSON.stringify({ code: ownedTurns && error.code === 'GENERATION_CLOSED' ? error.code : 'GRAPH_REFUSED' }));
+        response.end(JSON.stringify({ code: ownedTurns && ['GENERATION_CLOSED', 'EVALUATED_INPUT_REFUSED'].includes(error.code) ? error.code : 'GRAPH_REFUSED' }));
       }
     })(); });
     vite = await createServer({ root, configFile: false, envFile: false, logLevel: 'silent',
       plugins: [gate, replaylock({ dev: true })],
       optimizeDeps: { noDiscovery: true }, server: { middlewareMode: { server: host }, watch: null } });
+    if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment);
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
     const deadline = Date.now() + 10000;
     while (!manifest && Date.now() < deadline) {

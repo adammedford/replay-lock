@@ -1,5 +1,9 @@
 # #127: ordinary verifier attachment controls
 
+Follow-up: [actual live-host attachment controls](constrained-import-live-attachment-results.md)
+complete another attachment prerequisite. The results and limits below describe
+this earlier replay-only pin, not the later live slice or full byte qualification.
+
 Status: retained partial attachment feasibility, not transformed-byte qualification
 or complete G1B. Baseline `8f9ae72746c822e04cb3606850737fea91a10a6f`.
 The user approved evaluation of the fixed pinned recipe/private attachment

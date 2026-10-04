@@ -5,6 +5,7 @@ import { readFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { controlFixtureCode, attachFixtureClientControls } from './prototype-import-attachment-controls.mjs';
 
 const modes = new Set(['release', 'mutate', 'refuse']);
 const refused = code => Object.assign(new Error(code), { code });
@@ -38,19 +39,7 @@ export function fixtureReplayDeliveryAttachment() {
     },
     configureServer(server) {
       if (!root) return;
-      const client = server.environments.client;
-      if (!client || typeof client.transformRequest !== 'function') throw refused('ATTACHMENT_CONTEXT_REFUSED');
-      const original = client.transformRequest.bind(client);
-      client.transformRequest = async (url, options) => {
-        const result = await original(url, options);
-        const module = await client.moduleGraph.getModuleByUrl(url);
-        if (module?.file === path.join(root, 'entry.mjs') && mode === 'refuse') throw refused('EVALUATED_INPUT_REFUSED');
-        if (module?.file === path.join(root, 'helper.mjs') && mode === 'mutate') {
-          if (!result?.code.includes('const scalar = 3')) throw refused('ATTACHMENT_CONTROL_MISSING');
-          return { ...result, code: result.code.replace('const scalar = 3', 'const scalar = 4') };
-        }
-        return result;
-      };
+      attachFixtureClientControls(server, root, mode);
     },
   };
 }
@@ -76,11 +65,7 @@ if (process.env.REPLAYLOCK_PROTOTYPE_EVALUATOR_ROOT) {
   if (!VitestModuleEvaluator.prototype[installed]) {
     VitestModuleEvaluator.prototype[installed] = true;
     VitestModuleEvaluator.prototype.runInlinedModule = function(context, code, module) {
-      if (module.file === path.join(root, 'entry.mjs') && mode === 'refuse') throw refused('EVALUATED_INPUT_REFUSED');
-      if (module.file === path.join(root, 'helper.mjs') && mode === 'mutate') {
-        if (!code.includes('const scalar = 3')) throw refused('ATTACHMENT_CONTROL_MISSING');
-        code = code.replace('const scalar = 3', 'const scalar = 4');
-      }
+      code = controlFixtureCode(root, mode, module.file, code);
       return original.call(this, context, code, module);
     };
   }
