@@ -9,7 +9,7 @@ candidate. This first slice follows the attachment-first sequence in
 ## What ran
 
 Two new acceptance tests use the existing owned fixture and ordinary CLI verifier.
-Each naturally records result7 through HTTP or a real Chromium button, inspects
+Each naturally records result 7 through HTTP or a real Chromium button, inspects
 the actual complete pending candidate, explicitly reviews it and runs normal
 isolated verification. No observations are fabricated or negatively accepted.
 The generated Browser Mode fixture config is fixed before recording; controls do
@@ -19,12 +19,12 @@ For each reviewed case, three private replay controls use the unchanged CLI:
 
 | Control | Ordinary isolated Node | Ordinary Browser Mode |
 | --- | --- | --- |
-| Release unchanged output | exit0, verifies result7 | exit0, verifies result7 |
-| Mutate helper's literal3 to4 after transformation | exit1, OUTPUT_MISMATCH | exit1, OUTPUT_MISMATCH |
-| Refuse entry representation | exit2, EVALUATED_INPUT_REFUSED, no OUTPUT_MISMATCH | exit2, EVALUATED_INPUT_REFUSED, no OUTPUT_MISMATCH |
+| Release unchanged output | exit 0, verifies result 7 | exit 0, verifies result 7 |
+| Mutate helper's literal 3 to 4 after transformation | exit 1, OUTPUT_MISMATCH | exit 1, OUTPUT_MISMATCH |
+| Refuse entry representation | exit 2, EVALUATED_INPUT_REFUSED, no OUTPUT_MISMATCH | exit 2, EVALUATED_INPUT_REFUSED, no OUTPUT_MISMATCH |
 
 Both mutation tests first went red against an unattached/no-op control: the
-verifier still exited0 instead of observing the mutation. They pass after actual
+verifier still exited 0 instead of observing the mutation. They pass after actual
 attachment. Mutation deliberately reaches unchecked evaluation and produces an
 ordinary mismatch; this independently establishes reachability, **not prevention**.
 Explicit refusal is a separate mode, not a qualified-output mutation detector.
@@ -36,8 +36,8 @@ runInlinedModule in the ordinary CLI and its isolated descendants. It neither
 replaces the verifier nor changes dependency files or the parent process. The
 private internal evaluator source is SHA256-pinned to
 `a0b36fb2211d2587d8df68d5855d48141be27e99bdb973378a83f927e03b004e`.
-The preload and client hook check Vite8.2.2, Vitest4.1.11 and
-@vitest/browser4.1.11 metadata. These checks are compatibility guards, not a
+The preload and client hook check Vite 8.2.2, Vitest 4.1.11 and
+@vitest/browser 4.1.11 metadata. These checks are compatibility guards, not a
 trusted complete transform inventory or atomic package identity proof.
 
 The fixed fixture config attaches only in test mode with an explicit private
@@ -51,9 +51,9 @@ does not cover native imports, builtin shortcuts, mocked/cache paths or every
 transport route.
 
 The launcher admits only the fixed synthetic fixture root/name, refuses inherited
-NODE_OPTIONS, bounds captured diagnostics to1MiB and kills its own process group
-after45seconds on this POSIX host. Windows child-only cleanup is unverified;
-neither mechanism is a malicious-process sandbox. Test ceilings remain60000ms.
+NODE_OPTIONS, bounds captured diagnostics to 1 MiB and kills its own process group
+after 45 seconds on this POSIX host. Windows child-only cleanup is unverified;
+neither mechanism is a malicious-process sandbox. Test ceilings remain 60000ms.
 
 ## Limits and next work
 
@@ -75,6 +75,26 @@ limitation remains unresolved, not an unchanged-baseline claim.
 
 ## Verification
 
-Focused Node and Chromium control tests passed after their recorded red controls.
-Final single-file/full-suite/typecheck and independent review results will be
-recorded after they complete; prior full-suite evidence is not reused as current.
+Runtime implementation pin: `fab1073e69354999c0d3c49b1be25840e03656a7`.
+Node 22.19.0/npm 11.5.2 with a writable fixture cache:
+
+- Focused Node/Chromium attachment controls: 2/2 passed after recorded red controls.
+- Entire owned-turn acceptance file: 8/8 passed, with 60000ms test ceilings.
+- `npm run typecheck`: passed. JavaScript prototypes are not TypeScript-checked.
+- Full unweakened `npm run verify`: exit 0, verification suite passed, including
+  runner/coverage regressions, package contract, packed consumer and all locked
+  acceptance files with serial browser execution. No tests/manifests were removed.
+- `git diff --check`: passed.
+
+Post-full-suite driver recheck of both attachment controls: 2/2 passed. Runtime
+and test sources remain byte-identical to the reviewed implementation pin.
+
+Independent four-pass Standards review of `8f9ae72...fab1073`: zero actionable
+findings. Independent four-pass Spec review: zero actionable mismatches for this
+attachment-only slice; full recipe and both-host execution-route proof remain
+unmet. Driver reread both reports and the critical attachment boundaries. These
+are source reviews, not independent runtime/native-effect qualification.
+
+Primary main remains clean at `0867957626ba7a0869fe1fa2753ec311afee60d0`.
+No application/config/dependency restoration or execution, production PR/merge,
+effect relaxation, public API or persisted profile/schema change occurred.
