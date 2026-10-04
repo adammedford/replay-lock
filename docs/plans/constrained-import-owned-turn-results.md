@@ -73,6 +73,22 @@ token, and completion transport errors settle the trusted UI independently.
 Both reviewers confirmed the findings resolved, with no remaining actionable
 findings in this slice. Their review does not certify complete G1B feasibility.
 
+## Verification and retention
+
+Runtime implementation is retained at `e617957a02f815addb0de0c4a254b18fc6457732`;
+review corrections at `a8949970b40b5992155a96d63cfdcfc47db45d0a`, on
+`prototype/constrained-import-admission`. Node22.19.0/npm11.5.2 with a writable
+temporary npm cache: owned-turn checks4/4, `npm run typecheck`, `git diff --check`
+and the full unweakened `npm run verify` all passed. The full verification includes
+runner regressions, package contract, packed consumer, every locked acceptance
+file and the serial browser pass. Existing60000ms per-test ceilings were unchanged.
+
+Main remains clean at `0867957626ba7a0869fe1fa2753ec311afee60d0`; the pinned
+application remains at `8473afd804b66dba6a23f317908dc35d1535e90d` with its same
+pre-existing dirty paths. Its Noble SHA3 file hash remains
+`8741330184fd2af27d8805e400888060294ac1e31e7b7038e5347c31e1bb33ca`.
+These checks do not establish application eligibility or complete G1B.
+
 ## Remaining proof obligations
 
 This owner binds **authored** bytes, not final Vite/Vitest/browser evaluated bytes.
