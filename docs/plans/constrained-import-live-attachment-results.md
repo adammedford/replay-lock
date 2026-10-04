@@ -99,6 +99,29 @@ revalidation limitation remains unresolved, not an unchanged-baseline claim.
 
 ## Verification
 
-Focused live Node and Chromium controls pass after their observed red controls.
-Final current single-file/full-suite/typecheck and independent reviews will be
-recorded on completion; historical full-suite runs do not qualify this revision.
+Runtime/test pin: `224cd5d`. Node 22.19.0/npm 11.5.2 with the writable fixture cache:
+
+- Complete owned-turn file: 10/10 passed during implementation.
+- Current focused live/replay attachment controls: 4/4 passed after shared-control
+  and test cleanup; both new live tests retain 60000ms ceilings.
+- `npm run typecheck`: passed. JavaScript prototypes are not TypeScript-checked.
+- Full unweakened `npm run verify`: exit 0, verification suite passed, including
+  coverage/runner regressions, package contract, packed consumer and all locked
+  acceptance files with serial browser execution. No test/manifest was removed.
+- `git diff --check`: passed.
+
+Post-full-suite driver recheck of both new live controls: 2/2 passed. Results are
+local to this POSIX checkout; Windows/path portability is not independently
+qualified. No hosted CI pass is claimed: CI runs for main pushes and PRs, not this
+retained prototype push, and no production PR was created.
+
+Independent four-pass Standards review of `5a82ee5...224cd5d`: zero documented-
+standard violations or actionable smell findings. Independent four-pass Spec
+review: zero actionable mismatches for the bounded live attachment prerequisite.
+Both explicitly leave the larger execution-route and G1B proof incomplete. Driver
+reread both reports and actual Vite assignment, evaluator and cleanup paths;
+these source reviews do not independently certify runtime/native-effect coverage.
+
+Primary main remains clean at `0867957626ba7a0869fe1fa2753ec311afee60d0`.
+Runtime/test files remain unchanged since the reviewed pin. No pinned application
+inspection/restoration/execution or dependency/public API/artifact edit occurred.
