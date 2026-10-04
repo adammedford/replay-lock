@@ -8,6 +8,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'vite';
 import { replaylock } from '../dist/vite-plugin.js';
 import { placementDependencies, qualifyPlacementSources } from './prototype-import-placement.mjs';
+import { fixtureGenerationGate } from './prototype-import-generation.mjs';
 
 const library = fileURLToPath(new URL('../', import.meta.url));
 const source = 'import { scalar } from "./helper.mjs"; export function result() { return scalar + 4; }';
@@ -55,7 +56,7 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow() {
+export async function startImportWorkflow({ ownedTurns = false } = {}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest;
   let stopped = false;
@@ -92,28 +93,78 @@ export async function startImportWorkflow() {
     await writeFile(path.join(root, 'entry.mjs'), source);
     await writeFile(path.join(root, 'helper.mjs'), 'export const scalar = 3;');
     // Fixed trusted UI infrastructure, outside the application entry closure.
+    const begin = ownedTurns ? `const admission = await fetch('/__fixture_generation/begin', {method:'POST'});
+          const body = await admission.json();
+          if (!admission.ok) throw new Error(body.code);
+          turn = body.token;` : '';
+    const finish = ownedTurns ? `if (turn) {
+            const response = await fetch('/__fixture_generation/finish', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:turn})});
+            if (!response.ok) { output.textContent='HOST_FAILURE'; output.dataset.refused='true'; }
+          }` : '';
     await writeFile(path.join(root, 'index.html'), `<!doctype html><button>Run synthetic graph</button><output></output>
       <script type="module">
         document.querySelector('button').onclick = async () => {
+          ${ownedTurns ? `
+          const output = document.querySelector('output');
+          delete output.dataset.settled; delete output.dataset.refused; output.textContent='';
+          let turn;
+          try {
+            ${begin}
+            const application = await import('/entry.mjs');
+            output.textContent = String(application.result());
+          } catch (error) { output.textContent = error.message; output.dataset.refused='true'; }
+          finally { ${finish} output.dataset.settled='true'; }
+          ` : `
           const application = await import('/entry.mjs');
           const output = document.querySelector('output');
           output.textContent = String(application.result()); output.dataset.settled='true';
+          `}
         };
       </script>`);
-    const gateModule = pathToFileURL(fileURLToPath(import.meta.url)).href;
-    const configuration = `import { fixtureImportGate } from ${JSON.stringify(gateModule)};
-      export default {plugins:[fixtureImportGate()]};`;
+    const gateModule = ownedTurns ? new URL('./prototype-import-generation.mjs', import.meta.url).href : pathToFileURL(fileURLToPath(import.meta.url)).href;
+    const factory = ownedTurns ? 'fixtureGenerationGate' : 'fixtureImportGate';
+    const configuration = `import { ${factory} } from ${JSON.stringify(gateModule)};
+      export default {plugins:[${factory}()]};`;
     await writeFile(path.join(root, 'vite.config.mjs'), configuration);
+    const gate = ownedTurns ? fixtureGenerationGate() : fixtureImportGate();
     host = createHttpServer((request, response) => { void (async () => {
+      if (ownedTurns && request.url.startsWith('/__fixture_generation/')) {
+        try {
+          if (request.method !== 'POST') throw new Error('TURN_INVALID');
+          let body;
+          if (request.url === '/__fixture_generation/begin') body = {token:await gate.beginTurn()};
+          else if (request.url === '/__fixture_generation/finish') {
+            let input = '';
+            for await (const chunk of request) { input += chunk; if (Buffer.byteLength(input) > 256) throw new Error('TURN_INVALID'); }
+            await gate.finishTurn(JSON.parse(input).token); body = {finished:true};
+          } else throw new Error('TURN_INVALID');
+          response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(body));
+        } catch (error) {
+          response.statusCode = 409;
+          response.end(JSON.stringify({code:['GENERATION_CLOSED','TURN_BUSY','TURN_INVALID'].includes(error.code) ? error.code : 'GRAPH_REFUSED'}));
+        }
+        return;
+      }
+      if (ownedTurns && /^\/[a-z][a-z-]*\.mjs(?:\?|$)/.test(request.url)) {
+        try { gate.assertDelivery(); if (request.url.includes('?')) throw new Error('GRAPH_REFUSED'); }
+        catch { response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return; }
+      }
       if (request.url !== '/invoke') { vite.middlewares(request, response, () => { response.statusCode = 404; response.end(); }); return; }
       try {
-        const application = await vite.ssrLoadModule('/entry.mjs');
+        const invoke = async () => {
+          const application = await vite.ssrLoadModule('/entry.mjs');
+          return application.result();
+        };
+        const value = ownedTurns ? await gate.dispatch(invoke) : await invoke();
         response.setHeader('Content-Type', 'application/json');
-        response.end(JSON.stringify({ value: application.result() }));
-      } catch { response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); }
+        response.end(JSON.stringify({ value }));
+      } catch (error) {
+        response.statusCode = 409;
+        response.end(JSON.stringify({ code: ownedTurns && error.code === 'GENERATION_CLOSED' ? error.code : 'GRAPH_REFUSED' }));
+      }
     })(); });
     vite = await createServer({ root, configFile: false, envFile: false, logLevel: 'silent',
-      plugins: [fixtureImportGate(), replaylock({ dev: true })],
+      plugins: [gate, replaylock({ dev: true })],
       optimizeDeps: { noDiscovery: true }, server: { middlewareMode: { server: host }, watch: null } });
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
     const deadline = Date.now() + 10000;

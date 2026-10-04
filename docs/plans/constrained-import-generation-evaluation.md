@@ -5,6 +5,12 @@ approved evaluating this replacement placement on2026-10-03. No new adapter code
 client protocol, production loader interface, profile or artifact change has been
 implemented. This is not a completed runtime feasibility result.
 
+Subsequent amendment on2026-10-03: the user accepted operation-boundary immutable
+turns. An admitted call may finish if files change mid-call; detected drift blocks
+subsequent calls until a fresh generation. Effect permissions and artifact rules
+are unchanged. The alternatives below retain the original design reasoning, not
+a claim that the timing choice is still awaiting approval.
+
 The [load-only experiment](constrained-import-cache-results.md) already showed
 stale execution in warm Node and Chromium generations, including a fresh page
 served by a warm server. Three independent four-pass designs below agree that

@@ -1,6 +1,6 @@
 # Evaluate all-or-nothing constrained import admission
 
-**Approval gate:** the user approved research and an acceptance spec only. No prototype or production implementation is authorized. A ready-for-agent label denotes spec completeness, not permission to bypass this gate. Parent decision: [#123](https://github.com/adammedford/replay-lock/issues/123). Read the [repository research](constrained-import-research.md) and [platform evidence](constrained-import-platform-research.md) first.
+**Approval history:** the user subsequently approved the retained non-production evaluation and, on2026-10-03, accepted operation-boundary immutable turns: an admitted call may finish on its qualified snapshot after a mid-call edit; detected drift makes the generation terminal before another owner-mediated call, which requires fresh qualification/hosts. This timing amendment does not relax effect permissions, authorize production delivery, change artifacts or establish runtime feasibility. Earlier immediate-invalidation wording below must be read with this amendment. Parent decision: [#123](https://github.com/adammedford/replay-lock/issues/123). Read the [repository research](constrained-import-research.md) and [platform evidence](constrained-import-platform-research.md) first.
 
 ## Problem Statement
 
