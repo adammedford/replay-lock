@@ -8,7 +8,7 @@ import { placementDependencies, qualifyPlacementSources } from './prototype-impo
 const failure = code => Object.assign(new Error(code), { code });
 const identity = value => [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(':');
 
-export function fixtureGenerationGate() {
+export function fixtureGenerationGate({ analysisCurrent } = {}) {
   let root, snapshot, active, replay, closed = false, finishing = false;
   async function readInput(name) {
     const filename = path.join(root, name);
@@ -34,6 +34,7 @@ export function fixtureGenerationGate() {
     } finally { await handle.close(); }
   }
   async function current() {
+    if (analysisCurrent && !analysisCurrent()) return false;
     for (const [name, original] of snapshot) {
       const input = await readInput(name);
       if (input.text !== original.text || input.identity !== original.identity) return false;

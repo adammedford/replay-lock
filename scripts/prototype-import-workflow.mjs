@@ -57,10 +57,10 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment } = {}) {
-  if ((evaluatorAttachment || liveAttachment !== undefined) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false } = {}) {
+  if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
-  let vite, host, manifest;
+  let vite, host, manifest, analysisOwner;
   let stopped = false;
   async function control(operation) {
     const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: 'POST',
@@ -85,7 +85,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
     }
   })();
   const close = async () => {
-    try { await shutdown(); } finally { await rm(root, { recursive: true, force: true }); }
+    try { await shutdown(); } finally { analysisOwner?.release(); await rm(root, { recursive: true, force: true }); }
   };
   try {
     await mkdir(path.join(root, 'node_modules'));
@@ -134,7 +134,11 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       ${evaluatorAttachment ? `import { fixtureReplayDeliveryAttachment } from ${JSON.stringify(attachmentModule)};` : ''}
       export default {plugins:[${factory}()${evaluatorAttachment ? ',fixtureReplayDeliveryAttachment()' : ''}]};`;
     await writeFile(path.join(root, 'vite.config.mjs'), configuration);
-    const gate = ownedTurns ? fixtureGenerationGate() : fixtureImportGate();
+    if (sealedAnalysis) {
+      const { sealFixtureAnalysis } = await import('./prototype-import-analysis-bootstrap.mjs');
+      analysisOwner = sealFixtureAnalysis(root);
+    }
+    const gate = ownedTurns ? fixtureGenerationGate({ analysisCurrent: analysisOwner?.current }) : fixtureImportGate();
     host = createHttpServer((request, response) => { void (async () => {
       if (ownedTurns && request.url.startsWith('/__fixture_generation/')) {
         try {
