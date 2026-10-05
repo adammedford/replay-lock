@@ -88,7 +88,7 @@ function initial(realm = 'replay-node') {
   return { realm, phase: 'fresh', physical: { revision: 1, scalar: 3, safe: true },
     checkedRevision: null, snapshot: null, reference: null, actual: null,
     hostRecipe: 1, outputChanged: false, unknownRoute: false, admitted: false,
-    latched: false, starts: 0, result: null, history: [],
+    latched: false, refusalReason: null, starts: 0, result: null, history: [],
     message: 'Fresh realm. Check physical source before retaining any authority.' };
 }
 // Illustrative representations only: this shared builder is NOT an independent
@@ -106,7 +106,7 @@ function reduce(state, action) {
   if (action.type === 'reset') return initial(action.realm ?? state.realm);
   let next = { ...state, history: [...state.history, action.type] };
   const report = message => ({ ...next, message });
-  const refuse = message => ({ ...next, phase: 'closed', latched: true, admitted: false, message });
+  const refuse = message => ({ ...next, phase: 'closed', latched: true, refusalReason: message, admitted: false, message });
   if (state.latched) return report('Refusal stays latched. No action can restore authority; start a fresh realm.');
   switch (action.type) {
     case 'edit':
@@ -180,6 +180,8 @@ const labels = { check: 'Check physical source', seal: 'Retain source view', pre
 const scenarios = [
   { name: 'Clean release', text: 'Follow the normal order. No modeled application starts until the last comparison permits release.',
     actions: ['check', 'seal', 'prepare', 'admit', 'compare', 'release'] },
+  { name: 'Warm reuse', text: 'An unchanged retained generation can admit a second turn. Both turns independently pass the final release comparison; real module-cache identity is not demonstrated here.',
+    actions: ['check', 'seal', 'prepare', 'admit', 'release', 'admit', 'release'] },
   { name: 'Late output change', text: 'First compare successfully. Then change the host code before release. The final boundary must reject the stale success.',
     actions: ['check', 'seal', 'prepare', 'admit', 'compare', 'mutate', 'release'] },
   { name: 'Swallowed refusal', text: 'An unknown input closes the realm. Ignoring its error must not permit a later application start.',
@@ -217,9 +219,11 @@ function render() {
     'Host recipe': 'toy-recipe-' + state.hostRecipe,
     'Turn admitted': state.admitted ? 'yes' : 'no',
     'Refusal latched': state.latched ? 'yes — fresh realm required' : 'no',
+    'First refusal': state.refusalReason ?? 'none',
     'Host code changed': state.outputChanged ? 'yes' : 'no',
     'Unowned route requested': state.unknownRoute ? 'yes' : 'no',
-    'Outputs match now': state.reference && state.actual ? (outputMatches(state) ? 'yes — release still rechecks' : 'no') : 'not comparable yet',
+    'Outputs match now': state.reference && state.actual ? (outputMatches(state)
+      ? (state.latched ? 'yes — refusal still blocks release' : 'yes — release still rechecks') : 'no') : 'not comparable yet',
     'Modeled application starts': state.starts + ' (no real application runs)',
     'Modeled last result': state.result ?? 'none',
     'Actions in this realm': state.history.length ? state.history.map(type => labels[type] ?? type).join(' → ') : 'none',
