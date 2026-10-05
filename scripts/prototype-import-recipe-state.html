@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Throwaway prototype · ReplayLock admission state</title>
+<style>
+  :root { font: 16px/1.5 system-ui, sans-serif; color: #202a37; background: #f6f7fa; }
+  body { max-width: 1060px; margin: 32px auto; padding: 0 20px 40px; }
+  h1 { font-size: 1.8rem; margin-bottom: 8px; } h2 { font-size: 1.15rem; }
+  p { max-width: 88ch; } .tag { color: #345bbb; font-size: .8rem; font-weight: 700; }
+  section { background: white; border: 1px solid #dde2eb; border-radius: 10px; padding: 20px; margin-top: 20px; }
+  button { font: inherit; padding: 8px 12px; border: 1px solid #b9c5db; border-radius: 6px; background: white; color: #254b9c; cursor: pointer; }
+  button:hover, button[aria-selected="true"] { background: #eaf0ff; }
+  button:focus-visible { outline: 3px solid #345bbb; outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  dl { display: grid; grid-template-columns: minmax(150px, 1fr) 2fr; gap: 8px 18px; margin-bottom: 0; }
+  dt { color: #586476; } dd { margin: 0; overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; background: #f6f7fa; padding: 12px; }
+  .notice { border-left: 3px solid #345bbb; padding-left: 12px; }
+  .small { font-size: .88rem; color: #586476; }
+  ol { padding-left: 24px; } li { margin: 9px 0; }
+  @media (max-width: 550px) { dl { grid-template-columns: 1fr; gap: 3px; } dd { margin-bottom: 9px; } }
+</style>
+<body>
+<div class="tag">THROWAWAY LOGIC PROTOTYPE · #127 · NOT A SAFETY PROOF</div>
+<h1>When may the application start?</h1>
+<p>Question: does this proposed admission state model make an unexpected host-output
+change or a swallowed refusal terminal before application start? Explore a retained
+source view, a prepared reference and a last-moment comparison across live/replay
+Node and browser realms.</p>
+<p class="notice">Assumption: this is a <strong>simulation of the proposed rules</strong>,
+not the real compiler or a connected ReplayLock host. Both representations are toy
+strings built here; they do not prove independent reference construction, complete
+input ownership, final wire-byte control or effect prevention. No application runs,
+recordings are made or observations accepted. Production decisions remain open.</p>
+
+<section aria-labelledby="state-title">
+  <h2 id="state-title">Current state</h2>
+  <p id="message" role="status" aria-live="polite"></p>
+  <dl id="state"></dl>
+  <h3>Prepared reference — retained, not copied from host output</h3>
+  <pre id="reference"></pre>
+  <h3>Modeled host output — checked again at release</h3>
+  <pre id="actual"></pre>
+</section>
+
+<section aria-labelledby="free-title">
+  <h2 id="free-title">Free play</h2>
+  <p class="small">Choose a realm to start fresh. All action buttons stay available;
+  illegal ordering explains why it cannot proceed. Physical checks stand for live
+  qualification or replay safety preflight, not actual execution of either.</p>
+  <div class="buttons" id="realms" aria-label="Start a fresh realm"></div>
+  <h3>Try any order</h3>
+  <div class="buttons" id="actions"></div>
+</section>
+
+<section aria-labelledby="guide-title">
+  <h2 id="guide-title">Guided walkthroughs</h2>
+  <div class="buttons" id="tabs" role="tablist" aria-label="Scenarios"></div>
+  <div id="guide" role="tabpanel" tabindex="0">
+    <p id="description"></p>
+    <ol id="steps"></ol>
+    <p id="guide-status" class="small"></p>
+  </div>
+</section>
+
+<section>
+  <h2>What this helps decide</h2>
+  <p>Which ordering is understandable? Should a failed proof remain terminal? Does
+  an admitted retained turn finish after a physical edit while the next turn closes?
+  Try comparing first, then changing the output and attempting release.</p>
+  <p class="small">A later physical preflight cannot silently use sealed logical
+  stats. A new realm resets all authority. The existing fixture's early
+  <code>GRAPH_REFUSED</code> versus required <code>REPLAY_SAFETY_REGRESSION</code>
+  diagnostic is not resolved by this model. Actual Node/Chromium evidence is still
+  required. This file has no dependencies, network requests or persistent storage;
+  open it directly in a browser.</p>
+</section>
+
+<script>
+// Portable pure state model. No DOM, real application calls or filesystem reads.
+const realmNames = {
+  'live-node': 'Live Node', 'live-browser': 'Live browser',
+  'replay-node': 'Replay Node', 'replay-browser': 'Replay browser',
+};
+function initial(realm = 'replay-node') {
+  return { realm, phase: 'fresh', physical: { revision: 1, scalar: 3, safe: true },
+    checkedRevision: null, snapshot: null, reference: null, actual: null,
+    hostRecipe: 1, outputChanged: false, unknownRoute: false, admitted: false,
+    latched: false, starts: 0, result: null, history: [],
+    message: 'Fresh realm. Check physical source before retaining any authority.' };
+}
+// Illustrative representations only: this shared builder is NOT an independent
+// production recipe. Its equality exercise answers state ordering, not feasibility.
+function representation(snapshot, realm, recipe) {
+  return { realm, recipe: 'toy-recipe-' + recipe, runtime: 'fixed-fixture-runtime',
+    identity: '/entry.mjs', map: 'toy-map:entry-and-helper',
+    code: 'helper.scalar=' + snapshot.scalar + '; result=scalar+4;' };
+}
+function outputMatches(state) {
+  return state.actual && state.reference && !state.unknownRoute
+    && Object.keys(state.reference).every(key => state.reference[key] === state.actual[key]);
+}
+function reduce(state, action) {
+  if (action.type === 'reset') return initial(action.realm ?? state.realm);
+  let next = { ...state, history: [...state.history, action.type] };
+  const report = message => ({ ...next, message });
+  const refuse = message => ({ ...next, phase: 'closed', latched: true, admitted: false, message });
+  if (state.latched) return report('Refusal stays latched. No action can restore authority; start a fresh realm.');
+  switch (action.type) {
+    case 'edit':
+      next.physical = { ...state.physical, revision: state.physical.revision + 1,
+        scalar: state.physical.scalar === 3 ? 4 : 3 };
+      return report(state.admitted
+        ? 'Physical source changed. This admitted turn retains its old view; the next admission will close.'
+        : 'Physical source changed. Existing qualification cannot authorize a new physical generation.');
+    case 'unsafe':
+      next.physical = { ...state.physical, revision: state.physical.revision + 1, safe: false };
+      return report('Modeled physical source now has an unsafe initializer. Nothing is executed.');
+    case 'check':
+      if (state.snapshot) return refuse('LATER_PREFLIGHT_REFUSED: a physical check cannot run against a sealed view.');
+      if (!state.physical.safe) return refuse('PHYSICAL_SOURCE_REFUSED: unsafe source cannot acquire authority. Diagnostic is illustrative.');
+      next.checkedRevision = state.physical.revision; next.phase = 'checked';
+      return report('Current physical source qualified in the model. No application has started.');
+    case 'seal':
+      if (state.phase !== 'checked') return report('Check physical source first. An existing snapshot cannot be replaced in this realm.');
+      if (state.checkedRevision !== state.physical.revision) return refuse('SOURCE_DRIFT_REFUSED: source changed between physical check and sealing.');
+      next.snapshot = { ...state.physical }; next.phase = 'sealed';
+      return report('Retained one source generation. Later analysis reads are modeled as closed inputs.');
+    case 'prepare':
+      if (state.phase !== 'sealed') return report('Retain a qualified source view before preparing the reference.');
+      next.reference = representation(state.snapshot, state.realm, 1); next.phase = 'prepared';
+      return report('Prepared a toy realm-specific reference before host delivery. Real recipe independence is unproved.');
+    case 'admit':
+      if (!['prepared', 'released'].includes(state.phase)) return report('Prepare a reference first; finish the current admitted turn before requesting another.');
+      if (state.physical.revision !== state.snapshot.revision) return refuse('GENERATION_CLOSED: a new turn cannot use authority from before a physical edit.');
+      next.actual = representation(state.snapshot, state.realm, state.hostRecipe);
+      if (state.outputChanged) next.actual.code += ' late-change:+5';
+      next.admitted = true; next.phase = 'admitted';
+      return report('Admitted one retained turn. Host output exists, but modeled application start is still withheld.');
+    case 'mutate':
+      if (!state.admitted) return report('Admit a turn first so there is host output to change.');
+      next.actual = { ...state.actual, code: state.actual.code + ' late-change:+5' };
+      next.outputChanged = true;
+      return report('Host code changed after preparation or comparison. Earlier equality is not release authority.');
+    case 'recipe':
+      next.hostRecipe = state.hostRecipe + 1;
+      if (state.actual) next.actual = { ...state.actual, recipe: 'toy-recipe-' + next.hostRecipe };
+      return report('Host recipe identity changed. A prepared reference still binds the original identity.');
+    case 'route':
+      if (!state.admitted) return report('Admit a turn first to change its delivery route.');
+      next.unknownRoute = true;
+      return refuse('UNKNOWN_ROUTE_REFUSED: an unowned native/cache/delivery shortcut cannot borrow this proof.');
+    case 'unknown':
+      return refuse('UNKNOWN_INPUT_REFUSED: an analysis read outside the retained inventory closes the realm.');
+    case 'ignore':
+      return report('Ignoring an error cannot grant proof. After a refusal, only a fresh realm may proceed.');
+    case 'compare':
+      if (!state.admitted) return report('Admit a turn before comparing its modeled host output.');
+      if (!outputMatches(state)) return refuse('OUTPUT_DRIFT_REFUSED: code, map, realm or recipe differs from the prepared reference.');
+      next.phase = 'compared';
+      return report('Comparison matches now. Release must compare again; a late change still invalidates it.');
+    case 'release':
+      if (!state.admitted) return report('No admitted turn can be released. Check, retain, prepare and admit first.');
+      if (!outputMatches(state)) return refuse('OUTPUT_DRIFT_REFUSED at release: a stale comparison cannot allow application start.');
+      next.phase = 'released'; next.admitted = false; next.starts = state.starts + 1;
+      next.result = state.snapshot.scalar + 4;
+      return report('Modeled application start allowed after the final comparison. This is a counter in the demo, not real execution.');
+    default: return report('Unknown action; no authority granted.');
+  }
+}
+
+// Thin throwaway page shell. All state decisions stay above this line.
+const labels = { check: 'Check physical source', seal: 'Retain source view', prepare: 'Prepare reference',
+  admit: 'Admit a turn', compare: 'Compare host output', release: 'Try application start',
+  edit: 'Edit physical source', unsafe: 'Make initializer unsafe', mutate: 'Change host code',
+  recipe: 'Change host recipe', unknown: 'Read unknown analysis input', route: 'Use unowned route',
+  ignore: 'Ignore the refusal', reset: 'Start fresh' };
+const scenarios = [
+  { name: 'Clean release', text: 'Follow the normal order. No modeled application starts until the last comparison permits release.',
+    actions: ['check', 'seal', 'prepare', 'admit', 'compare', 'release'] },
+  { name: 'Late output change', text: 'First compare successfully. Then change the host code before release. The final boundary must reject the stale success.',
+    actions: ['check', 'seal', 'prepare', 'admit', 'compare', 'mutate', 'release'] },
+  { name: 'Swallowed refusal', text: 'An unknown input closes the realm. Ignoring its error must not permit a later application start.',
+    actions: ['check', 'seal', 'prepare', 'admit', 'unknown', 'ignore', 'release'] },
+  { name: 'Physical drift', text: 'Change source after the physical check but before sealing. The old check cannot authorize the new revision.',
+    actions: ['check', 'edit', 'seal', 'release'] },
+  { name: 'Retained turn', text: 'Edit disk during an admitted turn. The retained old view may finish; requesting another turn then closes the generation.',
+    actions: ['check', 'seal', 'prepare', 'admit', 'edit', 'release', 'admit'] },
+  { name: 'Later preflight', text: 'Once inputs are sealed, another physical preflight must refuse rather than quietly examine retained stats.',
+    actions: ['check', 'seal', 'prepare', 'check', 'ignore', 'admit'] },
+];
+let state = initial(), selected = 0, step = 0;
+const button = (label, run) => {
+  const element = document.createElement('button'); element.textContent = label;
+  element.type = 'button'; element.onclick = run; return element;
+};
+for (const [realm, name] of Object.entries(realmNames)) {
+  document.querySelector('#realms').append(button(name, () => { state = initial(realm); step = 0; render(); }));
+}
+for (const [type, label] of Object.entries(labels)) {
+  document.querySelector('#actions').append(button(label, () => { state = reduce(state, { type }); step = null; render(); }));
+}
+scenarios.forEach((scenario, index) => {
+  const tab = button(scenario.name, () => { selected = index; step = 0; state = initial(state.realm); render(); });
+  tab.id = 'scenario-' + index; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', 'guide');
+  document.querySelector('#tabs').append(tab);
+});
+function render() {
+  document.querySelector('#message').textContent = state.message;
+  const fields = {
+    'Realm': realmNames[state.realm], 'Phase': state.phase,
+    'Physical source': 'revision ' + state.physical.revision + ', scalar ' + state.physical.scalar + ', ' + (state.physical.safe ? 'safe in this model' : 'unsafe initializer'),
+    'Physical check revision': state.checkedRevision ?? 'not checked',
+    'Retained source view': state.snapshot ? 'revision ' + state.snapshot.revision + ', scalar ' + state.snapshot.scalar + ', safe ' + state.snapshot.safe : 'none',
+    'Host recipe': 'toy-recipe-' + state.hostRecipe,
+    'Turn admitted': state.admitted ? 'yes' : 'no',
+    'Refusal latched': state.latched ? 'yes — fresh realm required' : 'no',
+    'Host code changed': state.outputChanged ? 'yes' : 'no',
+    'Unowned route requested': state.unknownRoute ? 'yes' : 'no',
+    'Outputs match now': state.reference && state.actual ? (outputMatches(state) ? 'yes — release still rechecks' : 'no') : 'not comparable yet',
+    'Modeled application starts': state.starts + ' (no real application runs)',
+    'Modeled last result': state.result ?? 'none',
+    'Actions in this realm': state.history.length ? state.history.map(type => labels[type] ?? type).join(' → ') : 'none',
+  };
+  const panel = document.querySelector('#state'); panel.replaceChildren();
+  for (const [label, value] of Object.entries(fields)) {
+    const term = document.createElement('dt'), detail = document.createElement('dd');
+    term.textContent = label; detail.textContent = value; panel.append(term, detail);
+  }
+  for (const field of ['reference', 'actual']) {
+    document.querySelector('#' + field).textContent = state[field]
+      ? Object.entries(state[field]).map(([key, value]) => key + ': ' + value).join('\n') : 'Not prepared.';
+  }
+  const scenario = scenarios[selected];
+  document.querySelector('#description').textContent = scenario.text;
+  document.querySelector('#guide').setAttribute('aria-labelledby', 'scenario-' + selected);
+  document.querySelectorAll('[role="tab"]').forEach((tab, index) => tab.setAttribute('aria-selected', String(index === selected)));
+  const steps = document.querySelector('#steps'); steps.replaceChildren();
+  scenario.actions.forEach((type, index) => {
+    const item = document.createElement('li');
+    const action = button(labels[type], () => { state = reduce(state, { type }); step = index + 1; render(); });
+    action.disabled = step !== index; item.append(action); steps.append(item);
+  });
+  document.querySelector('#guide-status').textContent = step === null
+    ? 'Free play changed the flow. Select a walkthrough tab to restart from a known state.'
+    : step === scenario.actions.length ? 'Walkthrough complete. Select any tab to restart, or explore free play.'
+    : 'Next: step ' + (step + 1) + ' of ' + scenario.actions.length + '. Selecting a tab resets the realm.';
+}
+render();
+</script>
+</body>
+</html>
