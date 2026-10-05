@@ -76,3 +76,23 @@ public negative runtime probe. No new eligible application callables are claimed
 
 #106 remains open and #107 blocked. No public API, schema, profile, effect-policy
 change, pinned application edits/execution, production PR or merge is selected.
+
+## Verification and independent review
+
+Implementation `df4120018ef3d3e9328e4025666fbc46210b0e95` passed the unchanged
+`npm run verify` on Node22.19.0/npm11.5.2, including runner/coverage tooling,
+package contract, packed consumer and the full locked acceptance suite with serial
+browser files. Final `npm run typecheck` exited 0 (it does not typecheck the private
+JavaScript scripts). Post-full focused file passed 2/2: browser test 11178ms and
+Node test 6275ms, both below the unchanged 60000ms per-test ceiling.
+`git diff --check` passed. No hosted CI pass is claimed.
+
+Separate independent four-pass Standards and Spec reviews of `d51956f...df41200`
+found zero actionable findings in this scoped slice. The driver reread their
+critical source evidence, including TypeScript6.0.3's `usesWildcardTypes` and
+`getAutomaticTypeDirectiveNames`: with the fixed compiler options, automatic type
+discovery does not activate inherited directory probes. This installed-source
+check is not a complete transitive implementation pin or future-version guarantee.
+The seven local slice/review gates are manually assessed evidence, not machine
+certification of runtime safety. The incomplete pinned application was untouched;
+main remained clean at `0867957626ba7a0869fe1fa2753ec311afee60d0`.
