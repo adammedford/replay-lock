@@ -85,5 +85,37 @@ startup refusal alone do not satisfy those obligations. No new eligibility gain
 or full G1B success is claimed. #106 remains open; #107 remains blocked.
 
 No pinned application restoration/edit/execution, effect relaxation, package
-exception, production PR or merge is selected. Verification results will be
-appended after unchanged full verification and independent two-axis review.
+exception, production PR or merge is selected.
+
+## Verification and independent review
+
+Implementation `585b7b7126c9e56b1556fc2256bb13d2d5fe9fa0` passed the unchanged
+`npm run verify` with Node22.19.0/npm11.5.2, including coverage/runner regressions,
+package contract, packed consumer and the complete locked acceptance suite with
+serial browser files. No test was removed, ceiling changed or floor weakened.
+Final `npm run typecheck` passed; it excludes these private JavaScript scripts.
+Separate `node --check` syntax checks passed for all seven changed/new scripts.
+The four rebuilt analyzer/cache/transform/verifier SHA-256 pins were remeasured
+and matched. This is selected-module identity, not a full transitive audit.
+
+Post-full focused acceptance rerun passed 4/4: live browser 11112ms, replay Node
+7467ms, replay browser 8138ms, live Node 6294ms (rounded). Each is below its
+unchanged 60000ms ceiling. Node's initial ignored-option red and browser's
+disabled-preload red both failed at the expected successful-verification versus
+refusal assertion; the restored mechanism passed. The earlier invalid diagnostic
+expectations were discarded, documented and left as a handoff, not proof.
+
+Independent four-pass Standards and Spec reviews of `da44483...585b7b7` each
+reported zero actionable findings for this bounded prerequisite. The driver
+reread their concrete source evidence: the awaited physical preflight placement,
+one-way phase/latches, fresh capture and grammar qualification, shared live view
+compatibility, ordinary natural workflows and diagnostic limits. Review ledgers
+are manual assessments, not machine certification of runtime safety; parent
+manual re-verification executed no runnable gate oracles. The original C2
+diagnostic gate is abandoned with the explicit handoff above. Full G1B remains
+unmet, regardless of this slice's passing tests.
+
+`git diff --check` passed. Primary main remained clean at
+`0867957626ba7a0869fe1fa2753ec311afee60d0`; the pinned application was untouched.
+No hosted CI pass is claimed. These results are local POSIX evidence, not a
+Windows or earlier-Node-patch compatibility claim.
