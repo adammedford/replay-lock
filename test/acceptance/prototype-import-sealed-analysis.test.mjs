@@ -5,6 +5,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { openFirstRecordingPage } from '../helpers/import-workflow.mjs';
 import { command } from '../helpers/dev-fixture.mjs';
+import { verifyAttached } from '../../scripts/prototype-import-evaluator-attachment.mjs';
 // Must precede the ordinary host's dynamic import and its analysis-client import.
 await import('../../scripts/prototype-import-analysis-bootstrap.mjs');
 const { startImportWorkflow } = await import('../../scripts/prototype-import-workflow.mjs');
@@ -57,6 +58,88 @@ test('sealed live analysis records an admitted browser turn after drift and refu
     assert.deepEqual(candidate.trace, []);
     assert.equal(candidate.provenance.sourceGraphDigest, expectedDigest);
     // The drifted turn is inspected but never reviewed or accepted.
+  } finally { await browser?.close(); await workflow.close(); }
+});
+
+test('ordinary Node replay seals only after physical preflight and preserves unsafe source refusal', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  try {
+    const response = await fetch(`${workflow.url}/invoke`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { value: 7 });
+    await workflow.waitForObservation();
+    await workflow.stop();
+    const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+    const names = await readdir(directory);
+    assert.equal(names.length, 1);
+    const candidate = JSON.parse(await readFile(path.join(directory, names[0]), 'utf8'));
+    assert.equal(candidate.environment, 'node');
+    assert.equal(candidate.provenance.captureStatus, 'complete');
+    assert.deepEqual(candidate.locator, { module: 'entry.mjs', kind: 'export', namePath: ['result'] });
+    assert.deepEqual(candidate.arguments, { kind: 'array', items: [] });
+    assert.deepEqual(candidate.completion, { kind: 'return', value: { kind: 'number', value: 7 } });
+    assert.deepEqual(candidate.trace, []);
+    const reviewed = await command(workflow.root, ['review'], 'a\n');
+    assert.equal(reviewed.status, 0, reviewed.output);
+    const released = await verifyAttached(workflow.root, 'release', { analysisMode: 'release' });
+    assert.equal(released.status, 0, released.output);
+    const refused = await verifyAttached(workflow.root, 'release', { analysisMode: 'refuse' });
+    assert.equal(refused.status, 2, refused.output);
+    assert.match(refused.output, /REPLAY_ANALYSIS_REFUSED/);
+    assert.equal(refused.output.includes('OUTPUT_MISMATCH'), false);
+    await writeFile(path.join(workflow.root, 'helper.mjs'), 'export const scalar = 3; console.log("UNSAFE_INITIALIZER");');
+    const unsafe = await verifyAttached(workflow.root, 'release', { analysisMode: 'refuse' });
+    assert.equal(unsafe.status, 2, unsafe.output);
+    assert.match(unsafe.output, /GRAPH_REFUSED/);
+    assert.equal(unsafe.output.includes('REPLAY_ANALYSIS_REFUSED'), false);
+    assert.equal(unsafe.output.includes('UNSAFE_INITIALIZER'), false);
+    const originalUnsafe = await command(workflow.root, ['verify']);
+    assert.equal(originalUnsafe.status, 2, originalUnsafe.output);
+    assert.match(originalUnsafe.output, /GRAPH_REFUSED/);
+  } finally { await workflow.close(); }
+});
+
+test('ordinary browser replay uses post-preflight sealed analysis and preserves unsafe source refusal', { timeout: 60000 }, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await openFirstRecordingPage(page, workflow.url);
+    await page.locator('button').click();
+    await page.locator('output[data-settled]').waitFor({ timeout: 10000 });
+    assert.equal(await page.locator('output').textContent(), '7');
+    await workflow.waitForObservation();
+    await workflow.stop();
+    const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+    const names = await readdir(directory);
+    assert.equal(names.length, 1);
+    const candidate = JSON.parse(await readFile(path.join(directory, names[0]), 'utf8'));
+    assert.equal(candidate.environment, 'browser');
+    assert.equal(candidate.provenance.captureStatus, 'complete');
+    assert.deepEqual(candidate.locator, { module: 'entry.mjs', kind: 'export', namePath: ['result'] });
+    assert.deepEqual(candidate.arguments, { kind: 'array', items: [] });
+    assert.deepEqual(candidate.completion, { kind: 'return', value: { kind: 'number', value: 7 } });
+    assert.deepEqual(candidate.trace, []);
+    await browser.close(); browser = undefined;
+    await workflow.shutdown();
+    const reviewed = await command(workflow.root, ['review'], 'a\n');
+    assert.equal(reviewed.status, 0, reviewed.output);
+    const released = await verifyAttached(workflow.root, 'release', { analysisMode: 'release' });
+    assert.equal(released.status, 0, released.output);
+    const refused = await verifyAttached(workflow.root, 'release', { analysisMode: 'refuse' });
+    assert.equal(refused.status, 2, refused.output);
+    assert.match(refused.output, /REPLAY_ANALYSIS_REFUSED/);
+    assert.equal(refused.output.includes('OUTPUT_MISMATCH'), false);
+    await writeFile(path.join(workflow.root, 'helper.mjs'), 'export const scalar = 3; console.log("UNSAFE_INITIALIZER");');
+    const unsafe = await verifyAttached(workflow.root, 'release', { analysisMode: 'refuse' });
+    assert.equal(unsafe.status, 2, unsafe.output);
+    assert.match(unsafe.output, /GRAPH_REFUSED/);
+    assert.equal(unsafe.output.includes('REPLAY_ANALYSIS_REFUSED'), false);
+    assert.equal(unsafe.output.includes('UNSAFE_INITIALIZER'), false);
+    const originalUnsafe = await command(workflow.root, ['verify']);
+    assert.equal(originalUnsafe.status, 2, originalUnsafe.output);
+    assert.match(originalUnsafe.output, /GRAPH_REFUSED/);
   } finally { await browser?.close(); await workflow.close(); }
 });
 

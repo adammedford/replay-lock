@@ -42,9 +42,9 @@ function readInput(filename) {
   } finally { closeSync(descriptor); }
 }
 
-export function sealFixtureAnalysis(directory) {
+export function captureFixtureAnalysis(directory) {
   const root = realpathSync.native(directory);
-  if (!isMainThread || !clientInstalled || !path.basename(root).startsWith('replaylock-import-workflow-') || snapshots.has(root)
+  if (!path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(readInput(path.join(root, 'package.json')).text).name !== 'synthetic-import-workflow'
     || visible(root).join('\0') !== [...files, 'node_modules'].sort().join('\0')) throw failure();
   const records = [];
@@ -70,6 +70,14 @@ export function sealFixtureAnalysis(directory) {
     } catch { return false; }
   };
   if (!current()) throw failure();
+  return { snapshot, current };
+}
+
+export function sealFixtureAnalysis(directory) {
+  if (!isMainThread || !clientInstalled) throw failure();
+  const { snapshot, current } = captureFixtureAnalysis(directory);
+  const { root } = snapshot;
+  if (snapshots.has(root)) throw failure();
   snapshots.set(root, snapshot);
   return { current, release: () => snapshots.delete(root) };
 }

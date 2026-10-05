@@ -71,13 +71,17 @@ if (process.env.REPLAYLOCK_PROTOTYPE_EVALUATOR_ROOT) {
   }
 }
 
-export async function verifyAttached(root, mode) {
+export async function verifyAttached(root, mode, { analysisMode } = {}) {
   if (!modes.has(mode) || process.env.NODE_OPTIONS) throw refused('ATTACHMENT_OPTIONS_REFUSED');
+  if (analysisMode !== undefined && !['release', 'refuse'].includes(analysisMode)) throw refused('ATTACHMENT_OPTIONS_REFUSED');
   root = await fixtureRoot(root);
+  const analysisOptions = analysisMode === undefined ? ''
+    : `--import=${new URL('./prototype-import-replay-analysis-preload.mjs', import.meta.url).href} `;
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [fileURLToPath(new URL('../dist/cli.js', import.meta.url)), 'verify'], {
       cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32',
-      env: { ...process.env, NODE_OPTIONS: `--import=${import.meta.url}`,
+      env: { ...process.env, NODE_OPTIONS: `${analysisOptions}--import=${import.meta.url}`,
+        ...(analysisMode === undefined ? {} : { REPLAYLOCK_PROTOTYPE_ANALYSIS_ROOT: root, REPLAYLOCK_PROTOTYPE_ANALYSIS_MODE: analysisMode }),
         REPLAYLOCK_PROTOTYPE_EVALUATOR_ROOT: root, REPLAYLOCK_PROTOTYPE_EVALUATOR_MODE: mode },
     });
     const chunks = [];

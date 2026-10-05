@@ -65,6 +65,10 @@ per-test ceilings are unchanged.
 
 ## Remaining work
 
+The later [post-preflight replay slice](constrained-import-replay-analysis-results.md)
+adds a private replay phase experiment; the paragraphs below describe this
+original live-only implementation and its historical verification.
+
 Replay snapshot injection is intentionally not implemented here: an old snapshot
 must not mask current-source safety preflight. Ordinary replay of the unchanged
 reviewed positive is a compatibility result, not a sealed replay-input result.
