@@ -57,8 +57,9 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false } = {}) {
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis } = {}) {
   if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest, analysisOwner;
   let stopped = false;
@@ -207,6 +208,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       if (!manifest) await new Promise(resolve => setTimeout(resolve, 20));
     }
     if (!manifest) throw new Error('MANIFEST_TIMEOUT');
+    if (preparedAnalysis !== undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await control('start');
     return { root, url: `http://127.0.0.1:${host.address().port}`, stop, close, shutdown, waitForObservation };
   } catch (error) { await close(); throw error; }

@@ -16,6 +16,7 @@ const pins = new Map([
   ['dev-transform', '7cbee4185d385d8bc48376ed02649bc202c8595c1355fda54866078d84dc9675'],
 ].map(([name, digest]) => [new URL(`../dist/${name}.js`, import.meta.url).href, digest]));
 export const snapshots = new Map();
+export const references = new Map();
 const files = ['entry.mjs', 'helper.mjs', 'index.html', 'package.json', 'package-lock.json', 'vite.config.mjs'];
 const fields = ['dev', 'ino', 'mode', 'size', 'mtimeNs', 'ctimeNs'];
 const identity = stats => fields.map(key => stats[key]).join(':');
@@ -79,7 +80,15 @@ export function sealFixtureAnalysis(directory) {
   const { root } = snapshot;
   if (snapshots.has(root)) throw failure();
   snapshots.set(root, snapshot);
-  return { current, release: () => snapshots.delete(root) };
+  return { current,
+    async prepareNode(mode) {
+      if (!['release', 'mutate', 'unguarded-mutate'].includes(mode) || references.has(root) || !current()) throw failure();
+      const { prepareNodeReference } = await import('./prototype-import-reference.mjs');
+      const table = await prepareNodeReference(snapshot);
+      if (!current()) throw failure();
+      references.set(root, { table, mode });
+    },
+    release() { snapshots.delete(root); references.delete(root); } };
 }
 
 // Exact loaded-source pins guard this private rewriting, not the whole toolchain.
@@ -98,7 +107,9 @@ if (isMainThread || activeWorker) registerHooks({
     } else if (url.endsWith('/dev-analysis-worker.js')) {
       const marker = 'parentPort.postMessage({ id: request.id, result });';
       if (!code.includes(marker)) throw failure();
-      code = `import { assertSnapshot } from ${JSON.stringify(new URL('./prototype-import-analysis-fs.mjs', import.meta.url).href)};\n` + code.replace(marker, `assertSnapshot(); ${marker}`);
+      code = `import { assertSnapshot } from ${JSON.stringify(new URL('./prototype-import-analysis-fs.mjs', import.meta.url).href)};\n`
+        + `import { compareReference } from ${JSON.stringify(new URL('./prototype-import-reference-comparison.mjs', import.meta.url).href)};\n`
+        + code.replace(marker, 'assertSnapshot(); parentPort.postMessage({ id: request.id, result: compareReference(request, result) });');
     } else {
       if (!code.includes('from "node:fs"')) throw failure();
       code = code.replace('from "node:fs"', `from ${JSON.stringify(new URL('./prototype-import-analysis-fs.mjs', import.meta.url).href)}`);

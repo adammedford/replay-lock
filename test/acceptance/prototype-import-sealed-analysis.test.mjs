@@ -10,6 +10,41 @@ import { verifyAttached } from '../../scripts/prototype-import-evaluator-attachm
 await import('../../scripts/prototype-import-analysis-bootstrap.mjs');
 const { startImportWorkflow } = await import('../../scripts/prototype-import-workflow.mjs');
 
+test('prepared Node instrumentation refuses changed actual output but does not certify downstream delivery', { timeout: 60000 }, async () => {
+  for (const mode of ['unguarded-mutate', 'mutate', 'release', 'downstream-mutate']) {
+    const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true,
+      preparedAnalysis: mode === 'downstream-mutate' ? 'release' : mode,
+      ...(mode === 'downstream-mutate' ? { liveAttachment: 'mutate' } : {}) });
+    try {
+      const response = await fetch(`${workflow.url}/invoke`);
+      assert.equal(response.status, mode === 'mutate' ? 409 : 200);
+      assert.deepEqual(await response.json(), mode === 'mutate'
+        ? { code: 'GRAPH_REFUSED' } : { value: mode === 'release' ? 7 : 8 });
+      if (mode !== 'mutate') await workflow.waitForObservation();
+      await workflow.stop();
+      const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+      const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+      assert.equal(names.length, mode === 'mutate' ? 0 : 1);
+      if (mode !== 'mutate') {
+        const candidate = JSON.parse(await readFile(path.join(directory, names[0]), 'utf8'));
+        assert.equal(candidate.environment, 'node');
+        assert.equal(candidate.provenance.captureStatus, 'complete');
+        assert.deepEqual(candidate.locator, { module: 'entry.mjs', kind: 'export', namePath: ['result'] });
+        assert.deepEqual(candidate.arguments, { kind: 'array', items: [] });
+        assert.deepEqual(candidate.completion, { kind: 'return', value: { kind: 'number', value: mode === 'release' ? 7 : 8 } });
+        assert.deepEqual(candidate.trace, []);
+        if (mode === 'release') {
+          const reviewed = await command(workflow.root, ['review'], 'a\n');
+          assert.equal(reviewed.status, 0, reviewed.output);
+          const verified = await command(workflow.root, ['verify']);
+          assert.equal(verified.status, 0, verified.output);
+        }
+      }
+      // Neither mutated candidate is reviewed; downstream 8 is an exposed gap.
+    } finally { await workflow.close(); }
+  }
+});
+
 test('sealed live analysis records an admitted browser turn after drift and refuses the next turn', { timeout: 60000 }, async () => {
   const baseline = await startImportWorkflow({ ownedTurns: true });
   let expectedDigest;
