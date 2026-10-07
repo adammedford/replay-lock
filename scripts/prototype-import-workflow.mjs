@@ -62,6 +62,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
   if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest, analysisOwner;
+  let preparedReady = false;
   let stopped = false;
   async function control(operation) {
     const response = await fetch(`${manifest.url}__replaylock/${operation}`, { method: 'POST',
@@ -141,6 +142,10 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
     }
     const gate = ownedTurns ? fixtureGenerationGate({ analysisCurrent: analysisOwner?.current }) : fixtureImportGate();
     host = createHttpServer((request, response) => { void (async () => {
+      if (preparedAnalysis !== undefined && !preparedReady
+        && (request.url === '/invoke' || /^\/[a-z][a-z-]*\.mjs(?:\?|$)/.test(request.url))) {
+        response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return;
+      }
       if (ownedTurns && request.url.startsWith('/__fixture_generation/')) {
         try {
           if (request.method !== 'POST') throw new Error('TURN_INVALID');
@@ -197,6 +202,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       plugins: [gate, replaylock({ dev: true })],
       optimizeDeps: { noDiscovery: true }, server: { middlewareMode: { server: host }, watch: null } });
     if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment);
+    if (preparedAnalysis !== undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
     const deadline = Date.now() + 10000;
     while (!manifest && Date.now() < deadline) {
@@ -208,8 +214,8 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       if (!manifest) await new Promise(resolve => setTimeout(resolve, 20));
     }
     if (!manifest) throw new Error('MANIFEST_TIMEOUT');
-    if (preparedAnalysis !== undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await control('start');
+    preparedReady = true;
     return { root, url: `http://127.0.0.1:${host.address().port}`, stop, close, shutdown, waitForObservation };
   } catch (error) { await close(); throw error; }
 }
