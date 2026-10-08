@@ -14,7 +14,8 @@ test('prepared Node instrumentation refuses changed actual output but does not c
   for (const mode of ['unguarded-mutate', 'mutate', 'release', 'downstream-mutate']) {
     const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true,
       preparedAnalysis: mode === 'downstream-mutate' ? 'release' : mode,
-      ...(mode === 'downstream-mutate' ? { liveAttachment: 'mutate' } : {}) });
+      ...(['release', 'downstream-mutate'].includes(mode) ? { liveAttachment: mode === 'release' ? 'release' : 'mutate',
+        nativeRecipeIdentity: process.platform === 'darwin' && process.arch === 'arm64' } : {}) });
     try {
       const response = await fetch(`${workflow.url}/invoke`);
       assert.equal(response.status, mode === 'mutate' ? 409 : 200);
@@ -42,6 +43,28 @@ test('prepared Node instrumentation refuses changed actual output but does not c
       }
       // Neither mutated candidate is reviewed; downstream 8 is an exposed gap.
     } finally { await workflow.close(); }
+  }
+});
+
+test('native recipe acquisition refuses override selectors before the fixture opens admission', {
+  timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+}, async () => {
+  for (const [key, value] of [['NAPI_RS_NATIVE_LIBRARY_PATH', '/not-an-authorized-binding.node'],
+    ['NAPI_RS_FORCE_WASI', 'true'], ['NAPI_RS_WASI_FLAVOR', 'wasm32-wasi']]) {
+    const previous = process.env[key];
+    let unexpectedWorkflow;
+    try {
+      // Vite has already loaded its binding: cached selection must not bypass
+      // admission's environment refusal. No application HTTP request is made.
+      process.env[key] = value;
+      await assert.rejects(async () => {
+        unexpectedWorkflow = await startImportWorkflow({ ownedTurns: true, liveAttachment: 'release', nativeRecipeIdentity: true });
+      },
+        error => error.code === 'NATIVE_RECIPE_REFUSED');
+    } finally {
+      if (previous === undefined) delete process.env[key]; else process.env[key] = previous;
+      await unexpectedWorkflow?.close();
+    }
   }
 });
 

@@ -57,9 +57,10 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis } = {}) {
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis, nativeRecipeIdentity = false } = {}) {
   if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (typeof nativeRecipeIdentity !== 'boolean' || (nativeRecipeIdentity && (!ownedTurns || liveAttachment === undefined))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
   let vite, host, manifest, analysisOwner;
   let preparedReady = false;
@@ -201,6 +202,10 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
     vite = await createServer({ root, configFile: false, envFile: false, logLevel: 'silent',
       plugins: [gate, replaylock({ dev: true })],
       optimizeDeps: { noDiscovery: true }, server: { middlewareMode: { server: host }, watch: null } });
+    if (nativeRecipeIdentity) {
+      const { acquireFixtureNativeIdentity } = await import('./prototype-import-native-identity.mjs');
+      await acquireFixtureNativeIdentity(vite);
+    }
     if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment);
     if (preparedAnalysis !== undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
