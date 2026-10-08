@@ -47,6 +47,10 @@ array pipeline and known JS hook order, not a certified final native-inclusive
 transform order. Native applicability **and hook ordering** must be bound before
 using this as an executable recipe. [R3,R8,R22]
 
+Follow-up: [version-matched native source audit](constrained-import-native-recipe-research.md)
+narrows these two implementations' applicability/order conditions. It does not
+establish the selected running binary, enumerable JS hook set or final parity.
+
 ## Maps and executable representation
 
 1. Plugin-container accepts string or object returns and only pushes truthy maps
