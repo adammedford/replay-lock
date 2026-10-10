@@ -9,7 +9,7 @@ function freeze(value) {
   return value;
 }
 
-export async function prepareNodeReference(snapshot) {
+export async function prepareNodeReference(snapshot, finalNode = false) {
   const url = new URL('../dist/dev-options.js', import.meta.url);
   if (createHash('sha256').update(readFileSync(url)).digest('hex') !== 'ec26840491d70107a18ecc97bfef392830b0de3d8a762c4317a55de902938203') throw failure();
   const { resolveDevOptions } = await import(url.href);
@@ -19,7 +19,7 @@ export async function prepareNodeReference(snapshot) {
       resolveConditions: { node: ['module', 'node', 'development'], browser: ['module', 'browser', 'development'] } } };
   const worker = new Worker(new URL('./prototype-import-reference-worker.mjs', import.meta.url), {
     execArgv: [`--import=${new URL('./prototype-import-analysis-bootstrap.mjs', import.meta.url).href}`],
-    workerData: { root: snapshot.root, environment: 'node', replaylockPrototypeAnalysis: snapshot, referenceTuple: tuple },
+    workerData: { root: snapshot.root, environment: 'node', replaylockPrototypeAnalysis: snapshot, referenceTuple: tuple, finalNode },
   });
   let timer;
   try {

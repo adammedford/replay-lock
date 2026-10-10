@@ -81,12 +81,13 @@ export function sealFixtureAnalysis(directory) {
   if (snapshots.has(root)) throw failure();
   snapshots.set(root, snapshot);
   return { current,
-    async prepareNode(mode) {
+    async prepareNode(mode, finalNode = false) {
       if (!['release', 'mutate', 'unguarded-mutate'].includes(mode) || references.has(root) || !current()) throw failure();
       const { prepareNodeReference } = await import('./prototype-import-reference.mjs');
-      const table = await prepareNodeReference(snapshot);
+      const table = await prepareNodeReference(snapshot, finalNode);
       if (!current()) throw failure();
       references.set(root, { table, mode });
+      return table;
     },
     release() { snapshots.delete(root); references.delete(root); } };
 }

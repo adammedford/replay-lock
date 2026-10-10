@@ -46,6 +46,53 @@ test('prepared Node instrumentation refuses changed actual output but does not c
   }
 });
 
+test('final Node fixture comparison withholds the whole prepared closure and refuses identical late drift', {
+  timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+}, async () => {
+  for (const mode of ['unguarded-mutate', 'mutate', 'withheld-mutate', 'release']) {
+    const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true, preparedAnalysis: 'release',
+      nativeRecipeIdentity: true, finalNode: mode,
+      liveAttachment: ['mutate', 'unguarded-mutate'].includes(mode) ? 'mutate' : 'release' });
+    try {
+      const response = await fetch(`${workflow.url}/invoke`);
+      const rejected = ['mutate', 'withheld-mutate'].includes(mode);
+      assert.equal(response.status, rejected ? 409 : 200);
+      assert.deepEqual(await response.json(), rejected ? { code: 'EVALUATED_INPUT_REFUSED' } : { value: mode === 'release' ? 7 : 8 });
+      if (!rejected) await workflow.waitForObservation();
+      // Warm namespace bypass is refused, rather than claimed to be validated.
+      if (!rejected) {
+        const warm = await fetch(`${workflow.url}/invoke`);
+        assert.equal(warm.status, 409);
+        assert.deepEqual(await warm.json(), { code: 'EVALUATED_INPUT_REFUSED' });
+      }
+      for (const url of ['/entry.mjs', `/@fs${workflow.root}/helper.mjs`, '/%65ntry.mjs', '/index.html']) {
+        const client = await fetch(workflow.url + url);
+        assert.equal(client.status, 409);
+        assert.deepEqual(await client.json(), { code: 'GRAPH_REFUSED' });
+      }
+      await workflow.stop();
+      const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+      const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+      assert.equal(names.length, rejected ? 0 : 1);
+      if (!rejected) {
+        const candidate = JSON.parse(await readFile(path.join(directory, names[0]), 'utf8'));
+        assert.equal(candidate.environment, 'node');
+        assert.equal(candidate.provenance.captureStatus, 'complete');
+        assert.deepEqual(candidate.locator, { module: 'entry.mjs', kind: 'export', namePath: ['result'] });
+        assert.deepEqual(candidate.arguments, { kind: 'array', items: [] });
+        assert.deepEqual(candidate.completion, { kind: 'return', value: { kind: 'number', value: mode === 'release' ? 7 : 8 } });
+        assert.deepEqual(candidate.trace, []);
+        if (mode === 'release') {
+          const reviewed = await command(workflow.root, ['review'], 'a\n');
+          assert.equal(reviewed.status, 0, reviewed.output);
+          const verified = await command(workflow.root, ['verify']);
+          assert.equal(verified.status, 0, verified.output);
+        }
+      }
+    } finally { await workflow.close(); }
+  }
+});
+
 test('native recipe acquisition refuses override selectors before the fixture opens admission', {
   timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
 }, async () => {

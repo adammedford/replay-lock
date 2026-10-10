@@ -57,12 +57,15 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis, nativeRecipeIdentity = false } = {}) {
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis, nativeRecipeIdentity = false, finalNode } = {}) {
   if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (typeof nativeRecipeIdentity !== 'boolean' || (nativeRecipeIdentity && (!ownedTurns || liveAttachment === undefined))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (finalNode !== undefined && (!['release', 'mutate', 'unguarded-mutate', 'withheld-mutate'].includes(finalNode)
+    || !nativeRecipeIdentity || preparedAnalysis !== 'release' || !sealedAnalysis
+    || liveAttachment !== (['mutate', 'unguarded-mutate'].includes(finalNode) ? 'mutate' : 'release'))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'replaylock-import-workflow-')));
-  let vite, host, manifest, analysisOwner;
+  let vite, host, manifest, analysisOwner, finalGuard;
   let preparedReady = false;
   let stopped = false;
   async function control(operation) {
@@ -143,6 +146,12 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
     }
     const gate = ownedTurns ? fixtureGenerationGate({ analysisCurrent: analysisOwner?.current }) : fixtureImportGate();
     host = createHttpServer((request, response) => { void (async () => {
+      // This slice owns only the Node /invoke route. Do not expose an unchecked
+      // client application route while claiming its Node closure was withheld.
+      if (finalNode !== undefined && request.url !== '/invoke'
+        && !/^\/__replaylock\/(?:start|stop|status)$/.test(request.url)) {
+        response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return;
+      }
       if (preparedAnalysis !== undefined && !preparedReady
         && (request.url === '/invoke' || /^\/[a-z][a-z-]*\.mjs(?:\?|$)/.test(request.url))) {
         response.statusCode = 409; response.end('{"code":"GRAPH_REFUSED"}'); return;
@@ -188,6 +197,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       if (request.url !== '/invoke') { vite.middlewares(request, response, () => { response.statusCode = 404; response.end(); }); return; }
       try {
         const invoke = async () => {
+          await finalGuard?.prepare(); // Entire actual application closure first.
           const application = await vite.ssrLoadModule('/entry.mjs');
           return application.result();
         };
@@ -206,8 +216,13 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       const { acquireFixtureNativeIdentity } = await import('./prototype-import-native-identity.mjs');
       await acquireFixtureNativeIdentity(vite);
     }
-    if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment);
-    if (preparedAnalysis !== undefined) await analysisOwner.prepareNode(preparedAnalysis);
+    if (finalNode !== undefined) {
+      const table = await analysisOwner.prepareNode(preparedAnalysis, true);
+      const { createFinalNodeFixtureGuard } = await import('./prototype-import-final-node-guard.mjs');
+      finalGuard = createFinalNodeFixtureGuard(vite, root, table, finalNode);
+    }
+    if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment, finalGuard);
+    if (preparedAnalysis !== undefined && finalNode === undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
     const deadline = Date.now() + 10000;
     while (!manifest && Date.now() < deadline) {

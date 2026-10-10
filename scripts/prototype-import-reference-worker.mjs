@@ -1,4 +1,4 @@
-// RETAINED #127: snapshot-only instrumentation, not executable qualification.
+// RETAINED #127: snapshot-only fixture preparation, not full qualification.
 import { parentPort, workerData } from 'node:worker_threads';
 import path from 'node:path';
 import { assertSnapshot } from './prototype-import-analysis-fs.mjs';
@@ -13,12 +13,17 @@ try {
     || placementDependencies(sources.get('/helper.mjs'), '/helper.mjs').length) throw new Error('REFERENCE_INPUT_REFUSED');
   // This worker receives no actual host cache, outputs, graph or namespace.
   const { transformDevSource } = await import('../dist/dev-transform.js');
-  const records = [...sources].map(([url, code]) => {
+  const finalAdapter = workerData.finalNode ? await import('./prototype-import-final-node-recipe.mjs') : undefined;
+  const finalRecipe = finalAdapter ? await finalAdapter.acquireFinalNodeRecipe() : undefined;
+  const records = [];
+  for (const [url, code] of sources) {
     const id = path.join(root, url.slice(1));
     const result = transformDevSource({ ...tuple, root, id, code });
     assertSnapshot();
-    return { id, authored: code, result: JSON.parse(JSON.stringify(result)) };
-  });
+    const record = { id, authored: code, result: JSON.parse(JSON.stringify(result)) };
+    if (finalAdapter) record.final = await finalAdapter.prepareFinalNodeRecord(finalRecipe, url, id, code, record.result);
+    records.push(record);
+  }
   assertSnapshot();
-  parentPort.postMessage({ tuple, records });
+  parentPort.postMessage({ tuple, records, ...(finalRecipe ? { finalRecipe } : {}) });
 } catch { parentPort.postMessage({ error: 'REFERENCE_INPUT_REFUSED' }); }

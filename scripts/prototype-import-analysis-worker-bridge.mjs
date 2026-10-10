@@ -4,6 +4,7 @@ import { snapshots, references } from './prototype-import-analysis-bootstrap.mjs
 export class Worker extends NativeWorker {
   constructor(filename, options) {
     const snapshot = snapshots.get(options?.workerData?.root);
+    const reference = snapshot && references.get(snapshot.root);
     if (snapshot) {
       if (!(filename instanceof URL) || filename.href !== new URL('../dist/dev-analysis-worker.js', import.meta.url).href
         || !['node', 'browser'].includes(options.workerData.environment)
@@ -11,7 +12,9 @@ export class Worker extends NativeWorker {
       options = { ...options, execArgv: [...options.execArgv, `--import=${new URL('./prototype-import-analysis-bootstrap.mjs', import.meta.url).href}`],
         workerData: { ...options.workerData, replaylockPrototypeAnalysis: snapshot,
           ...(options.workerData.environment === 'node' && references.has(snapshot.root)
-            ? { replaylockPrototypeReference: references.get(snapshot.root) } : {}) } };
+            ? { replaylockPrototypeReference: { mode: reference.mode,
+              table: { tuple: reference.table.tuple,
+                records: reference.table.records.map(({ id, authored, result }) => ({ id, authored, result })) } } } : {}) } };
     }
     super(filename, options);
   }

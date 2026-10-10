@@ -7,7 +7,7 @@ import { controlFixtureCode, attachFixtureClientControls } from './prototype-imp
 
 const refused = code => Object.assign(new Error(code), { code });
 
-export async function attachLiveFixtureControls(server, directory, mode) {
+export async function attachLiveFixtureControls(server, directory, mode, finalGuard) {
   const root = await realpath(directory);
   if (!['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
@@ -36,9 +36,19 @@ export async function attachLiveFixtureControls(server, directory, mode) {
       }
       if (retired || runner || typeof value?.evaluator?.runInlinedModule !== 'function') throw refused('ATTACHMENT_CONTEXT_REFUSED');
       const evaluator = value.evaluator;
+      if (finalGuard && evaluator.startOffset !== finalGuard.startOffset) throw refused('ATTACHMENT_CONTEXT_REFUSED');
+      if (finalGuard) {
+        if (typeof evaluator.runExternalModule !== 'function') throw refused('ATTACHMENT_CONTEXT_REFUSED');
+        const external = evaluator.runExternalModule;
+        evaluator.runExternalModule = function(filepath) {
+          finalGuard.external(filepath);
+          return external.call(this, filepath);
+        };
+      }
       const original = evaluator.runInlinedModule;
       evaluator.runInlinedModule = function(context, code, module) {
         code = controlFixtureCode(root, mode, module.meta?.file, code);
+        finalGuard?.compare(code, module); // After, never before, the late control.
         return original.call(this, context, code, module);
       };
       runner = value;
