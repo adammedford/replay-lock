@@ -89,7 +89,23 @@ restored immediately. These controls do not independently prove every metadata
 guard or general initialization-order equivalence; fixed demand order is enforced
 and source-reviewed, not a newly observed arbitrary-graph property.
 
-Final restored/regression/review evidence belongs in
+After the collection lifecycle repair, restored focused tests passed 2/2 with
+zero failures/skips: witness 11,456 ms; natural release 17,518 ms. Both independent
+Standards and Spec re-reviews found no remaining actionable findings. Direct
+typechecking and syntax checks for all five changed JavaScript files passed;
+typechecking does not cover these private JavaScript files.
+
+Unchanged full `npm run verify` exited zero on Node 22.19.0/npm 11.5.2,
+including tooling, package contract, packed consumer and locked acceptance with
+serial browser checks. Final direct typechecking also passed. No hosted CI claim.
+
+The subsequent standalone affected file passed 10/10, zero failures/skips, in
+132,435 ms aggregate. Staged witness: 11,105 ms; natural release: 17,863 ms.
+Every test retains the existing 60,000 ms ceiling. Final source audit confirms
+all three source refutations restored, no temporary logging, and clean/unchanged
+main at `0867957`. The four scoped manual gates are met, zero unmet/abandoned.
+
+Final regression evidence is retained in
 [the scoped ledger](constrained-import-staged-node-gates.md). Ordinary offline
 verify remains its unchanged adapter; it does not install this private live barrier.
 Other platforms refuse/skip the selected native recipe. Browser/replay final

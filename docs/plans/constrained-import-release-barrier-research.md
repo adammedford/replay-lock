@@ -1,5 +1,9 @@
 # #127: final Node release barrier source research
 
+Subsequent retained implementation: [fixed Node staged release results](constrained-import-staged-node-results.md).
+The source-only findings below remain historical; that continuation does not
+complete full G1B or qualify native/transitive execution.
+
 Research only, against checkout `aeec529912038c28aa78076f7f1974ea7c8a9479`. No fixture execution, installation, test, or release-barrier implementation was performed. This does not complete G1B.
 
 ## Answer
