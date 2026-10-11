@@ -40,11 +40,15 @@ Vite still supplies original exports, import metadata and imported-name checks.
 This no-edge helper restriction does not prove cycles, diamonds, re-exports,
 arbitrary initializers or general callstack semantics.
 
-Collection arrivals, ordinary import and cleanup settlement have private five-second
+Collection fetches/arrivals, ordinary import and cleanup settlement have private five-second
 supervisors; exhaustion is failure/refusal, not successful prevention. Refusal
 rejects every retained completion, settles request rejections and retires the
 transaction. Ordinary close still runs and clears its original runner. Warm
-invocations and alternate HTTP routes remain refused, not newly admitted.
+invocations and alternate HTTP routes remain refused, not newly admitted. Fetch
+completion rechecks runner bindings and collecting phase before retaining any node,
+so a completion after retirement cannot restart collection. Supervisors bound the
+caller/retained promises; they do not cancel arbitrary underlying host fetches or
+native operations.
 
 The immutable code strings are retained by closures over the original evaluator
 receiver/context/module. Descriptor/metadata checks do **not** freeze nested
@@ -75,7 +79,12 @@ candidates were never reviewed. All hosts close in `finally`.
 Temporarily removing only final code equality refuted the guarded witness case:
 the marker became reachable instead of typed refusal (exit one). Temporarily
 disabling helper demand activation refuted natural release: HTTP409 instead of200
-after bounded timeout, without hanging cleanup (exit one). Both controls were
+after bounded timeout, without hanging cleanup (exit one). Independent reviews
+identified an unsupervised collection fetch; it is now bounded and revalidates
+retirement before retaining a node. A temporary never-arriving helper-fetch control
+refuted the unchanged witness case with typed refusal instead of the marker in
+5,550 ms (exit one), without hanging cleanup. This public control tests transaction
+supervision, not cancellation of a real stalled host operation. All controls were
 restored immediately. These controls do not independently prove every metadata
 guard or general initialization-order equivalence; fixed demand order is enforced
 and source-reviewed, not a newly observed arbitrary-graph property.

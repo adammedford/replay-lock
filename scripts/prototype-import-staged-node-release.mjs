@@ -61,7 +61,9 @@ export function attachStagedNodeRelease(runner, declaration) {
   }
   async function collect(url, importer, id) {
     bindings();
-    const mod = await originals.fetch.call(runner, url, importer);
+    const mod = await bounded(originals.fetch.call(runner, url, importer));
+    bindings();
+    if (phase !== 'collecting') fail();
     if (mod.id !== id || mod.promise || mod.evaluated || records.has(id)) fail();
     if (id === runtimeId && !isDeepStrictEqual(mod.meta, { externalize: runtimeFile, type: 'module', url, id: runtimeFile })) fail();
     const record = { id, url, module: mod, meta: mod.meta, metadata: structuredClone(mod.meta),
