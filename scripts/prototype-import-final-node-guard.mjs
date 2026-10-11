@@ -28,6 +28,8 @@ export function createFinalNodeFixtureGuard(server, root, table, mode) {
   const equal = (value, expected) => isDeepStrictEqual(value, expected);
   return {
     startOffset: recipe.startOffset,
+    declaration: Object.freeze({ entry: path.join(root, 'entry.mjs'), helper: path.join(root, 'helper.mjs'),
+      runtimeURL: recipe.runtimeURL, runtimeFile: recipe.runtimeFile }),
     async prepare() {
       // Deliberately reject subsequent turns instead of trusting a namespace
       // cache path which can skip the evaluator. No warm-ownership claim.

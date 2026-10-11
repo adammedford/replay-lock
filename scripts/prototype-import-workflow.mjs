@@ -57,11 +57,12 @@ export function fixtureImportGate() {
   };
 }
 
-export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis, nativeRecipeIdentity = false, finalNode, evaluatorWitness = false } = {}) {
+export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachment = false, liveAttachment, sealedAnalysis = false, preparedAnalysis, nativeRecipeIdentity = false, finalNode, evaluatorWitness = false, stagedNode = false } = {}) {
   if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (typeof nativeRecipeIdentity !== 'boolean' || (nativeRecipeIdentity && (!ownedTurns || liveAttachment === undefined))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && finalNode === undefined)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (typeof stagedNode !== 'boolean' || (stagedNode && finalNode === undefined)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (finalNode !== undefined && (!['release', 'mutate', 'unguarded-mutate', 'withheld-mutate'].includes(finalNode)
     || !nativeRecipeIdentity || preparedAnalysis !== 'release' || !sealedAnalysis
     || liveAttachment !== (['mutate', 'unguarded-mutate'].includes(finalNode) ? 'mutate' : 'release'))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
@@ -223,7 +224,7 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
       const { createFinalNodeFixtureGuard } = await import('./prototype-import-final-node-guard.mjs');
       finalGuard = createFinalNodeFixtureGuard(vite, root, table, finalNode);
     }
-    if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment, finalGuard, evaluatorWitness);
+    if (liveAttachment !== undefined) await attachLiveFixtureControls(vite, root, liveAttachment, finalGuard, evaluatorWitness, stagedNode);
     if (preparedAnalysis !== undefined && finalNode === undefined) await analysisOwner.prepareNode(preparedAnalysis);
     await new Promise((resolve, reject) => { host.once('error', reject); host.listen(0, '127.0.0.1', resolve); });
     const deadline = Date.now() + 10000;

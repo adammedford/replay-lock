@@ -4,12 +4,14 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { controlFixtureCode, attachFixtureClientControls } from './prototype-import-attachment-controls.mjs';
+import { attachStagedNodeRelease } from './prototype-import-staged-node-release.mjs';
 
 const refused = code => Object.assign(new Error(code), { code });
 
-export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false) {
+export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false, stagedNode = false) {
   const root = await realpath(directory);
   if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && !finalGuard)
+    || typeof stagedNode !== 'boolean' || (stagedNode && !finalGuard)
     || !['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).name !== 'synthetic-import-workflow'
@@ -42,23 +44,25 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
       }
       if (retired || runner || typeof value?.evaluator?.runInlinedModule !== 'function') throw refused('ATTACHMENT_CONTEXT_REFUSED');
       const evaluator = value.evaluator;
+      let staged;
       if (finalGuard && evaluator.startOffset !== finalGuard.startOffset) throw refused('ATTACHMENT_CONTEXT_REFUSED');
       if (finalGuard) {
         if (typeof evaluator.runExternalModule !== 'function') throw refused('ATTACHMENT_CONTEXT_REFUSED');
         const external = evaluator.runExternalModule;
         evaluator.runExternalModule = function(filepath) {
           finalGuard.external(filepath);
-          beforeDelegation();
-          return external.call(this, filepath);
+          const delegate = () => { beforeDelegation(); return external.call(this, filepath); };
+          return staged ? staged.external(filepath, delegate) : delegate();
         };
       }
       const original = evaluator.runInlinedModule;
       evaluator.runInlinedModule = function(context, code, module) {
         code = controlFixtureCode(root, mode, module.meta?.file, code);
         finalGuard?.compare(code, module); // After, never before, the late control.
-        beforeDelegation();
-        return original.call(this, context, code, module);
+        const delegate = () => { beforeDelegation(); return original.call(this, context, code, module); };
+        return staged ? staged.inline(context, code, module, delegate) : delegate();
       };
+      if (stagedNode) staged = attachStagedNodeRelease(value, finalGuard.declaration);
       runner = value;
     },
   });
