@@ -7,9 +7,10 @@ import { controlFixtureCode, attachFixtureClientControls } from './prototype-imp
 
 const refused = code => Object.assign(new Error(code), { code });
 
-export async function attachLiveFixtureControls(server, directory, mode, finalGuard) {
+export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false) {
   const root = await realpath(directory);
-  if (!['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
+  if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && !finalGuard)
+    || !['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).name !== 'synthetic-import-workflow'
     || Object.hasOwn(server, '_ssrCompatModuleRunner')) throw refused('ATTACHMENT_CONTEXT_REFUSED');
@@ -24,6 +25,11 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
     if (createHash('sha256').update(bytes).digest('hex') !== expected) throw refused('ATTACHMENT_VERSION_REFUSED');
   }
   let runner, retired = false;
+  const beforeDelegation = () => {
+    // Approved isolated trusted-host control, not application initialization.
+    // No original evaluator is invoked in this mode and no case is reviewed.
+    if (evaluatorWitness) throw refused('SYNTHETIC_EVALUATOR_DELEGATE_REACHED');
+  };
   // Vite assigns its own runner synchronously before instantiateModule starts.
   // Capture that assignment, not a promise returned after import has begun.
   Object.defineProperty(server, '_ssrCompatModuleRunner', {
@@ -42,6 +48,7 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
         const external = evaluator.runExternalModule;
         evaluator.runExternalModule = function(filepath) {
           finalGuard.external(filepath);
+          beforeDelegation();
           return external.call(this, filepath);
         };
       }
@@ -49,6 +56,7 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
       evaluator.runInlinedModule = function(context, code, module) {
         code = controlFixtureCode(root, mode, module.meta?.file, code);
         finalGuard?.compare(code, module); // After, never before, the late control.
+        beforeDelegation();
         return original.call(this, context, code, module);
       };
       runner = value;

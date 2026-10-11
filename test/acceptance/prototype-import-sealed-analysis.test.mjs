@@ -93,6 +93,28 @@ test('final Node fixture comparison withholds the whole prepared closure and ref
   }
 });
 
+test('isolated HTTP delegate witness exposes entry release before the current lazy helper refusal', {
+  timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+}, async () => {
+  for (const mode of ['release', 'unguarded-mutate', 'mutate', 'withheld-mutate']) {
+    const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true, preparedAnalysis: 'release',
+      nativeRecipeIdentity: true, finalNode: mode, evaluatorWitness: true,
+      liveAttachment: ['mutate', 'unguarded-mutate'].includes(mode) ? 'mutate' : 'release' });
+    try {
+      const response = await fetch(`${workflow.url}/invoke`);
+      assert.equal(response.status, 409);
+      // In the guarded mutation case this proves the CURRENT gap, not a barrier:
+      // entry reaches delegation before helper's late comparison can refuse.
+      assert.deepEqual(await response.json(), { code: mode === 'withheld-mutate'
+        ? 'EVALUATED_INPUT_REFUSED' : 'SYNTHETIC_EVALUATOR_DELEGATE_REACHED' });
+      await workflow.stop();
+      const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+      const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+      assert.equal(names.length, 0);
+    } finally { await workflow.close(); }
+  }
+});
+
 test('native recipe acquisition refuses override selectors before the fixture opens admission', {
   timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
 }, async () => {
