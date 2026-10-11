@@ -39,9 +39,19 @@ unmodified experiments. Zero candidates alone is not used as a zero-evaluation
 oracle. The original late helper mutation was not moved upstream.
 
 The new public test first failed without marker implementation at HTTP200 versus
-409. Its first restored three-mode run passed in 16,786 ms under the unchanged
-60,000 ms ceiling; the final four-mode run and regression/review evidence belong
-in [the scoped ledger](constrained-import-delegate-witness-gates.md).
+409. Its first restored three-mode run passed in 16,786 ms; the final four-mode
+focused run passed in 22,303 ms under the unchanged 60,000 ms ceiling. Independent
+Standards and Spec reviews each found zero actionable findings within this
+marker-only scope. Regression evidence belongs in
+[the scoped ledger](constrained-import-delegate-witness-gates.md).
+
+Unchanged full `npm run verify` passed on Node22.19.0/npm11.5.2, including tooling,
+package contract, packed consumer and locked/serial-browser acceptance. The
+subsequent standalone affected file passed 8/8 with no skips/failures in 103,661 ms
+aggregate; its witness experiment took 22,237 ms. Each test retained the original
+60,000 ms ceiling. Final typecheck passed but excludes the private JavaScript;
+three changed JavaScript syntax checks and diff check passed. Four scoped manual
+evidence gates met, none unmet or abandoned; broader feasibility gates stay open.
 
 Next is the source-supported nonexecuting collection/demand-activation candidate
 in [release-barrier research](constrained-import-release-barrier-research.md),

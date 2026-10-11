@@ -84,3 +84,8 @@ Proposed human checkpoint: approve a **fixture-only evaluator-delegate witness**
 Driver independently reread the consequential collection, demand, evaluator, invalidation, lowering and workflow sources and remeasured both Vite hashes above on 2026-10-11. Node22.19.0/npm11.5.2 were checked without launching a fixture. Documentation-only diff checks passed; no runtime verification from the preceding commit is renewed by this research.
 
 The runtime entry's native-loaded/transitive qualification remains a distinct prerequisite for calling the **complete executable family** qualified. A bounded inline-family experiment may be useful even before that prerequisite, provided its report explicitly calls the observer a trusted, constrained external route rather than a sealed executable closure. Native/toolchain source and loaded-byte provenance, other platforms, browser/replay barriers, arbitrary graphs, and full G1B/C2 remain open.
+
+Follow-up: the user approved the fixture-only HTTP witness on 2026-10-11. Its
+[retained implementation and controls](constrained-import-delegate-witness-results.md)
+characterize the current lazy entry-release gap. This resolves the observable
+signal decision, not the staged barrier's runtime or semantic gates above.
