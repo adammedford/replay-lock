@@ -83,6 +83,18 @@ its existing 60,000 ms limit; aggregate time is not that per-test limit.
 
 Final unchanged full/affected regression and independent Standards/Spec evidence
 belongs in [the scoped manual ledger](constrained-import-helper-witness-gates.md).
+Independent read-only Standards and Spec reviews of `00b9da7...5c9e628` found
+zero actionable findings. Both checked the selective dispatch placement, preserved
+original delegation, duplicated startup safeguards and evidence limitations.
+Neither reviewer independently reran the runtime checks.
+The unchanged full `npm run verify` completed with exit zero: tooling and runner
+regressions, package contract, packed consumer and complete acceptance manifest.
+The standalone affected file then passed 16/16 with zero failures, skips or
+cancellations in 180,055 ms. Helper witness took 5,507 ms, admission policy below
+1 ms, and natural staged recording/review/verify 17,568 ms. Final typecheck, syntax
+checks of all three changed JavaScript files and diff check passed. All four
+scoped manual gates are met; none is abandoned. Main remains clean at
+`0867957626ba7a0869fe1fa2753ec311afee60d0`.
 Typecheck passed but excludes these private JavaScript files. Natural witness-off
 7/8/refusal, inspected explicit review and ordinary offline verification remain
 separate; the private live witness is not installed by offline replay.
