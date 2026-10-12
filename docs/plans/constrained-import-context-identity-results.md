@@ -54,7 +54,29 @@ only the old content comparison refuted the same replacement assertion in 5,997 
 This makes absence of marker falsifiable; zero candidates alone is not proof of
 no delegation, and marker reachability is not original/native execution evidence.
 
-Final regression and independent review evidence belongs in
+Restored focused staged tests passed 3/3, zero failures/skips, in 39,910 ms
+aggregate: original late-drift witness 11,035 ms; context replacement 10,989 ms;
+natural release/review/verify 17,495 ms. Direct typecheck and four changed-file
+JavaScript syntax checks passed. Typecheck excludes these private JavaScript files.
+Independent Standards and Spec source reviews each found zero actionable findings
+against `35b87d1...f615761`; they did not independently rerun runtime evidence.
+GitHub subsequently rejected publication because of commit email privacy. Only
+the two unpublished commits' email metadata was repaired using the account's
+no-reply identity, without changing global/repository settings or published
+history. Implementation is now `2db67ec`; its tree is identical to reviewed
+`f615761` at `8d834feda88717609300a3c22bc4cbdca6137fec`. Runtime source and
+test contents did not change, so this does not claim a new test execution.
+
+Unchanged full `npm run verify` exited zero on Node 22.19.0/npm 11.5.2, including
+tooling, package contract, packed consumer and locked acceptance with serial
+browser checks. Subsequent standalone affected file passed 11/11, zero
+failures/skips, in 141,694 ms aggregate: original late-drift witness 11,063 ms;
+context replacement 11,047 ms; natural release/review/verify 17,646 ms.
+Existing 60,000 ms per-test ceilings are unchanged. Final direct typecheck,
+four JavaScript syntax checks and diff check passed. No hosted CI claim.
+All four scoped manual gates are met, zero unmet/abandoned. Final source audit
+confirmed the temporary old-comparator refutation restored, no logging/bypass,
+and clean/unchanged main at `0867957`. Final evidence is retained in
 [the scoped manual ledger](constrained-import-context-identity-gates.md).
 Ordinary witness-off 7/8/refusal, inspected explicit review and offline verify
 remain separate. Native/transitive provenance, later-demand interference,

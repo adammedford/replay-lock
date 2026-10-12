@@ -1,5 +1,9 @@
 # #127: fixed Node staged release
 
+Follow-up: [retained context identity repair](constrained-import-context-identity-results.md)
+addresses equal-content replacement of a top-level context slot. The staging
+evidence below remains its original bounded record, not a general interference proof.
+
 Retained, non-production continuation of the
 [release-barrier design](constrained-import-release-barrier-research.md) and
 [approved delegate witness](constrained-import-delegate-witness-results.md), based
