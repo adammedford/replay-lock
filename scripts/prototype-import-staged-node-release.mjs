@@ -16,7 +16,16 @@ async function bounded(promise) {
   } finally { clearTimeout(timer); }
 }
 
-export function attachStagedNodeRelease(runner, declaration) {
+function sameContextDescriptors(context, expected) {
+  const actual = Object.getOwnPropertyDescriptors(context), keys = Reflect.ownKeys(expected);
+  return Reflect.ownKeys(actual).length === keys.length && keys.every(key => Object.hasOwn(actual, key)
+    && Reflect.ownKeys(actual[key]).length === Reflect.ownKeys(expected[key]).length
+    && Reflect.ownKeys(expected[key]).every(field => Object.hasOwn(actual[key], field)
+      && Object.is(actual[key][field], expected[key][field])));
+}
+
+export function attachStagedNodeRelease(runner, declaration, control) {
+  if (control !== undefined && control !== 'replace-entry-exports') throw refusal();
   const { entry, helper, runtimeURL, runtimeFile } = declaration;
   // Pinned EvaluatedModules normalizes file URLs to a path, while its fetched
   // metadata/native evaluator retain the URL. Reject encoded-path differences.
@@ -48,7 +57,7 @@ export function attachStagedNodeRelease(runner, declaration) {
       || mod.meta !== record.meta || !isDeepStrictEqual(mod.meta, record.metadata)
       || mod.promise !== record.nodePromise) fail();
     if (!record.started && (mod.evaluated || mod.exports !== record.exports)) fail();
-    if (record.context && !isDeepStrictEqual(Object.getOwnPropertyDescriptors(record.context), record.contextDescriptors)) fail();
+    if (record.context && !sameContextDescriptors(record.context, record.contextDescriptors)) fail();
   }
   function capture(record, delegate, context) {
     if (!record || phase !== 'collecting' || collecting !== record || record.delegate || typeof delegate !== 'function') fail();
@@ -86,6 +95,14 @@ export function attachStagedNodeRelease(runner, declaration) {
       await collect('/helper.mjs', entry, helper); // Declared helper has NO edges.
       await collect(runtimeURL, entry, runtimeId); // Route only; no native import.
       if (records.size !== 3 || collecting) fail();
+      if (control === 'replace-entry-exports') {
+        // Witness-only fixed host control. Pinned Vite constructs this context
+        // slot at module-runner.js:1264 and consumes it at :1021. No original
+        // evaluation may run with this substituted, equal-content object.
+        const context = records.get(entry).context;
+        const exports = context.__vite_ssr_exports__;
+        context.__vite_ssr_exports__ = Object.create(Object.getPrototypeOf(exports), Object.getOwnPropertyDescriptors(exports));
+      }
       for (const record of records.values()) current(record);
       phase = 'released';
       const result = await bounded(originals.import.call(runner, url));

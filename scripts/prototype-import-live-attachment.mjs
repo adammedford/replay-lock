@@ -8,10 +8,11 @@ import { attachStagedNodeRelease } from './prototype-import-staged-node-release.
 
 const refused = code => Object.assign(new Error(code), { code });
 
-export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false, stagedNode = false) {
+export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false, stagedNode = false, stagedControl) {
   const root = await realpath(directory);
   if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && !finalGuard)
     || typeof stagedNode !== 'boolean' || (stagedNode && !finalGuard)
+    || (stagedControl !== undefined && (stagedControl !== 'replace-entry-exports' || !stagedNode || !evaluatorWitness))
     || !['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).name !== 'synthetic-import-workflow'
@@ -62,7 +63,7 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
         const delegate = () => { beforeDelegation(); return original.call(this, context, code, module); };
         return staged ? staged.inline(context, code, module, delegate) : delegate();
       };
-      if (stagedNode) staged = attachStagedNodeRelease(value, finalGuard.declaration);
+      if (stagedNode) staged = attachStagedNodeRelease(value, finalGuard.declaration, stagedControl);
       runner = value;
     },
   });
