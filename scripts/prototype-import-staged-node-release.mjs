@@ -25,7 +25,7 @@ function sameContextDescriptors(context, expected) {
 }
 
 export function attachStagedNodeRelease(runner, declaration, control) {
-  if (control !== undefined && control !== 'replace-entry-exports') throw refusal();
+  if (control !== undefined && !['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(control)) throw refusal();
   const { entry, helper, runtimeURL, runtimeFile } = declaration;
   // Pinned EvaluatedModules normalizes file URLs to a path, while its fetched
   // metadata/native evaluator retain the URL. Reject encoded-path differences.
@@ -102,6 +102,19 @@ export function attachStagedNodeRelease(runner, declaration, control) {
         const context = records.get(entry).context;
         const exports = context.__vite_ssr_exports__;
         context.__vite_ssr_exports__ = Object.create(Object.getPrototypeOf(exports), Object.getOwnPropertyDescriptors(exports));
+      } else if (control === 'invalidate-helper') {
+        // Actual pinned runner invalidation, not a mutated reference copy.
+        runner.evaluatedModules.invalidateModule(records.get(helper).module);
+      } else if (control === 'replace-helper-metadata') {
+        const mod = records.get(helper).module;
+        mod.meta = structuredClone(mod.meta); // Equal payload, different owner.
+      } else if (control === 'replace-helper-node') {
+        const graph = runner.evaluatedModules, mod = records.get(helper).module;
+        const replacement = Object.create(Object.getPrototypeOf(mod), Object.getOwnPropertyDescriptors(mod));
+        graph.idToModuleMap.set(helper, replacement);
+        graph.urlToIdModuleMap.set('/helper.mjs', replacement);
+        const fileModules = graph.fileToModulesMap.get(mod.file);
+        fileModules.delete(mod); fileModules.add(replacement);
       }
       for (const record of records.values()) current(record);
       phase = 'released';

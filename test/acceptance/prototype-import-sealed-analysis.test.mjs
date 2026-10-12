@@ -155,6 +155,32 @@ test('staged Node refuses equal-content entry exports replacement before the rea
   }
 });
 
+for (const [scenario, probe] of [
+  ['invalidated helper state', 'invalidate-helper'],
+  ['equal-content helper metadata replacement', 'replace-helper-metadata'],
+  ['canonical helper node replacement', 'replace-helper-node'],
+]) {
+  test(`staged Node refuses ${scenario} before the reachable delegate witness`, {
+    timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+  }, async () => {
+    for (const stagedControl of [undefined, probe]) {
+      const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true, preparedAnalysis: 'release',
+        nativeRecipeIdentity: true, finalNode: 'release', stagedNode: true, evaluatorWitness: true,
+        liveAttachment: 'release', stagedControl });
+      try {
+        const response = await fetch(`${workflow.url}/invoke`);
+        assert.equal(response.status, 409);
+        assert.deepEqual(await response.json(), { code: stagedControl === undefined
+          ? 'SYNTHETIC_EVALUATOR_DELEGATE_REACHED' : 'EVALUATED_INPUT_REFUSED' });
+        await workflow.stop();
+        const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+        const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+        assert.equal(names.length, 0);
+      } finally { await workflow.close(); }
+    }
+  });
+}
+
 test('staged Node ordinary release preserves observed values, refusal and explicit reviewed verification', {
   timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
 }, async () => {

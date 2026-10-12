@@ -12,7 +12,7 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
   const root = await realpath(directory);
   if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && !finalGuard)
     || typeof stagedNode !== 'boolean' || (stagedNode && !finalGuard)
-    || (stagedControl !== undefined && (stagedControl !== 'replace-entry-exports' || !stagedNode || !evaluatorWitness))
+    || (stagedControl !== undefined && (!['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(stagedControl) || !stagedNode || !evaluatorWitness))
     || !['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).name !== 'synthetic-import-workflow'
