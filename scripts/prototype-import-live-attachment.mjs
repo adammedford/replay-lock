@@ -10,9 +10,10 @@ const refused = code => Object.assign(new Error(code), { code });
 
 export async function attachLiveFixtureControls(server, directory, mode, finalGuard, evaluatorWitness = false, stagedNode = false, stagedControl) {
   const root = await realpath(directory);
-  if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && !finalGuard)
+  if (![false, true, 'helper'].includes(evaluatorWitness) || (evaluatorWitness && !finalGuard)
+    || (evaluatorWitness === 'helper' && !stagedNode)
     || typeof stagedNode !== 'boolean' || (stagedNode && !finalGuard)
-    || (stagedControl !== undefined && (!['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(stagedControl) || !stagedNode || !evaluatorWitness))
+    || (stagedControl !== undefined && (!['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(stagedControl) || !stagedNode || evaluatorWitness !== true))
     || !['release', 'mutate', 'refuse'].includes(mode) || root !== await realpath(server.config.root)
     || !path.basename(root).startsWith('replaylock-import-workflow-')
     || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).name !== 'synthetic-import-workflow'
@@ -28,10 +29,13 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
     if (createHash('sha256').update(bytes).digest('hex') !== expected) throw refused('ATTACHMENT_VERSION_REFUSED');
   }
   let runner, retired = false;
-  const beforeDelegation = () => {
+  const beforeDelegation = id => {
     // Approved isolated trusted-host control, not application initialization.
-    // No original evaluator is invoked in this mode and no case is reviewed.
-    if (evaluatorWitness) throw refused('SYNTHETIC_EVALUATOR_DELEGATE_REACHED');
+    // true stops first dispatch; helper permits checked entry/observer prefix.
+    // Both witnesses stop before their selected original evaluator, no review.
+    if (evaluatorWitness === true || (evaluatorWitness === 'helper' && id === finalGuard.declaration.helper)) {
+      throw refused('SYNTHETIC_EVALUATOR_DELEGATE_REACHED');
+    }
   };
   // Vite assigns its own runner synchronously before instantiateModule starts.
   // Capture that assignment, not a promise returned after import has begun.
@@ -60,7 +64,7 @@ export async function attachLiveFixtureControls(server, directory, mode, finalGu
       evaluator.runInlinedModule = function(context, code, module) {
         code = controlFixtureCode(root, mode, module.meta?.file, code);
         finalGuard?.compare(code, module); // After, never before, the late control.
-        const delegate = () => { beforeDelegation(); return original.call(this, context, code, module); };
+        const delegate = () => { beforeDelegation(module.id); return original.call(this, context, code, module); };
         return staged ? staged.inline(context, code, module, delegate) : delegate();
       };
       if (stagedNode) staged = attachStagedNodeRelease(value, finalGuard.declaration, stagedControl);

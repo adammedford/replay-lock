@@ -135,6 +135,41 @@ test('staged Node release refuses late helper drift before the reachable delegat
   }
 });
 
+test('staged Node helper-only witness reaches the retained helper after checked prefix delegation', {
+  timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+}, async () => {
+  const workflow = await startImportWorkflow({ ownedTurns: true, sealedAnalysis: true, preparedAnalysis: 'release',
+    nativeRecipeIdentity: true, finalNode: 'release', stagedNode: true, evaluatorWitness: 'helper',
+    liveAttachment: 'release' });
+  try {
+    const response = await fetch(`${workflow.url}/invoke`);
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { code: 'SYNTHETIC_EVALUATOR_DELEGATE_REACHED' });
+    await workflow.stop();
+    const directory = path.join(workflow.root, '.replaylock/observations/pending-v2');
+    const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+    assert.equal(names.length, 0);
+  } finally { await workflow.close(); }
+});
+
+test('helper-only witness refuses corruption probes and unstaged placement before fixture admission', {
+  timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
+}, async () => {
+  const options = { ownedTurns: true, sealedAnalysis: true, preparedAnalysis: 'release',
+    nativeRecipeIdentity: true, finalNode: 'release', stagedNode: true, evaluatorWitness: 'helper', liveAttachment: 'release' };
+  for (const invalid of [
+    { stagedNode: false },
+    ...['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node']
+      .map(stagedControl => ({ stagedControl })),
+  ]) {
+    let workflow;
+    try {
+      await assert.rejects(async () => { workflow = await startImportWorkflow({ ...options, ...invalid }); },
+        /ATTACHMENT_CONTEXT_REFUSED/);
+    } finally { await workflow?.close(); }
+  }
+});
+
 test('staged Node refuses equal-content entry exports replacement before the reachable delegate witness', {
   timeout: 60000, skip: process.platform !== 'darwin' || process.arch !== 'arm64',
 }, async () => {

@@ -61,9 +61,10 @@ export async function startImportWorkflow({ ownedTurns = false, evaluatorAttachm
   if ((evaluatorAttachment || liveAttachment !== undefined || sealedAnalysis) && !ownedTurns) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (preparedAnalysis !== undefined && (!sealedAnalysis || !['release', 'mutate', 'unguarded-mutate'].includes(preparedAnalysis))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (typeof nativeRecipeIdentity !== 'boolean' || (nativeRecipeIdentity && (!ownedTurns || liveAttachment === undefined))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
-  if (typeof evaluatorWitness !== 'boolean' || (evaluatorWitness && finalNode === undefined)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (![false, true, 'helper'].includes(evaluatorWitness) || (evaluatorWitness && finalNode === undefined)
+    || (evaluatorWitness === 'helper' && !stagedNode)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (typeof stagedNode !== 'boolean' || (stagedNode && finalNode === undefined)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
-  if (stagedControl !== undefined && (!['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(stagedControl) || !stagedNode || !evaluatorWitness)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
+  if (stagedControl !== undefined && (!['replace-entry-exports', 'invalidate-helper', 'replace-helper-metadata', 'replace-helper-node'].includes(stagedControl) || !stagedNode || evaluatorWitness !== true)) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
   if (finalNode !== undefined && (!['release', 'mutate', 'unguarded-mutate', 'withheld-mutate'].includes(finalNode)
     || !nativeRecipeIdentity || preparedAnalysis !== 'release' || !sealedAnalysis
     || liveAttachment !== (['mutate', 'unguarded-mutate'].includes(finalNode) ? 'mutate' : 'release'))) throw new Error('ATTACHMENT_CONTEXT_REFUSED');
