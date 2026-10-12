@@ -71,8 +71,21 @@ zero failures/skips in 73,162 ms aggregate. New cases: invalidation 11,014 ms,
 metadata 11,016 ms, node 11,028 ms; natural release/review/verify 17,607 ms.
 Aggregate time is not the individual 60,000 ms ceiling.
 
-Final unchanged full regression, affected-file, typecheck, syntax and independent
-Standards/Spec review evidence belongs in [the manual ledger](constrained-import-prerelease-integrity-gates.md).
+Independent Standards and Spec source reviews each found zero actionable findings
+in `e7792b3...1292bab`. Typecheck and four changed-file JavaScript syntax checks
+passed; typecheck excludes these private JavaScript files. Unchanged full
+`npm run verify` exited zero on Node 22.19.0/npm 11.5.2, including tooling,
+package contract, packed consumer and locked acceptance with serial browser checks.
+Final direct typecheck also passed. The subsequent standalone affected file passed
+14/14 with zero failures/skips in 173,634 ms aggregate. New cases: invalidation
+10,994 ms; metadata 10,993 ms; canonical node 10,984 ms; natural release/review/verify
+17,499 ms. All existing 60,000 ms per-test ceilings are unchanged. Final four-file
+syntax checks and diff check passed. No hosted CI claim. Final audit confirms all
+three temporary bypasses restored, core guard predicates unchanged, no logging,
+and main clean/unchanged at `0867957`. All five scoped manual gates are met,
+zero unmet/abandoned; later-witness approval remains outside those scoped gates.
+Final regression and source-audit evidence is retained in
+[the manual ledger](constrained-import-prerelease-integrity-gates.md).
 
 ## Remaining sequence and explicit approval checkpoint
 
